@@ -1,0 +1,20 @@
+{
+  "name": "positive-inking-mvp",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "engine",
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,web -c auto \"npm run dev -w server\" \"npm run dev -w web\"",
+    "build": "npm run build -w engine && npm run build -w server && npm run build -w web",
+    "test": "npm run test -w engine && npm run test -w server",
+    "verify-model": "npm run verify-model -w server",
+    "typecheck": "npm run typecheck -w engine && npm run typecheck -w server && npm run typecheck -w web"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

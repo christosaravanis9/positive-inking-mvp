@@ -4,6 +4,7 @@ import { requestProvenance } from "../api/provenance";
 import { requestDiscovery } from "../api/discovery";
 import { AsyncError } from "../components/AsyncError";
 import { OptionChips } from "../components/OptionChips";
+import { VoiceInputButton } from "../components/VoiceInput";
 import { logTelemetryEvent } from "../instrumentation/telemetry";
 import type { DiscoveryData } from "../api/types";
 import type { ProvenanceResult } from "@positive-inking/engine";
@@ -151,6 +152,7 @@ export function ImageProvenance() {
       <div className="screen">
         <h2>Tell me more about {reentrySubject}</h2>
         <textarea value={elaborationText} onChange={(e) => setElaborationText(e.target.value)} />
+        <VoiceInputButton onTranscript={(t) => setElaborationText((prev) => (prev.trim() ? `${prev.trim()} ${t}` : t))} />
         <AsyncError onRetry={submitElaboration} />
         <button onClick={submitElaboration} disabled={elaborationText.trim().length === 0}>
           Continue
@@ -181,6 +183,7 @@ export function ImageProvenance() {
         connected to anyone?
       </p>
       <textarea value={text} onChange={(e) => setText(e.target.value)} />
+      <VoiceInputButton onTranscript={(t) => setText((prev) => (prev.trim() ? `${prev.trim()} ${t}` : t))} />
       <AsyncError onRetry={submit} />
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button onClick={submit} disabled={text.trim().length === 0}>

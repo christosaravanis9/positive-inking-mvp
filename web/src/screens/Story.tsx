@@ -2,19 +2,21 @@ import { useState } from "react";
 import { useJourney } from "../journey/JourneyProvider";
 import { requestDiscovery } from "../api/discovery";
 import { AsyncError } from "../components/AsyncError";
+import { VoiceInputButton } from "../components/VoiceInput";
 import type { Viewpoint } from "@positive-inking/engine";
 
 /** Screen 3 (§8, full mode). Runs AI Action A (Discovery, §9) on submit. */
 export function Story() {
   const { state, patchProject, patchUI, setError, beginAttempt } = useJourney();
   const [text, setText] = useState(state.project.raw_story);
+  const [usedVoice, setUsedVoice] = useState(false);
 
   async function submit() {
     if (text.trim().length === 0) return;
     // §16.1: raw_story is written before any network request, so a failed or
     // hung call can never lose it (AC 55). Discovery-derived fields are
     // patched separately, only once the call actually succeeds.
-    patchProject({ raw_story: text, story_transcript: text, input_method: "typed" });
+    patchProject({ raw_story: text, story_transcript: text, input_method: usedVoice ? "voice" : "typed" });
     beginAttempt();
     try {
       const result = await requestDiscovery(text, state.project.user_viewpoint ?? undefined);
@@ -64,6 +66,12 @@ export function Story() {
         feel drawn to getting tattooed.
       </p>
       <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Who or what is involved? Why does it matter?" />
+      <VoiceInputButton
+        onTranscript={(t) => {
+          setText((prev) => (prev.trim() ? `${prev.trim()} ${t}` : t));
+          setUsedVoice(true);
+        }}
+      />
       <AsyncError onRetry={submit} />
       <button onClick={submit} disabled={text.trim().length === 0}>
         Continue

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useJourney } from "../journey/JourneyProvider";
+import { VoiceInputButton } from "../components/VoiceInput";
 
 /**
  * Screen 3A (§8, attraction/expert). No interpretation, no themes, no Why --
@@ -9,15 +10,22 @@ import { useJourney } from "../journey/JourneyProvider";
 export function ImageDescription() {
   const { state, patchProject, patchUI } = useJourney();
   const [text, setText] = useState(state.project.raw_story);
+  const [usedVoice, setUsedVoice] = useState(false);
 
   return (
     <div className="screen">
       <h2>What do you want it to be?</h2>
       <p className="supporting">What it looks like, anything you've seen that's close, anything you definitely don't want.</p>
       <textarea value={text} onChange={(e) => setText(e.target.value)} />
+      <VoiceInputButton
+        onTranscript={(t) => {
+          setText((prev) => (prev.trim() ? `${prev.trim()} ${t}` : t));
+          setUsedVoice(true);
+        }}
+      />
       <button
         onClick={() => {
-          patchProject({ raw_story: text, story_transcript: text, input_method: "typed" });
+          patchProject({ raw_story: text, story_transcript: text, input_method: usedVoice ? "voice" : "typed" });
           patchUI({ imageDescribed: true });
         }}
         disabled={text.trim().length === 0}

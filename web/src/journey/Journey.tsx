@@ -65,7 +65,7 @@ export function Journey() {
         </div>
       )}
       <ScreenComponent key={screen} />
-      <EngineInspector />
+      {import.meta.env.DEV && <EngineInspector />}
     </div>
   );
 }

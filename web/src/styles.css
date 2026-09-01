@@ -130,6 +130,32 @@ pre {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
+.inspector h4 {
+  margin: 16px 0 4px;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+}
+
+.inspector table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.inspector table td {
+  border-top: 1px solid var(--border);
+  padding: 4px 6px;
+  vertical-align: top;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.inspector table td:first-child {
+  white-space: nowrap;
+  font-weight: 600;
+}
+
 .screen {
   display: flex;
   flex-direction: column;

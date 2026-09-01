@@ -1,5 +1,6 @@
 import { env, isModelConfigured } from "./env.js";
 import { ModelError } from "./errors.js";
+import { logModelTiming } from "./modelTiming.js";
 import type { ModelRoute } from "@positive-inking/engine";
 
 export interface StructuredToolSpec {
@@ -34,6 +35,12 @@ export interface StructuredCallResult {
   /** Raw response body, kept for debugging/inspection. */
   raw: unknown;
 }
+
+// Every attemptCall outcome (success or failure) is logged via
+// modelTiming.ts's logModelTiming -- see that module's own comment for why:
+// this is the instrumentation needed to tell, on the next real timeout,
+// whether the configured budget is genuinely too small for the call's real
+// output volume or something else is inflating elapsed time.
 
 /**
  * Minimal fetch-shaped type so tests can inject a mock without pulling in
@@ -95,7 +102,7 @@ export async function callModelForStructuredOutput(
     const remainingMs = deadline - Date.now();
     if (remainingMs <= 0) break; // Budget already exhausted -- do not start another attempt.
     try {
-      return await attemptCall(request, fetchImpl, remainingMs);
+      return await attemptCall(request, fetchImpl, remainingMs, attempt + 1);
     } catch (err) {
       const modelError =
         err instanceof ModelError
@@ -117,6 +124,7 @@ async function attemptCall(
   request: StructuredCallRequest,
   fetchImpl: FetchLike,
   timeoutMs: number,
+  attemptNumber: number,
 ): Promise<StructuredCallResult> {
   const attemptStart = Date.now();
   const controller = new AbortController();
@@ -145,6 +153,14 @@ async function attemptCall(
 
     if (!response.ok) {
       const body = await safeJson(response);
+      logModelTiming({
+        stage: request.stage,
+        attempt: attemptNumber,
+        elapsedMs: Date.now() - attemptStart,
+        budgetMs: timeoutMs,
+        outcome: "model_http_error",
+        httpStatus: response.status,
+      });
       throw new ModelError(
         "model_http_error",
         `Model API returned HTTP ${response.status}: ${JSON.stringify(body)}`,
@@ -154,10 +170,20 @@ async function attemptCall(
 
     const raw = (await response.json()) as {
       content?: Array<{ type: string; input?: unknown; name?: string }>;
+      usage?: { input_tokens?: number; output_tokens?: number };
     };
 
     const toolUse = raw.content?.find((block) => block.type === "tool_use" && block.name === request.tool.name);
     if (!toolUse || toolUse.input === undefined) {
+      logModelTiming({
+        stage: request.stage,
+        attempt: attemptNumber,
+        elapsedMs: Date.now() - attemptStart,
+        budgetMs: timeoutMs,
+        outcome: "model_invalid_response",
+        inputTokens: raw.usage?.input_tokens,
+        outputTokens: raw.usage?.output_tokens,
+      });
       throw new ModelError(
         "model_invalid_response",
         "Model response did not contain the expected structured tool_use block.",
@@ -165,16 +191,35 @@ async function attemptCall(
       );
     }
 
+    logModelTiming({
+      stage: request.stage,
+      attempt: attemptNumber,
+      elapsedMs: Date.now() - attemptStart,
+      budgetMs: timeoutMs,
+      outcome: "success",
+      inputTokens: raw.usage?.input_tokens,
+      outputTokens: raw.usage?.output_tokens,
+    });
+
     return { data: toolUse.input, raw };
   } catch (err) {
     if (err instanceof ModelError) throw err;
     if ((err as Error).name === "AbortError") {
+      const elapsedMs = Date.now() - attemptStart;
+      logModelTiming({ stage: request.stage, attempt: attemptNumber, elapsedMs, budgetMs: timeoutMs, outcome: "model_timeout" });
       throw new ModelError("model_timeout", `Model request timed out after ${timeoutMs}ms.`, {
         stage: request.stage,
-        elapsedMs: Date.now() - attemptStart,
+        elapsedMs,
         budgetMs: timeoutMs,
       });
     }
+    logModelTiming({
+      stage: request.stage,
+      attempt: attemptNumber,
+      elapsedMs: Date.now() - attemptStart,
+      budgetMs: timeoutMs,
+      outcome: "model_network_error",
+    });
     throw new ModelError("model_network_error", (err as Error).message, err);
   } finally {
     clearTimeout(timer);

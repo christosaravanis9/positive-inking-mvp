@@ -105,6 +105,50 @@ budgetMs }` is a secret either way (no API key, no model name, no prompt
 content) — the gate is about keeping the user-facing error contract
 minimal in production, not about hiding sensitive data.
 
+## Open question: Association still timed out at the raised 30s ceiling
+
+A real run (fresh local setup, real Anthropic key, Safari private window)
+reproduced `[model_timeout]` on Association again — at the *new* 30000ms
+budget, not the original 20000ms one. The UI stayed stable (no state
+mutation, no stale banner — the USER-DECISION INVARIANT held), so this is
+purely a "is 30s enough" question, not a repeat of either prior incident.
+
+Rather than guess again — raise the ceiling further, trim the schema, or
+move to streaming — `server/src/modelTiming.ts` adds diagnostic-only timing
+instrumentation first. Every real model call attempt (success or failure)
+now logs one `[model-timing]` line to the server's stdout:
+
+```
+[model-timing] stage=association attempt=1 outcome=success elapsed_ms=27400 budget_ms=30000 input_tokens=612 output_tokens=3800 output_tokens_per_sec=138.7
+[model-timing] stage=association attempt=1 outcome=model_timeout elapsed_ms=30000 budget_ms=30000
+```
+
+On the next real Association timeout, this line (visible in the terminal
+running `npm run dev`) answers the open question directly:
+
+- **`output_tokens` close to the route's `maxTokens` (4096) and a
+  plausible `output_tokens_per_sec`** → the call is genuinely generation-
+  time-bound; 30s isn't enough headroom for this route's real output
+  volume, and the fix is either raising the ceiling further (with matching
+  client-side loading UX) or reducing what a single Association call is
+  asked to produce.
+- **A timeout with no success ever logged, or a success that returns
+  quickly on a *retry* after a slow first attempt** → points at network/
+  cold-start variance rather than raw generation time, which argues for a
+  different fix (e.g. treating the first attempt's slowness specially,
+  or investigating the network path) rather than just raising the number
+  again.
+- **Successful calls consistently finishing well under budget with normal
+  throughput, and only occasional outliers timing out** → suggests
+  intermittent load/latency spikes rather than an under-provisioned
+  ceiling, which argues for tolerance (e.g. a slightly higher ceiling
+  sized to the observed p99, not the worst case blindly).
+
+This is intentionally the *only* change made in response to the second
+report — no ceiling was raised, no schema trimmed, no streaming added —
+until a real trace exists to justify which fix actually addresses the
+observed cause rather than the assumed one.
+
 ## Tests
 
 - `engine/test/modelTimeouts.test.ts` — every route has a bounded, non-zero
@@ -118,6 +162,11 @@ minimal in production, not about hiding sensitive data.
 - `server/test/errors.test.ts` — `sendModelErrorResponse` attaches
   `{stage, elapsedMs, budgetMs}` in development, omits it in production, and
   never attaches it for a non-timeout error.
+- `server/test/modelTiming.test.ts` — `logModelTiming` formats every field
+  correctly, including derived `output_tokens_per_sec`, and omits token
+  fields for an outcome that never returned any (a timeout). Also covered
+  end-to-end in `modelClient.test.ts`: a real success/timeout attempt
+  actually emits the `[model-timing]` line.
 - `web/src/journey/useAsyncAction.test.tsx` (pre-existing, from the earlier
   async-state incident) already proves a timeout leaves the current
   screen/user input untouched and that a stale response — including one

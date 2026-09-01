@@ -213,6 +213,56 @@ describe("callModelForStructuredOutput", () => {
     vi.resetModules();
   }, 2000);
 
+  it("logs timing + token usage on a successful call (the instrumentation added to diagnose real Association timeouts)", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse({
+        content: [{ type: "tool_use", name: "record_thing", input: { hello: "world" } }],
+        usage: { input_tokens: 300, output_tokens: 1500 },
+      }),
+    );
+
+    await callModelForStructuredOutput({ system: "sys", userMessage: "msg", tool, stage: "association" }, fetchImpl as never);
+
+    const line = logSpy.mock.calls.find(([msg]) => typeof msg === "string" && msg.includes("[model-timing]"))?.[0] as
+      | string
+      | undefined;
+    expect(line).toBeDefined();
+    expect(line).toContain("stage=association");
+    expect(line).toContain("outcome=success");
+    expect(line).toContain("input_tokens=300");
+    expect(line).toContain("output_tokens=1500");
+
+    logSpy.mockRestore();
+  });
+
+  it("logs timing on a timeout, with no token fields (none were ever returned)", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const fetchImpl = vi.fn().mockImplementation(
+      (_url: string, init: { signal: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          init.signal.addEventListener("abort", () => {
+            const err = new Error("aborted");
+            err.name = "AbortError";
+            reject(err);
+          });
+        }),
+    );
+
+    await expect(
+      callModelForStructuredOutput({ system: "sys", userMessage: "msg", tool, stage: "association", timeoutMs: 15 }, fetchImpl as never),
+    ).rejects.toMatchObject({ code: "model_timeout" });
+
+    const line = logSpy.mock.calls.find(([msg]) => typeof msg === "string" && msg.includes("[model-timing]"))?.[0] as
+      | string
+      | undefined;
+    expect(line).toBeDefined();
+    expect(line).toContain("outcome=model_timeout");
+    expect(line).toContain("budget_ms=15");
+
+    logSpy.mockRestore();
+  }, 2000);
+
   it("throws model_not_configured immediately (no network call) when the key is missing", async () => {
     const original = process.env.ANTHROPIC_API_KEY;
     process.env.ANTHROPIC_API_KEY = "";

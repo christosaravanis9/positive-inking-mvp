@@ -115,14 +115,7 @@ regardless of how complete the surrounding UX looks.
 
 ## Status
 
-This repository is built in phases; see the task list / commit history for what's
-implemented. The full intake journey (Screens 1–13), the deterministic adaptive
-engine, the reference/consent flow, the low-confidence correction path, the new-idea
-loop, visual-association ranking, full placement capture, style-reference resolution,
-the provenance re-entry offer, the advanced-controls reveal, first-party local
-instrumentation, and a minimal voice-input affordance are all implemented and
-covered by the engine/server unit suite plus browser verification. This is a
-**functional V3.0 intake prototype**, not a production-ready application — see
-"Production launch blockers" above for what's still required before real user data
-is involved, and `docs/test-journeys.md` / commit history for the honest, itemised
-state of any remaining V3.0 behaviour.
+See `docs/PROJECT_STATUS.md` for the canonical, always-current status (what's built,
+what's in progress, open decisions, known risks) and the append-only session log
+behind it — that file, not this section, is the source of truth. `docs/test-journeys.md`
+and commit history carry the itemised state of any remaining V3.0 behaviour.

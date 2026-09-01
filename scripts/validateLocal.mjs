@@ -342,8 +342,8 @@ function printReport(model) {
   }
 
   console.log("\nLatency targets:");
-  console.log("Discovery production budget: 16s");
-  console.log("Association production budget: 30s");
+  console.log("Discovery production budget: 20s");
+  console.log("Association production budget: 40s");
   console.log("Blueprint production budget: 30s");
 
   if (warnings.length > 0) {

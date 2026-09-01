@@ -116,9 +116,31 @@ export function ArtisticDirection() {
     );
   }
 
+  function openAdvancedControls() {
+    // §12.4: opening this is itself the "asked for more control" signal that makes the literacy bonus eligible.
+    patchUI({ advancedControlsOpened: true, userIsTattooLiterate: true });
+  }
+
   const key = result.nextToAsk;
   return (
     <div className="screen">
+      {!ui.advancedControlsOpened && budget.advanced_controls !== "suppressed" && (
+        <p className="supporting" style={{ marginBottom: 4 }}>
+          Know exactly what you want?{" "}
+          {budget.advanced_controls === "offered" ? (
+            <button className="secondary" style={{ padding: "4px 10px" }} onClick={openAdvancedControls}>
+              Show advanced options
+            </button>
+          ) : (
+            <button
+              onClick={openAdvancedControls}
+              style={{ background: "none", border: "none", padding: 0, color: "inherit", textDecoration: "underline", cursor: "pointer" }}
+            >
+              Show advanced options
+            </button>
+          )}
+        </p>
+      )}
       <h2>{DIMENSION_QUESTIONS[key]}</h2>
       <OptionChips options={DIMENSION_OPTIONS[key]} selected={[]} onSelect={(v) => answer(key, v)} />
     </div>

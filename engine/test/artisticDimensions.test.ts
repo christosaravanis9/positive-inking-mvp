@@ -167,6 +167,27 @@ describe("evaluateArtisticDimensions (§12.8)", () => {
     expect(realism.status).not.toBe("confirmed");
   });
 
+  it("§12.11: opening advanced controls triggers edge_treatment even for a non-literate user, and it stays defaulted while closed", () => {
+    const answeredUpTo = {
+      colour: "black_and_grey",
+      realism: "illustrative",
+      visual_presence: "clearly_present",
+      linework: "structured",
+      shading: "smooth_greywash",
+      contrast: "balanced",
+      surface_detail: "moderate",
+    };
+    const closed = evaluateArtisticDimensions(
+      baseContext({ has_colour_signal: true, user_is_tattoo_literate: false, advanced_controls_opened: false, already_answered: answeredUpTo }),
+    );
+    expect(closed.dimensions.find((d) => d.key === "edge_treatment")!.status).toBe("skipped_defaulted");
+
+    const opened = evaluateArtisticDimensions(
+      baseContext({ has_colour_signal: true, user_is_tattoo_literate: false, advanced_controls_opened: true, already_answered: answeredUpTo }),
+    );
+    expect(opened.dimensions.find((d) => d.key === "edge_treatment")!.status).toBe("asked");
+  });
+
   it("confirmed values from a prior pass are carried forward and never re-asked", () => {
     const result = evaluateArtisticDimensions(baseContext({ already_answered: { colour: "selective" } }));
     const colour = result.dimensions.find((d) => d.key === "colour")!;

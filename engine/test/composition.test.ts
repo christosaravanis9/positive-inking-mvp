@@ -40,9 +40,13 @@ describe("composition eligibility (§12.5)", () => {
 
   it("reading direction: eligible with 3+ elements, text present, or narrative_scene; otherwise inferred", () => {
     expect(evaluateReadingDirection({ element_count: 3, has_text_or_handwriting: false, concept_shape: "multi_element" }).eligible).toBe(true);
-    expect(evaluateReadingDirection({ element_count: 1, has_text_or_handwriting: true, concept_shape: "text_led" }).eligible).toBe(true);
+    expect(evaluateReadingDirection({ element_count: 2, has_text_or_handwriting: true, concept_shape: "text_led" }).eligible).toBe(true);
     expect(evaluateReadingDirection({ element_count: 1, has_text_or_handwriting: false, concept_shape: "narrative_scene" }).eligible).toBe(true);
     expect(evaluateReadingDirection({ element_count: 2, has_text_or_handwriting: false, concept_shape: "paired_elements" }).eligible).toBe(false);
+  });
+
+  it("a single text/signature element has no real reading-direction decision to make, so it is not asked (refined per §25 journey trace)", () => {
+    expect(evaluateReadingDirection({ element_count: 1, has_text_or_handwriting: true, concept_shape: "text_led" }).eligible).toBe(false);
   });
 
   it("containment vs wrap: skipped for small/medium contained work", () => {

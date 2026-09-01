@@ -9,9 +9,11 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "build": "tsc -p tsconfig.json --outDir dist"
+    "build": "tsc -p tsconfig.json --outDir dist",
+    "journeys": "tsx scripts/testJourneys.ts"
   },
   "devDependencies": {
+    "tsx": "^4.19.2",
     "typescript": "^5.6.3",
     "vitest": "^2.1.4"
   }

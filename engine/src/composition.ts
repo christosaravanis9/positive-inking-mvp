@@ -60,9 +60,23 @@ export interface ReadingDirectionInputs {
   concept_shape: ConceptShape;
 }
 
+/**
+ * §12.5 lists this trigger as "element_count >= 3, text present, or narrative
+ * scene" — taken completely literally, "text present" alone fires for a
+ * single signature or a single word, where there is no real reading-order
+ * decision to make (it reads the one way it reads). The §25 journey trace
+ * for a single exact-fidelity signature under `surrendered` control (budget
+ * of exactly one discretionary composition question) exposed this directly:
+ * the table would spend that one slot on a non-decision. Reading direction
+ * only becomes material once there is more than one thing to order — either
+ * several elements generally, or several text elements specifically — so
+ * `has_text_or_handwriting` is required alongside `element_count >= 2` here,
+ * not on its own. Smallest change that fixes the waste without touching the
+ * table's other triggers.
+ */
 export function evaluateReadingDirection(input: ReadingDirectionInputs): EligibilityDecision {
-  if (input.element_count >= 3 || input.has_text_or_handwriting || input.concept_shape === "narrative_scene") {
-    return { eligible: true, mandatory: false, reason: "Three or more elements, text present, or a narrative scene (§12.5)." };
+  if (input.element_count >= 3 || (input.has_text_or_handwriting && input.element_count >= 2) || input.concept_shape === "narrative_scene") {
+    return { eligible: true, mandatory: false, reason: "Three or more elements, multiple text elements, or a narrative scene (§12.5, refined)." };
   }
   return { eligible: false, mandatory: false, reason: "Otherwise inferred and stated back to the user, not asked (§12.5)." };
 }

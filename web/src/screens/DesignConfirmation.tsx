@@ -5,8 +5,9 @@ import { AsyncError } from "../components/AsyncError";
 import { formatPlacementSummary } from "../journey/placementSummary";
 import { labelForDimensionValue } from "../journey/artisticDimensionLabels";
 import { describeCreativeControl } from "../journey/creativeControlLabels";
+import { buildConfirmedProjectSummary } from "../journey/blueprintSummary";
 import { logTelemetryEvent, elapsedSinceJourneyStarted } from "../instrumentation/telemetry";
-import { buildReferenceChecklist, isReferenceEntrySatisfied, anyRequiredReferenceMissing } from "@positive-inking/engine";
+import { buildReferenceChecklist, isReferenceEntrySatisfied, anyRequiredReferenceMissing, hasUnresolvedPrimaryImagery } from "@positive-inking/engine";
 
 /** Screen 13 (§8). The complete summary stays on screen next to the action -- no detached verification (§6, AC 64). "Still needed: [references]" is the spec's own Screen 13 bullet (§8). */
 export function DesignConfirmation() {
@@ -19,22 +20,7 @@ export function DesignConfirmation() {
 
   function build() {
     void run(async (guard) => {
-      const summary = [
-        `Story/why: ${project.statement_of_intention || project.attraction_origin}`,
-        `Themes: ${project.confirmed_themes.join(", ") || "none confirmed"}`,
-        `Elements: ${project.visual_elements.map((e) => `${e.description} (${e.hierarchy}, ${e.fidelity})`).join("; ")}`,
-        `Composition: ${project.composition_type}, background: ${project.composition_background}, density: ${project.design_density}`,
-        `Artistic direction: colour ${project.colour_strategy}, realism ${project.realism_level}, presence ${project.visual_presence}, linework ${project.linework_weight}, shading ${project.shading_method}, contrast ${project.contrast_level}`,
-        project.fidelity_treatment ? `Fidelity treatment: ${project.fidelity_treatment}` : "",
-        `Placement: ${placementSummary}`,
-        `Creative control: ${project.creative_control}`,
-        `Avoid: ${project.avoid_list_status === "asked_answered" ? project.avoid_list.join(", ") : project.avoid_list_status}`,
-        outstanding.length > 0
-          ? `Still needed from the client: ${outstanding.map((o) => `${o.description} (${o.status.replace(/_/g, " ")})`).join("; ")}`
-          : "",
-      ]
-        .filter(Boolean)
-        .join("\n");
+      const summary = buildConfirmedProjectSummary(project, outstanding);
 
       const blueprint = await requestBlueprint({
         journey_mode: project.journey_mode,
@@ -43,7 +29,7 @@ export function DesignConfirmation() {
         statement_user_authored: false,
         interpretation_confidence: project.interpretation_confidence,
         any_required_reference_missing: anyRequiredReferenceMissing(checklist),
-        has_unresolved_contradiction: project.contradictions.length > 0,
+        has_unresolved_contradiction: project.contradictions.length > 0 || hasUnresolvedPrimaryImagery(project.visual_elements),
         confirmed_project_summary: summary,
       });
       if (guard.isStale()) return;

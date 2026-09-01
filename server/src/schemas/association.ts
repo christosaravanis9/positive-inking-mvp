@@ -58,7 +58,28 @@ tattoos, jewellery, props, decorative symbols or invented scenery.
 see (e.g. an exact artefact with no uploaded reference) as plain descriptions
 with one or two resolutions. Do not resolve them yourself.
 
-8. OUTPUT — valid structured data via the record_associations tool.`;
+8. CONCRETENESS — A candidate's description must be an actual visual
+proposition: a specific image, motif, mark-making idea or object, not a
+category name for information you do not have yet.
+  BAD (a category, not a proposition): "something representing your bond";
+  "a specific object that belongs to her".
+  BETTER (a real starting point, even if still open to change): "a small
+  hand-drawn motif built from her handwriting"; "a new mark made by
+  overlapping the outlines of both your initials"; "a fragment of a specific
+  object or place, once you tell us which one".
+  Mark such a candidate's resolution_state as "needs_client_specific_detail"
+  and write the one question that would make it concrete as
+  follow_up_prompt (e.g. "What object of hers carries the most memory for
+  you?") — never leave that question unasked by presenting the category as
+  if it were already a resolved idea. Mark resolution_state "concrete" for
+  everything else, including a deliberately abstract new_materialisation
+  idea the client has explicitly chosen not to tie to a literal object —
+  concreteness is about whether the visual idea itself is real, not about
+  whether it is literal or abstract in style.
+
+9. OUTPUT — valid structured data via the record_associations tool.`;
+
+const resolutionStateEnum = ["concrete", "needs_client_specific_detail"] as const;
 
 const sourceCategoryEnum = [
   "personal_artefact",
@@ -92,9 +113,11 @@ export const associationToolInputSchema = {
           description: { type: "string" },
           personal_meaning: { type: "string" },
           source_category: { type: "string", enum: sourceCategoryEnum },
+          resolution_state: { type: "string", enum: resolutionStateEnum },
+          follow_up_prompt: { type: "string" },
           ...rankingProps,
         },
-        required: ["description", "personal_meaning", "source_category", ...Object.keys(rankingProps)],
+        required: ["description", "personal_meaning", "source_category", "resolution_state", ...Object.keys(rankingProps)],
       },
     },
     place_role: { type: "string", enum: ["none", "subject", "setting", "ambiguous"] },
@@ -131,17 +154,27 @@ export const associationToolInputSchema = {
   ],
 } as const;
 
-const visualCandidateSchema = z.object({
-  description: z.string(),
-  personal_meaning: z.string(),
-  source_category: z.enum(sourceCategoryEnum),
-  personal_relevance: z.number().min(0).max(10),
-  story_relevance: z.number().min(0).max(10),
-  visual_potential: z.number().min(0).max(10),
-  originality: z.number().min(0).max(10),
-  genericity: z.number().min(0).max(10),
-  reference_availability: z.number().min(0).max(10),
-});
+const visualCandidateSchema = z
+  .object({
+    description: z.string(),
+    personal_meaning: z.string(),
+    source_category: z.enum(sourceCategoryEnum),
+    resolution_state: z.enum(resolutionStateEnum),
+    follow_up_prompt: z.string().optional(),
+    personal_relevance: z.number().min(0).max(10),
+    story_relevance: z.number().min(0).max(10),
+    visual_potential: z.number().min(0).max(10),
+    originality: z.number().min(0).max(10),
+    genericity: z.number().min(0).max(10),
+    reference_availability: z.number().min(0).max(10),
+  })
+  // A candidate that needs one more detail from the client must actually carry
+  // the question that would surface it -- otherwise the UI has a gate with
+  // nothing to ask, and the placeholder would silently confirm unresolved.
+  .refine((c) => c.resolution_state !== "needs_client_specific_detail" || !!c.follow_up_prompt?.trim(), {
+    message: "follow_up_prompt is required when resolution_state is needs_client_specific_detail",
+    path: ["follow_up_prompt"],
+  });
 
 export const associationResultSchema = z.object({
   visual_candidates: z.array(visualCandidateSchema),

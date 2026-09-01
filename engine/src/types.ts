@@ -54,6 +54,17 @@ export type ReferenceStatus =
   | "optional"
   | "not_needed";
 
+/**
+ * Whether a visual element's description is an actual visual proposition
+ * ("concrete") or still a category standing in for a personal detail the
+ * client has not supplied ("unresolved_placeholder") — see the Association
+ * Engine's resolution_state (§11) and ElementsDiscovery's one micro-question
+ * for turning the latter into the former. Deliberately orthogonal to
+ * fidelity/hierarchy: a deliberately abstract new_materialisation idea is
+ * "concrete" the moment it names a real starting visual, however abstract.
+ */
+export type ElementConcreteness = "concrete" | "unresolved_placeholder";
+
 export type ReadinessState =
   | "blueprint_ready"
   | "references_needed"
@@ -80,6 +91,7 @@ export interface VisualElement {
   reference_status: ReferenceStatus;
   origin: ElementOrigin;
   user_selected: boolean;
+  concreteness: ElementConcreteness;
 }
 
 /** §12.1 — computed after Screen 7, and recomputed after any accepted new idea. */

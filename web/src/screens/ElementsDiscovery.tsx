@@ -33,6 +33,22 @@ interface AddedIdea {
 
 const NEEDS_REFERENCE: ReadonlySet<ElementFidelity> = new Set(["exact", "closely_based_on"]);
 
+/**
+ * §11 concreteness — a candidate marked needs_client_specific_detail carries
+ * a category, not yet a real visual idea (e.g. "a specific object that
+ * belongs to her"). Answering its one follow_up_prompt turns it into one by
+ * appending the client's own concrete detail; this separator is how a
+ * revisit of this screen tells an already-answered detail apart from the
+ * bare candidate text, so going back and confirming again without retyping
+ * never silently drops what was already captured.
+ */
+const DETAIL_SEPARATOR = " — specifically, ";
+
+function extractDetailAnswer(candidateDescription: string, confirmedDescription: string): string {
+  const prefix = candidateDescription + DETAIL_SEPARATOR;
+  return confirmedDescription.startsWith(prefix) ? confirmedDescription.slice(prefix.length) : "";
+}
+
 function draftToConsentRecord(referenceId: string, draft: ReferenceDraft): ConsentRecord | null {
   if (!draft.material_type && !draft.dataUrl) return null;
   return {
@@ -110,6 +126,17 @@ export function ElementsDiscovery() {
     state.ui.associationCandidates.forEach((_, i) => {
       const el = state.project.visual_elements.find((e) => e.id === `candidate-${i}`);
       if (el) map[i] = el.fidelity;
+    });
+    return map;
+  });
+  const [detailByIndex, setDetailByIndex] = useState<Record<number, string>>(() => {
+    const map: Record<number, string> = {};
+    state.ui.associationCandidates.forEach((c, i) => {
+      const el = state.project.visual_elements.find((e) => e.id === `candidate-${i}`);
+      if (el) {
+        const detail = extractDetailAnswer(c.description, el.description);
+        if (detail) map[i] = detail;
+      }
     });
     return map;
   });
@@ -304,9 +331,12 @@ export function ElementsDiscovery() {
           logTelemetryEvent("reference_requested", state.project.project_id, { material_type: draft.material_type });
         }
       }
+      const detailAnswer = detailByIndex[i]?.trim();
+      const description = detailAnswer ? `${candidate.description}${DETAIL_SEPARATOR}${detailAnswer}` : candidate.description;
+      const concreteness = candidate.resolution_state === "concrete" || detailAnswer ? "concrete" : "unresolved_placeholder";
       return {
         id,
-        description: candidate.description,
+        description,
         personal_meaning: candidate.personal_meaning,
         source_category: candidate.source_category,
         hierarchy: "undecided",
@@ -316,6 +346,7 @@ export function ElementsDiscovery() {
         reference_status: statusFromDraft(fidelity, candidate.source_category, draft),
         origin: "system_suggestion",
         user_selected: true,
+        concreteness,
       };
     });
 
@@ -342,6 +373,9 @@ export function ElementsDiscovery() {
         reference_status: statusFromDraft(idea.fidelity, "new_materialisation", draft),
         origin: "visual_inspiration",
         user_selected: true,
+        // The client wrote this themselves -- it is definitionally a real idea,
+        // never a category placeholder needing a follow-up.
+        concreteness: "concrete",
       };
     });
 
@@ -476,6 +510,17 @@ export function ElementsDiscovery() {
                 </label>
                 {selected.has(i) && (
                   <>
+                    {candidate.resolution_state === "needs_client_specific_detail" && (
+                      <label className="reference-field" style={{ display: "block", marginTop: 6 }}>
+                        <span>{candidate.follow_up_prompt ?? "What specifically is this?"}</span>
+                        <input
+                          type="text"
+                          value={detailByIndex[i] ?? ""}
+                          onChange={(e) => setDetailByIndex((prev) => ({ ...prev, [i]: e.target.value }))}
+                          placeholder="Optional, but this is what makes it a real design rather than a placeholder"
+                        />
+                      </label>
+                    )}
                     <select
                       value={fidelityByIndex[i] ?? "interpretive"}
                       onChange={(e) => setFidelityByIndex((prev) => ({ ...prev, [i]: e.target.value as ElementFidelity }))}

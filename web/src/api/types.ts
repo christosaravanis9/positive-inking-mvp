@@ -39,6 +39,8 @@ export interface VisualCandidate {
   description: string;
   personal_meaning: string;
   source_category: string;
+  resolution_state: "concrete" | "needs_client_specific_detail";
+  follow_up_prompt?: string;
   personal_relevance: number;
   story_relevance: number;
   visual_potential: number;

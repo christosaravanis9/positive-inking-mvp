@@ -46,7 +46,7 @@ top of it.
 ## Testing
 
 ```bash
-npm test          # engine + server unit tests (deterministic, no network)
+npm test          # engine + server + web unit tests (deterministic, no network)
 npm run typecheck
 ```
 
@@ -55,6 +55,20 @@ actually testable against — concept_shape derivation, question budgets, eligib
 suppressions, the no-background invariant, the one-clarification limit, confirmed vs.
 recommended separation. Model output quality (interpretation, tone, personalisation)
 needs a human reading real Blueprints; see `docs/test-journeys.md` once Phase 7 lands.
+
+`web/`'s own suite (`web/src/journey/useAsyncAction.test.tsx`, Vitest + jsdom +
+`@testing-library/react`) covers the React/async-state boundary that engine/'s pure
+functions structurally cannot reach: re-entrancy against duplicate submissions,
+staleness after unmount, and that a superseded or post-navigation model response can
+never mutate project/ui state — the exact guarantee behind the USER-DECISION
+INVARIANT described in `docs/async-state-incident.md`.
+
+```bash
+npm run test:integration   # real server + real routes + a local Anthropic
+                           # double against the real Vite-served app --
+                           # not part of `npm test`; takes real wall-clock
+                           # time. See docs/async-state-incident.md.
+```
 
 ## Production launch blockers — §15.7 is NOT solved
 

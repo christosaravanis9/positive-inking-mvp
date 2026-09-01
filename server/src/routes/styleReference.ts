@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { callModelForStructuredOutput } from "../modelClient.js";
 import { ModelError } from "../errors.js";
+import { abortSignalForRequest } from "../requestAbort.js";
 import {
   STYLE_REFERENCE_SYSTEM_PROMPT,
   styleReferenceToolInputSchema,
@@ -42,6 +43,7 @@ styleReferenceRouter.post("/api/style-reference", async (req, res) => {
         description: "Determine which artistic dimensions a named style reference settles.",
         input_schema: styleReferenceToolInputSchema,
       },
+      abortSignal: abortSignalForRequest(req, res),
     });
 
     const resolution = toStyleReferenceResolution(result.data, alreadyConfirmedFiltered);

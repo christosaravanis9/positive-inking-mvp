@@ -49,23 +49,59 @@ const ERROR_MESSAGES: Record<string, string> = {
   network: "Voice input isn't working right now — you can still type.",
 };
 
+/**
+ * Safari (desktop and iOS) has been observed to throw a synchronous
+ * DOMException from recognition.start() itself -- not the async onerror
+ * event -- when dictation/speech services aren't available on the device
+ * (e.g. Dictation disabled in System Settings) or a prior instance hasn't
+ * fully torn down yet. Left unguarded, that throw happens after this
+ * component has already optimistically set state to "listening", leaving
+ * the button stuck showing "Listening" forever with no error shown -- a
+ * silent, permanently-broken control that looks identical to "voice input
+ * did nothing." The try/catch below, plus the stuck-state safety timeout,
+ * exist specifically to turn that into a visible, recoverable error state.
+ */
+const NO_RESPONSE_TIMEOUT_MS = 8000;
+
 export function VoiceInputButton({ onTranscript, disabled }: { onTranscript: (text: string) => void; disabled?: boolean }) {
   const [supported] = useState(() => getSpeechRecognitionConstructor() !== null);
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const [message, setMessage] = useState<string | null>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const stuckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    return () => recognitionRef.current?.stop();
+    return () => {
+      recognitionRef.current?.stop();
+      if (stuckTimerRef.current) clearTimeout(stuckTimerRef.current);
+    };
   }, []);
 
   if (!supported) return null;
+
+  function fail(msg: string, state: VoiceState = "error") {
+    if (stuckTimerRef.current) {
+      clearTimeout(stuckTimerRef.current);
+      stuckTimerRef.current = null;
+    }
+    recognitionRef.current = null;
+    setVoiceState(state);
+    setMessage(msg);
+  }
 
   function start() {
     const Ctor = getSpeechRecognitionConstructor();
     if (!Ctor) return;
     setMessage(null);
-    const recognition = new Ctor();
+
+    let recognition: SpeechRecognitionLike;
+    try {
+      recognition = new Ctor();
+    } catch {
+      fail("Voice input isn't available right now — you can still type.");
+      return;
+    }
+
     recognition.lang = navigator.language || "en-US";
     recognition.continuous = false;
     recognition.interimResults = false;
@@ -78,17 +114,50 @@ export function VoiceInputButton({ onTranscript, disabled }: { onTranscript: (te
       if (transcript) onTranscript(transcript);
     };
     recognition.onerror = (event) => {
-      setVoiceState(event.error === "not-allowed" || event.error === "service-not-allowed" ? "denied" : "error");
-      setMessage(ERROR_MESSAGES[event.error] ?? "Voice input isn't working right now — you can still type.");
+      fail(
+        ERROR_MESSAGES[event.error] ?? "Voice input isn't working right now — you can still type.",
+        event.error === "not-allowed" || event.error === "service-not-allowed" ? "denied" : "error",
+      );
     };
-    recognition.onend = () => setVoiceState((s) => (s === "listening" ? "idle" : s));
+    recognition.onend = () => {
+      if (stuckTimerRef.current) {
+        clearTimeout(stuckTimerRef.current);
+        stuckTimerRef.current = null;
+      }
+      setVoiceState((s) => (s === "listening" ? "idle" : s));
+    };
+
     recognitionRef.current = recognition;
     setVoiceState("listening");
-    recognition.start();
+
+    try {
+      recognition.start();
+    } catch {
+      // Exactly the Safari failure mode this component exists to catch: start()
+      // threw synchronously, so onerror/onend will never fire on their own.
+      fail("Voice input isn't responding right now — you can still type.");
+      return;
+    }
+
+    // Defense in depth against any other silent-hang mode (a start() that
+    // neither throws nor ever calls back): surface an error rather than
+    // leaving the button stuck on "Listening" indefinitely.
+    stuckTimerRef.current = setTimeout(() => {
+      recognitionRef.current?.stop();
+      fail("Voice input isn't responding — you can still type.");
+    }, NO_RESPONSE_TIMEOUT_MS);
   }
 
   function stop() {
-    recognitionRef.current?.stop();
+    if (stuckTimerRef.current) {
+      clearTimeout(stuckTimerRef.current);
+      stuckTimerRef.current = null;
+    }
+    try {
+      recognitionRef.current?.stop();
+    } catch {
+      // Already stopped/torn down -- nothing to do.
+    }
     setVoiceState("idle");
   }
 

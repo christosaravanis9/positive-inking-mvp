@@ -3,7 +3,17 @@ export interface ApiError {
   message: string;
 }
 
-const CLIENT_TIMEOUT_MS = 25000;
+/**
+ * Must exceed the server's own worst-case total time for a model call, with
+ * real margin for network/Express overhead on top -- otherwise the client
+ * gives up while the server is still legitimately working (see
+ * server/src/modelClient.ts's callModelForStructuredOutput, which bounds
+ * its own total wall-clock time, across its one silent retry, to
+ * MODEL_REQUEST_TIMEOUT_MS -- 20000ms by default, see server/.env.example).
+ * If either value changes, check the other: this constant should stay
+ * comfortably above the server's configured total budget.
+ */
+const CLIENT_TIMEOUT_MS = 30000;
 
 /**
  * Shared POST helper for every model-backed endpoint. Never swallows a

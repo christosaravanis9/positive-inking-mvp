@@ -3,6 +3,7 @@ import { z } from "zod";
 import { computeBlueprintSectionEligibility, computeReadiness } from "@positive-inking/engine";
 import { callModelForStructuredOutput } from "../modelClient.js";
 import { ModelError } from "../errors.js";
+import { abortSignalForRequest } from "../requestAbort.js";
 import { BLUEPRINT_SYSTEM_PROMPT, blueprintResultSchema, blueprintToolInputSchema } from "../schemas/blueprint.js";
 
 const requestSchema = z.object({
@@ -50,6 +51,7 @@ blueprintRouter.post("/api/blueprint", async (req, res) => {
         input_schema: blueprintToolInputSchema,
       },
       maxTokens: 4096,
+      abortSignal: abortSignalForRequest(req, res),
     });
 
     const validated = blueprintResultSchema.safeParse(result.data);

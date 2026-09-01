@@ -1,4 +1,5 @@
 import { useJourney } from "../journey/JourneyProvider";
+import { useAsyncAction } from "../journey/useAsyncAction";
 import { requestBlueprint } from "../api/blueprint";
 import { AsyncError } from "../components/AsyncError";
 import { formatPlacementSummary } from "../journey/placementSummary";
@@ -7,15 +8,15 @@ import { buildReferenceChecklist, isReferenceEntrySatisfied, anyRequiredReferenc
 
 /** Screen 13 (§8). The complete summary stays on screen next to the action -- no detached verification (§6, AC 64). "Still needed: [references]" is the spec's own Screen 13 bullet (§8). */
 export function DesignConfirmation() {
-  const { state, patchUI, setError, beginAttempt } = useJourney();
+  const { state, patchUI } = useJourney();
+  const { run, pending } = useAsyncAction();
   const { project } = state;
   const checklist = buildReferenceChecklist(project.visual_elements, project.consent_records);
   const outstanding = checklist.filter((entry) => !isReferenceEntrySatisfied(entry));
   const placementSummary = formatPlacementSummary(project);
 
-  async function build() {
-    beginAttempt();
-    try {
+  function build() {
+    void run(async (guard) => {
       const summary = [
         `Story/why: ${project.statement_of_intention || project.attraction_origin}`,
         `Themes: ${project.confirmed_themes.join(", ") || "none confirmed"}`,
@@ -43,21 +44,15 @@ export function DesignConfirmation() {
         has_unresolved_contradiction: project.contradictions.length > 0,
         confirmed_project_summary: summary,
       });
+      if (guard.isStale()) return;
 
       patchUI({ blueprint, blueprintReady: true, designConfirmed: true });
-      setError(null);
       // §22: completion-rate numerator + time-by-mode.
       logTelemetryEvent("journey_completed", project.project_id, {
         journey_mode: project.journey_mode,
         elapsed_ms: elapsedSinceJourneyStarted(project.project_id),
       });
-    } catch (err) {
-      setError({
-        code: (err as { code?: string }).code ?? "unknown_error",
-        message: err instanceof Error ? err.message : "Unknown error",
-        context: "Building your Blueprint",
-      });
-    }
+    }, "Building your Blueprint");
   }
 
   return (
@@ -102,9 +97,12 @@ export function DesignConfirmation() {
         </div>
       )}
       <AsyncError onRetry={build} />
+      {pending && <p className="progress-note">Building your Blueprint...</p>}
       <div style={{ display: "flex", gap: 8 }}>
-        <button onClick={build}>Build my Blueprint</button>
-        <button className="secondary" onClick={() => patchUI({ placementDone: false })}>
+        <button onClick={build} disabled={pending}>
+          {pending ? "Working..." : "Build my Blueprint"}
+        </button>
+        <button className="secondary" onClick={() => patchUI({ placementDone: false })} disabled={pending}>
           Change something
         </button>
       </div>

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { callModelForStructuredOutput } from "../modelClient.js";
 import { ModelError } from "../errors.js";
+import { abortSignalForRequest } from "../requestAbort.js";
 import {
   DISCOVERY_SYSTEM_PROMPT,
   discoveryResultSchema,
@@ -36,6 +37,7 @@ discoveryRouter.post("/api/discovery", async (req, res) => {
         description: "Record the structured Discovery analysis of the user's tattoo story.",
         input_schema: discoveryToolInputSchema,
       },
+      abortSignal: abortSignalForRequest(req, res),
     });
 
     const validated = discoveryResultSchema.safeParse(result.data);

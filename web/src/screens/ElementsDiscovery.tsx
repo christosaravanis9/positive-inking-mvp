@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useJourney } from "../journey/JourneyProvider";
+import { useAsyncAction } from "../journey/useAsyncAction";
 import { requestAssociations } from "../api/association";
 import { AsyncError } from "../components/AsyncError";
 import { ReferenceAttachment, emptyReferenceDraft, type ReferenceDraft } from "../components/ReferenceAttachment";
@@ -94,7 +95,8 @@ function draftFromExisting(elementId: string, state: JourneyState): ReferenceDra
  * spec's iteration-bound language was never aimed at.
  */
 export function ElementsDiscovery() {
-  const { state, patchProject, patchUI, setError, beginAttempt } = useJourney();
+  const { state, patchProject, patchUI } = useJourney();
+  const { run: runFetchAssociations, pending: fetching } = useAsyncAction();
 
   const [selected, setSelected] = useState<Set<number>>(() => {
     const set = new Set<number>();
@@ -138,7 +140,6 @@ export function ElementsDiscovery() {
       });
     return map;
   });
-  const [fetching, setFetching] = useState(false);
   const [demotedNotice, setDemotedNotice] = useState<string | null>(null);
   const [scopeReflection, setScopeReflection] = useState<{
     text: string;
@@ -166,16 +167,15 @@ export function ElementsDiscovery() {
   // several elements is meant.
   const existingSoleElement = state.project.visual_elements.length === 1 ? state.project.visual_elements[0]! : null;
 
-  async function fetchAssociations() {
-    setFetching(true);
-    beginAttempt();
-    try {
+  function fetchAssociations() {
+    void runFetchAssociations(async (guard) => {
       const confirmedText =
         state.project.journey_mode === "full"
           ? state.project.statement_of_intention
           : [state.project.raw_story, state.project.attraction_origin].filter(Boolean).join("\n\n");
       const known = [...state.project.personal_people, ...state.project.personal_places, ...state.project.personal_objects];
       const result = await requestAssociations(confirmedText, known);
+      if (guard.isStale()) return;
       patchUI({
         associationCandidates: result.visual_candidates,
         spatialLanguagePresent: result.spatial_language_present,
@@ -189,21 +189,19 @@ export function ElementsDiscovery() {
         place_role: result.place_role,
         contradictions: result.contradictions_noticed.map((c) => c.description),
       });
-      setError(null);
-    } catch (err) {
-      setError({
-        code: (err as { code?: string }).code ?? "unknown_error",
-        message: err instanceof Error ? err.message : "Unknown error",
-        context: "Finding what could represent it",
-      });
-    } finally {
-      setFetching(false);
-    }
+    }, "Finding what could represent it");
   }
 
   useEffect(() => {
-    if (!hasCandidates && !fetching && !state.ui.error) {
-      void fetchAssociations();
+    // runFetchAssociations' own re-entrancy guard (a ref, set synchronously before
+    // any await) is what actually prevents a real double-fetch here -- React
+    // StrictMode's dev-mode double-invoke of this effect calls fetchAssociations
+    // twice in the same tick, and a state-based guard alone would not catch that
+    // (setState is batched/async, so both invocations would see the same stale
+    // "not yet fetching" value). This outer condition only avoids re-fetching on
+    // every later re-render once candidates exist or an error is already shown.
+    if (!hasCandidates && !state.ui.error) {
+      fetchAssociations();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

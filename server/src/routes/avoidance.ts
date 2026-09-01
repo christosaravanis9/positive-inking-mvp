@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { callModelForStructuredOutput } from "../modelClient.js";
 import { ModelError } from "../errors.js";
+import { abortSignalForRequest } from "../requestAbort.js";
 import { AVOIDANCE_SYSTEM_PROMPT, avoidanceResultSchema, avoidanceToolInputSchema } from "../schemas/avoidance.js";
 
 const requestSchema = z.object({
@@ -26,6 +27,7 @@ avoidanceRouter.post("/api/avoidances", async (req, res) => {
         description: "Suggest project-specific things the client might want to avoid.",
         input_schema: avoidanceToolInputSchema,
       },
+      abortSignal: abortSignalForRequest(req, res),
     });
 
     const validated = avoidanceResultSchema.safeParse(result.data);

@@ -13,6 +13,15 @@ export interface StructuredCallRequest {
   tool: StructuredToolSpec;
   timeoutMs?: number;
   maxTokens?: number;
+  /**
+   * Wired from the Express request's own "close" event (see routes/*.ts).
+   * When the client disconnects -- including a client-side timeout abort --
+   * before this call finishes, this fires so the server stops spending
+   * further time and real API cost on a call nobody is waiting for anymore.
+   * The eventual result (or error) is simply never used; nothing here ever
+   * mutates any state, since HTTP request handling is stateless per-request.
+   */
+  abortSignal?: AbortSignal;
 }
 
 export interface StructuredCallResult {
@@ -35,9 +44,20 @@ type FetchLike = (
  * One real round trip to the model, requesting a specific structured JSON
  * shape via forced tool use (so the API itself guarantees a schema-shaped
  * object rather than us regex-parsing prose). Every call:
- *  - has a hard timeout (default from MODEL_REQUEST_TIMEOUT_MS)
+ *  - has a hard TOTAL wall-clock budget (default from MODEL_REQUEST_TIMEOUT_MS)
  *  - retries exactly once, silently, on a transient failure (timeout,
- *    network error, 5xx) per V3.0 §16.2
+ *    network error, 5xx) per V3.0 §16.2, but the retry draws from the SAME
+ *    total budget rather than getting a fresh full timeout of its own --
+ *    a naive "retry once, each attempt gets its own full timeout" policy
+ *    lets the server's real worst-case silently double (e.g. two full 20s
+ *    attempts = 40s) without the client's own timeout ever being told,
+ *    which is exactly the bug this comment now prevents: the client's
+ *    fetch (see web/src/api/client.ts's CLIENT_TIMEOUT_MS) would abort at
+ *    25s while the server was still legitimately mid-retry, guaranteeing a
+ *    client-side "timed out" error on any request that needed the retry at
+ *    all, even when the server would have succeeded seconds later. With a
+ *    shared total budget, the server's worst case is bounded by
+ *    MODEL_REQUEST_TIMEOUT_MS regardless of how many attempts it takes.
  *  - throws a typed, message-bearing ModelError on anything else — never
  *    swallowed, never replaced with placeholder content
  */
@@ -52,10 +72,16 @@ export async function callModelForStructuredOutput(
     );
   }
 
+  const totalBudgetMs = request.timeoutMs ?? env.modelTimeoutMs;
+  const deadline = Date.now() + totalBudgetMs;
+
   let lastError: ModelError | null = null;
   for (let attempt = 0; attempt < 2; attempt += 1) {
+    if (request.abortSignal?.aborted) break; // Client already disconnected -- do not spend another attempt.
+    const remainingMs = deadline - Date.now();
+    if (remainingMs <= 0) break; // Budget already exhausted -- do not start another attempt.
     try {
-      return await attemptCall(request, fetchImpl);
+      return await attemptCall(request, fetchImpl, remainingMs);
     } catch (err) {
       const modelError =
         err instanceof ModelError
@@ -63,7 +89,7 @@ export async function callModelForStructuredOutput(
           : new ModelError("model_network_error", (err as Error).message, err);
       lastError = modelError;
       if (!isTransient(modelError)) throw modelError;
-      // Silent retry: fall through to the next loop iteration.
+      // Silent retry: fall through to the next loop iteration, if budget remains.
     }
   }
   throw lastError as ModelError;
@@ -76,10 +102,12 @@ function isTransient(err: ModelError): boolean {
 async function attemptCall(
   request: StructuredCallRequest,
   fetchImpl: FetchLike,
+  timeoutMs: number,
 ): Promise<StructuredCallResult> {
   const controller = new AbortController();
-  const timeoutMs = request.timeoutMs ?? env.modelTimeoutMs;
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const onExternalAbort = () => controller.abort();
+  request.abortSignal?.addEventListener("abort", onExternalAbort);
 
   try {
     const response = await fetchImpl(env.anthropicApiUrl, {
@@ -131,6 +159,7 @@ async function attemptCall(
     throw new ModelError("model_network_error", (err as Error).message, err);
   } finally {
     clearTimeout(timer);
+    request.abortSignal?.removeEventListener("abort", onExternalAbort);
   }
 }
 

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useJourney } from "../journey/JourneyProvider";
+import { useAsyncAction } from "../journey/useAsyncAction";
 import { requestProvenance } from "../api/provenance";
 import { requestDiscovery } from "../api/discovery";
 import { AsyncError } from "../components/AsyncError";
@@ -21,7 +22,9 @@ function mergeUnique(existing: string[], incoming: string[]): string[] {
  * element capture must still be reachable within two screens).
  */
 export function ImageProvenance() {
-  const { state, patchProject, patchUI, setError, beginAttempt } = useJourney();
+  const { state, patchProject, patchUI } = useJourney();
+  const { run: runProvenance, pending: provenancePending } = useAsyncAction();
+  const { run: runElaboration, pending: elaborationPending } = useAsyncAction();
   const [text, setText] = useState("");
   const [reentrySubject, setReentrySubject] = useState<string | null>(null);
   const [elaborating, setElaborating] = useState(false);
@@ -43,11 +46,11 @@ export function ImageProvenance() {
     patchUI({ provenanceCaptured: true, reentryOffered: true });
   }
 
-  async function submit() {
+  function submit() {
     if (text.trim().length === 0) return;
-    beginAttempt();
-    try {
+    void runProvenance(async (guard) => {
       const result = await requestProvenance(text);
+      if (guard.isStale()) return;
       patchProject({
         attraction_origin: result.attraction_origin,
         origin_period: result.origin_period as ProvenanceResult["origin_period"],
@@ -56,7 +59,6 @@ export function ImageProvenance() {
         significance_claimed: result.significance_claimed,
         provenance_confidence: result.provenance_confidence,
       });
-      setError(null);
       logTelemetryEvent("provenance_captured", state.project.project_id, {
         significance_claimed: result.significance_claimed,
         reentry_surfaced: result.reentry_candidate.surfaced,
@@ -70,13 +72,7 @@ export function ImageProvenance() {
       } else {
         patchUI({ provenanceCaptured: true });
       }
-    } catch (err) {
-      setError({
-        code: (err as { code?: string }).code ?? "unknown_error",
-        message: err instanceof Error ? err.message : "Unknown error",
-        context: "Recording where this comes from",
-      });
-    }
+    }, "Recording where this comes from");
   }
 
   function declineReentry() {
@@ -85,11 +81,11 @@ export function ImageProvenance() {
     patchUI({ provenanceCaptured: true, reentryOffered: true });
   }
 
-  async function submitElaboration() {
+  function submitElaboration() {
     if (elaborationText.trim().length === 0) return;
-    beginAttempt();
-    try {
+    void runElaboration(async (guard) => {
       const discovery = await requestDiscovery(elaborationText, state.project.user_viewpoint ?? undefined);
+      if (guard.isStale()) return;
       patchUI({
         discoveryInterpretation: discovery.interpretation,
         discoveryThemeOptions: discovery.key_themes,
@@ -98,14 +94,7 @@ export function ImageProvenance() {
       setThemesToConfirm(discovery.key_themes);
       setSelectedThemes(discovery.key_themes.slice(0, 3));
       setDiscoveryResult(discovery);
-      setError(null);
-    } catch (err) {
-      setError({
-        code: (err as { code?: string }).code ?? "unknown_error",
-        message: err instanceof Error ? err.message : "Unknown error",
-        context: "Making sense of what you added",
-      });
-    }
+    }, "Making sense of what you added");
   }
 
   function toggleTheme(theme: string) {
@@ -154,8 +143,9 @@ export function ImageProvenance() {
         <textarea value={elaborationText} onChange={(e) => setElaborationText(e.target.value)} />
         <VoiceInputButton onTranscript={(t) => setElaborationText((prev) => (prev.trim() ? `${prev.trim()} ${t}` : t))} />
         <AsyncError onRetry={submitElaboration} />
-        <button onClick={submitElaboration} disabled={elaborationText.trim().length === 0}>
-          Continue
+        {elaborationPending && <p className="progress-note">Making sense of what you added...</p>}
+        <button onClick={submitElaboration} disabled={elaborationText.trim().length === 0 || elaborationPending}>
+          {elaborationPending ? "Working..." : "Continue"}
         </button>
       </div>
     );
@@ -185,15 +175,16 @@ export function ImageProvenance() {
       <textarea value={text} onChange={(e) => setText(e.target.value)} />
       <VoiceInputButton onTranscript={(t) => setText((prev) => (prev.trim() ? `${prev.trim()} ${t}` : t))} />
       <AsyncError onRetry={submit} />
+      {provenancePending && <p className="progress-note">Recording where this comes from...</p>}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button onClick={submit} disabled={text.trim().length === 0}>
-          Continue
+        <button onClick={submit} disabled={text.trim().length === 0 || provenancePending}>
+          {provenancePending ? "Working..." : "Continue"}
         </button>
-        <button className="secondary" onClick={alwaysLiked}>
+        <button className="secondary" onClick={alwaysLiked} disabled={provenancePending}>
           I've just always liked it
         </button>
         {state.project.journey_mode === "expert" && (
-          <button className="secondary" onClick={alwaysLiked}>
+          <button className="secondary" onClick={alwaysLiked} disabled={provenancePending}>
             Skip
           </button>
         )}

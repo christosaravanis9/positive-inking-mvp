@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { callModelForStructuredOutput } from "../modelClient.js";
 import { ModelError } from "../errors.js";
+import { abortSignalForRequest } from "../requestAbort.js";
 import { ASSOCIATION_SYSTEM_PROMPT, associationResultSchema, associationToolInputSchema } from "../schemas/association.js";
 
 const requestSchema = z.object({
@@ -36,6 +37,7 @@ associationRouter.post("/api/associations", async (req, res) => {
         input_schema: associationToolInputSchema,
       },
       maxTokens: 4096,
+      abortSignal: abortSignalForRequest(req, res),
     });
 
     const validated = associationResultSchema.safeParse(result.data);

@@ -1,20 +1,19 @@
 import { useEffect, useState } from "react";
 import { useJourney } from "../journey/JourneyProvider";
+import { useAsyncAction } from "../journey/useAsyncAction";
 import { requestAvoidanceSuggestions } from "../api/avoidance";
 import { AsyncError } from "../components/AsyncError";
 import { OptionChips } from "../components/OptionChips";
 
 /** Screen 11B (§8). "Nothing specifically" and "Something else" always present, never filtered (§12.12). */
 export function Avoidances() {
-  const { state, patchProject, patchUI, setError, beginAttempt } = useJourney();
+  const { state, patchProject, patchUI } = useJourney();
+  const { run, pending: fetching } = useAsyncAction();
   const [selected, setSelected] = useState<string[]>([]);
   const [somethingElse, setSomethingElse] = useState("");
-  const [fetching, setFetching] = useState(false);
 
-  async function fetchSuggestions() {
-    setFetching(true);
-    beginAttempt();
-    try {
+  function fetchSuggestions() {
+    void run(async (guard) => {
       const summary = [
         `Elements: ${state.project.visual_elements.map((e) => e.description).join(", ")}`,
         `Composition: ${state.project.composition_type}, background: ${state.project.composition_background}`,
@@ -22,22 +21,19 @@ export function Avoidances() {
         `Placement: ${state.project.body_area_coarse}, ${state.project.size_class}`,
       ].join("\n");
       const result = await requestAvoidanceSuggestions(summary);
+      if (guard.isStale()) return;
       patchUI({ avoidanceSuggestions: result.suggestions });
-      setError(null);
-    } catch (err) {
-      setError({
-        code: (err as { code?: string }).code ?? "unknown_error",
-        message: err instanceof Error ? err.message : "Unknown error",
-        context: "Finding things you might want to avoid",
-      });
-    } finally {
-      setFetching(false);
-    }
+    }, "Finding things you might want to avoid");
   }
 
   useEffect(() => {
-    if (state.ui.avoidanceSuggestions.length === 0 && !fetching && !state.ui.error) {
-      void fetchSuggestions();
+    // run()'s own re-entrancy guard (a ref, set synchronously before any await) is
+    // what actually prevents a real double-fetch under React StrictMode's dev-mode
+    // double-invoke of this effect -- a state-based guard alone would not catch it,
+    // since setState is batched/async and both invocations would see the same
+    // stale "not yet fetching" value.
+    if (state.ui.avoidanceSuggestions.length === 0 && !state.ui.error) {
+      fetchSuggestions();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

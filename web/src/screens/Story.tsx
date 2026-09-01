@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useJourney } from "../journey/JourneyProvider";
+import { useAsyncAction } from "../journey/useAsyncAction";
 import { requestDiscovery } from "../api/discovery";
 import { AsyncError } from "../components/AsyncError";
 import { VoiceInputButton } from "../components/VoiceInput";
@@ -7,19 +8,22 @@ import type { Viewpoint } from "@positive-inking/engine";
 
 /** Screen 3 (§8, full mode). Runs AI Action A (Discovery, §9) on submit. */
 export function Story() {
-  const { state, patchProject, patchUI, setError, beginAttempt } = useJourney();
+  const { state, patchProject, patchUI } = useJourney();
+  const { run, pending } = useAsyncAction();
   const [text, setText] = useState(state.project.raw_story);
   const [usedVoice, setUsedVoice] = useState(false);
 
-  async function submit() {
+  function submit() {
     if (text.trim().length === 0) return;
-    // §16.1: raw_story is written before any network request, so a failed or
-    // hung call can never lose it (AC 55). Discovery-derived fields are
-    // patched separately, only once the call actually succeeds.
-    patchProject({ raw_story: text, story_transcript: text, input_method: usedVoice ? "voice" : "typed" });
-    beginAttempt();
-    try {
+    void run(async (guard) => {
+      // §16.1: raw_story is written before any network request, so a failed or
+      // hung call can never lose it (AC 55). Discovery-derived fields are
+      // patched separately, only once the call actually succeeds AND this
+      // call is still the current one -- a superseded or post-navigation
+      // response must never mutate state (user-decision invariant).
+      patchProject({ raw_story: text, story_transcript: text, input_method: usedVoice ? "voice" : "typed" });
       const result = await requestDiscovery(text, state.project.user_viewpoint ?? undefined);
+      if (guard.isStale()) return;
       patchProject({
         primary_viewpoint: result.primary_viewpoint,
         secondary_viewpoints: result.secondary_viewpoints as Viewpoint[],
@@ -48,14 +52,7 @@ export function Story() {
         clarificationQuestion: result.clarification_question ?? "",
         clarificationSuggestedAnswers: result.suggested_answers,
       });
-      setError(null);
-    } catch (err) {
-      setError({
-        code: (err as { code?: string }).code ?? "unknown_error",
-        message: err instanceof Error ? err.message : "Unknown error",
-        context: "Understanding your story",
-      });
-    }
+    }, "Understanding your story");
   }
 
   return (
@@ -73,8 +70,9 @@ export function Story() {
         }}
       />
       <AsyncError onRetry={submit} />
-      <button onClick={submit} disabled={text.trim().length === 0}>
-        Continue
+      {pending && <p className="progress-note">Understanding your story...</p>}
+      <button onClick={submit} disabled={text.trim().length === 0 || pending}>
+        {pending ? "Working..." : "Continue"}
       </button>
     </div>
   );

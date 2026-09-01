@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useJourney } from "../journey/JourneyProvider";
+import { useAsyncAction } from "../journey/useAsyncAction";
 import { requestDiscovery } from "../api/discovery";
 import { AsyncError } from "../components/AsyncError";
 import { OptionChips } from "../components/OptionChips";
@@ -8,7 +9,8 @@ import { classifyClarificationResponse, shouldEnterLowConfidencePath } from "@po
 
 /** Screen 4 (§8, conditional). Exactly one semantic clarification, ever (§9.4-9.6). */
 export function Clarification() {
-  const { state, patchProject, patchUI, setError, beginAttempt } = useJourney();
+  const { state, patchProject, patchUI } = useJourney();
+  const { run, pending } = useAsyncAction();
   const [answer, setAnswer] = useState("");
   // Captured once at mount -- this screen shows at most once per journey (the
   // one-clarification rule), but a retry must not re-append the clarifying
@@ -16,24 +18,28 @@ export function Clarification() {
   const [originalStory] = useState(() => state.project.raw_story);
   const [originalConfidence] = useState(() => state.project.confidence);
 
-  // §22: clarification frequency. Screen is shown at most once per journey (§9.4-9.6), so this fires at most once.
+  // §22: clarification frequency. A ref (not just the [] dep array) guards against
+  // React StrictMode's dev-mode double-invoke of this same effect logging it twice.
+  const shownLogged = useRef(false);
   useEffect(() => {
+    if (shownLogged.current) return;
+    shownLogged.current = true;
     logTelemetryEvent("clarification_shown", state.project.project_id, {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function submit(declined: boolean) {
+  function submit(declined: boolean) {
     const responseText = declined ? "I'm not sure yet." : answer;
     if (!declined && responseText.trim().length === 0) return;
 
-    // §16.1: persisted before the network call, so a failure never loses it.
-    const combined = `${originalStory}\n\nClarifying detail (in response to: "${state.ui.clarificationQuestion}"): ${responseText}`;
-    patchProject({ raw_story: combined });
-    beginAttempt();
+    void run(async (guard) => {
+      // §16.1: persisted before the network call, so a failure never loses it.
+      const combined = `${originalStory}\n\nClarifying detail (in response to: "${state.ui.clarificationQuestion}"): ${responseText}`;
+      patchProject({ raw_story: combined });
 
-    try {
       // Re-run Discovery with the clarification folded in, per §9.4 "Re-run Discovery analysis afterward."
       const result = await requestDiscovery(combined, state.project.user_viewpoint ?? undefined);
+      if (guard.isStale()) return;
 
       // §9.2's Discovery schema has no field marking whether a free-text answer actually
       // addressed the asked dimension -- that would need real interpretation the model
@@ -74,14 +80,7 @@ export function Clarification() {
         discoveryThemeOptions: result.key_themes,
         discoveryCoreValueCandidates: result.candidate_core_values,
       });
-      setError(null);
-    } catch (err) {
-      setError({
-        code: (err as { code?: string }).code ?? "unknown_error",
-        message: err instanceof Error ? err.message : "Unknown error",
-        context: "Following up on your story",
-      });
-    }
+    }, "Following up on your story");
   }
 
   return (
@@ -96,11 +95,12 @@ export function Clarification() {
       )}
       <input type="text" value={answer} onChange={(e) => setAnswer(e.target.value)} placeholder="Or describe it in your own words" />
       <AsyncError onRetry={() => submit(false)} />
+      {pending && <p className="progress-note">Following up on your story...</p>}
       <div style={{ display: "flex", gap: 8 }}>
-        <button onClick={() => submit(false)} disabled={answer.trim().length === 0}>
+        <button onClick={() => submit(false)} disabled={answer.trim().length === 0 || pending}>
           Continue
         </button>
-        <button className="secondary" onClick={() => submit(true)}>
+        <button className="secondary" onClick={() => submit(true)} disabled={pending}>
           I'm not sure yet
         </button>
       </div>

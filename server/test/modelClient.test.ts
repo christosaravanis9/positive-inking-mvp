@@ -89,6 +89,50 @@ describe("callModelForStructuredOutput", () => {
     ).rejects.toMatchObject({ code: "model_timeout" });
   }, 2000);
 
+  it("bounds the TOTAL wall-clock time across both attempts to timeoutMs, not 2x timeoutMs -- the exact mismatch that let the client time out while the server was still legitimately retrying", async () => {
+    // Every attempt hangs until aborted -- if the retry got its own fresh
+    // full timeout (the pre-fix bug), total elapsed would be ~2x timeoutMs.
+    const fetchImpl = vi.fn().mockImplementation(
+      (_url: string, init: { signal: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          init.signal.addEventListener("abort", () => {
+            const err = new Error("aborted");
+            err.name = "AbortError";
+            reject(err);
+          });
+        }),
+    );
+
+    const start = Date.now();
+    await expect(
+      callModelForStructuredOutput({ system: "sys", userMessage: "msg", tool, timeoutMs: 60 }, fetchImpl as never),
+    ).rejects.toMatchObject({ code: "model_timeout" });
+    const elapsed = Date.now() - start;
+
+    // Generous margin for CI jitter, but this must stay well under 2x timeoutMs (120ms).
+    expect(elapsed).toBeLessThan(100);
+  }, 2000);
+
+  it("does not attempt a retry once the total budget is already exhausted", async () => {
+    const fetchImpl = vi.fn().mockImplementation(
+      (_url: string, init: { signal: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          init.signal.addEventListener("abort", () => {
+            const err = new Error("aborted");
+            err.name = "AbortError";
+            reject(err);
+          });
+        }),
+    );
+
+    await expect(
+      callModelForStructuredOutput({ system: "sys", userMessage: "msg", tool, timeoutMs: 30 }, fetchImpl as never),
+    ).rejects.toMatchObject({ code: "model_timeout" });
+
+    // A single attempt consumes the entire 30ms budget, so there is nothing left for a second.
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  }, 2000);
+
   it("throws model_not_configured immediately (no network call) when the key is missing", async () => {
     const original = process.env.ANTHROPIC_API_KEY;
     process.env.ANTHROPIC_API_KEY = "";

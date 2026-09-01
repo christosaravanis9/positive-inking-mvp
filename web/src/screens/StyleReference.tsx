@@ -1,5 +1,6 @@
 import { useRef, useState, type RefObject } from "react";
 import { useJourney } from "../journey/JourneyProvider";
+import { useAsyncAction } from "../journey/useAsyncAction";
 import { requestStyleReferenceResolution } from "../api/styleReference";
 import { AsyncError } from "../components/AsyncError";
 import { describeDimensionValue, PROJECT_FIELD_BY_DIMENSION } from "../journey/artisticDimensionLabels";
@@ -18,10 +19,10 @@ const MAX_FILE_BYTES = 3 * 1024 * 1024;
  * correctable before it's applied to anything.
  */
 export function StyleReference() {
-  const { state, patchProject, patchUI, setError, beginAttempt } = useJourney();
+  const { state, patchProject, patchUI } = useJourney();
+  const { run, pending: fetching } = useAsyncAction();
   const { project, ui } = state;
   const [text, setText] = useState("");
-  const [fetching, setFetching] = useState(false);
   const [resolution, setResolution] = useState<StyleReferenceData | null>(null);
   const [examplePhoto, setExamplePhoto] = useState<{ dataUrl: string; fileName: string } | null>(null);
   const [photoError, setPhotoError] = useState<string | null>(null);
@@ -31,24 +32,14 @@ export function StyleReference() {
     patchUI({ styleReferenceAsked: true });
   }
 
-  async function submit() {
+  function submit() {
     if (text.trim().length === 0) return;
-    setFetching(true);
-    beginAttempt();
-    try {
+    void run(async (guard) => {
       const alreadyConfirmed = { ...ui.artisticAnswers };
       const result = await requestStyleReferenceResolution(text.trim(), alreadyConfirmed);
+      if (guard.isStale()) return;
       setResolution(result);
-      setError(null);
-    } catch (err) {
-      setError({
-        code: (err as { code?: string }).code ?? "unknown_error",
-        message: err instanceof Error ? err.message : "Unknown error",
-        context: "Working out what that style points toward",
-      });
-    } finally {
-      setFetching(false);
-    }
+    }, "Working out what that style points toward");
   }
 
   function tryAgain() {
@@ -184,10 +175,10 @@ export function StyleReference() {
         placeholder="e.g. woodblock print, American traditional, fine-line..."
       />
       <div style={{ display: "flex", gap: 8 }}>
-        <button onClick={submit} disabled={text.trim().length === 0}>
+        <button onClick={submit} disabled={text.trim().length === 0 || fetching}>
           Continue
         </button>
-        <button className="secondary" onClick={skip}>
+        <button className="secondary" onClick={skip} disabled={fetching}>
           Nothing in particular
         </button>
       </div>

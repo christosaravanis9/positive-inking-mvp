@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { callModelForStructuredOutput } from "../modelClient.js";
 import { ModelError } from "../errors.js";
+import { abortSignalForRequest } from "../requestAbort.js";
 import { PROVENANCE_SYSTEM_PROMPT, provenanceResultSchema, provenanceToolInputSchema } from "../schemas/provenance.js";
 
 const requestSchema = z.object({
@@ -26,6 +27,7 @@ provenanceRouter.post("/api/provenance", async (req, res) => {
         description: "Record the structured provenance extraction for an attraction-mode image.",
         input_schema: provenanceToolInputSchema,
       },
+      abortSignal: abortSignalForRequest(req, res),
     });
 
     const validated = provenanceResultSchema.safeParse(result.data);

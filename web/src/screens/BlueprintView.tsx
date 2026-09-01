@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useJourney } from "../journey/JourneyProvider";
 import { formatPlacementSummary } from "../journey/placementSummary";
+import { logTelemetryEvent } from "../instrumentation/telemetry";
 import { buildReferenceChecklist, isReferenceEntrySatisfied, type ReferenceChecklistEntry } from "@positive-inking/engine";
 
 const READINESS_LABEL: Record<string, string> = {
@@ -102,6 +103,7 @@ export function BlueprintView() {
       await navigator.clipboard.writeText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+      logTelemetryEvent("blueprint_copied", project.project_id, {});
     } catch {
       // Clipboard API can be denied/unavailable -- fail visibly rather than pretending it worked.
       setCopied(false);
@@ -117,6 +119,7 @@ export function BlueprintView() {
     a.download = "positive-inking-blueprint.txt";
     a.click();
     URL.revokeObjectURL(url);
+    logTelemetryEvent("blueprint_saved", project.project_id, {});
   }
 
   function refine() {

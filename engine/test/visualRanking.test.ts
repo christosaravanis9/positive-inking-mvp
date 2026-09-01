@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { rankVisualCandidates, type RankableCandidate } from "../src/visualRanking.js";
+import { rankVisualCandidates, isPersonalSourceCategory, type RankableCandidate } from "../src/visualRanking.js";
 
 function candidate(overrides: Partial<RankableCandidate> & { source_category: string }): RankableCandidate {
   return {
@@ -68,6 +68,23 @@ describe("rankVisualCandidates (§11)", () => {
       const personal = candidate({ source_category: "personal_artefact", personal_relevance: 9, story_relevance: 9, originality: 8 });
       const ranked = rankVisualCandidates([newMaterial, personal]);
       expect(ranked[0]).toBe(personal);
+    });
+  });
+
+  describe("isPersonalSourceCategory (§22 instrumentation reuses this, never a second hand-maintained list)", () => {
+    it("classifies the four personal categories as personal", () => {
+      expect(isPersonalSourceCategory("personal_artefact")).toBe(true);
+      expect(isPersonalSourceCategory("personal_memory")).toBe(true);
+      expect(isPersonalSourceCategory("personal_place")).toBe(true);
+      expect(isPersonalSourceCategory("personal_person")).toBe(true);
+    });
+
+    it("classifies generic/new/public categories as not personal", () => {
+      expect(isPersonalSourceCategory("new_materialisation")).toBe(false);
+      expect(isPersonalSourceCategory("public_artefact")).toBe(false);
+      expect(isPersonalSourceCategory("artistic_symbol")).toBe(false);
+      expect(isPersonalSourceCategory("artistic_reference")).toBe(false);
+      expect(isPersonalSourceCategory("tattoo_reference")).toBe(false);
     });
   });
 

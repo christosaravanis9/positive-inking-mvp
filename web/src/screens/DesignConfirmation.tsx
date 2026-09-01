@@ -2,6 +2,7 @@ import { useJourney } from "../journey/JourneyProvider";
 import { requestBlueprint } from "../api/blueprint";
 import { AsyncError } from "../components/AsyncError";
 import { formatPlacementSummary } from "../journey/placementSummary";
+import { logTelemetryEvent, elapsedSinceJourneyStarted } from "../instrumentation/telemetry";
 import { buildReferenceChecklist, isReferenceEntrySatisfied, anyRequiredReferenceMissing } from "@positive-inking/engine";
 
 /** Screen 13 (§8). The complete summary stays on screen next to the action -- no detached verification (§6, AC 64). "Still needed: [references]" is the spec's own Screen 13 bullet (§8). */
@@ -45,6 +46,11 @@ export function DesignConfirmation() {
 
       patchUI({ blueprint, blueprintReady: true, designConfirmed: true });
       setError(null);
+      // §22: completion-rate numerator + time-by-mode.
+      logTelemetryEvent("journey_completed", project.project_id, {
+        journey_mode: project.journey_mode,
+        elapsed_ms: elapsedSinceJourneyStarted(project.project_id),
+      });
     } catch (err) {
       setError({
         code: (err as { code?: string }).code ?? "unknown_error",

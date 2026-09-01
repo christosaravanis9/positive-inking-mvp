@@ -3,6 +3,7 @@ import { useJourney } from "../journey/JourneyProvider";
 import { requestAssociations } from "../api/association";
 import { AsyncError } from "../components/AsyncError";
 import { ReferenceAttachment, emptyReferenceDraft, type ReferenceDraft } from "../components/ReferenceAttachment";
+import { logTelemetryEvent } from "../instrumentation/telemetry";
 import type { VisualElement, ElementFidelity, ConsentRecord, ReferenceStatus } from "@positive-inking/engine";
 import {
   suppressGeneratedSymbolicSuggestions,
@@ -13,6 +14,7 @@ import {
   computeInvalidatedQuestions,
   lightweightSuitabilityCheck,
   canReaskThisIteration,
+  isPersonalSourceCategory,
   type IdeaIterationBehavior,
   type SuitabilityConsideration,
 } from "@positive-inking/engine";
@@ -299,7 +301,10 @@ export function ElementsDiscovery() {
       if (draft) {
         const record = draftToConsentRecord(id, draft);
         if (record) candidateConsentRecords.push(record);
-        if (draft.dataUrl && draft.fileName) referenceAssets[id] = { dataUrl: draft.dataUrl, fileName: draft.fileName };
+        if (draft.dataUrl && draft.fileName) {
+          referenceAssets[id] = { dataUrl: draft.dataUrl, fileName: draft.fileName };
+          logTelemetryEvent("reference_requested", state.project.project_id, { material_type: draft.material_type });
+        }
       }
       return {
         id,
@@ -322,7 +327,10 @@ export function ElementsDiscovery() {
       if (draft) {
         const record = draftToConsentRecord(id, draft);
         if (record) candidateConsentRecords.push(record);
-        if (draft.dataUrl && draft.fileName) referenceAssets[id] = { dataUrl: draft.dataUrl, fileName: draft.fileName };
+        if (draft.dataUrl && draft.fileName) {
+          referenceAssets[id] = { dataUrl: draft.dataUrl, fileName: draft.fileName };
+          logTelemetryEvent("reference_requested", state.project.project_id, { material_type: draft.material_type });
+        }
       }
       return {
         id,
@@ -338,6 +346,19 @@ export function ElementsDiscovery() {
         user_selected: true,
       };
     });
+
+    // §22 -- personal-vs-generic selection and user-authored ideas. Fired here (once
+    // per confirm) rather than at every toggle, so this only ever records what the
+    // client actually kept, never every candidate they glanced at.
+    for (const element of fromCandidates) {
+      logTelemetryEvent("visual_candidate_selected", state.project.project_id, {
+        source_category: element.source_category,
+        is_personal: isPersonalSourceCategory(element.source_category),
+      });
+    }
+    for (const idea of addedIdeas) {
+      logTelemetryEvent("user_authored_idea_added", state.project.project_id, { replaces_existing: idea.replacesElementId !== null });
+    }
 
     // §14.2: a replacement is dropped here, and only here -- the one place the
     // user explicitly said "instead of", never inferred anywhere else.

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useJourney } from "../journey/JourneyProvider";
+import { logTelemetryEvent } from "../instrumentation/telemetry";
 
 type Category = "personal_people" | "personal_places" | "personal_objects" | "personal_events" | "personal_memories" | "personal_phrases";
 
@@ -36,6 +37,7 @@ export function Correction() {
 
   function remove(category: Category, index: number) {
     setLists((prev) => ({ ...prev, [category]: prev[category].filter((_, i) => i !== index) }));
+    logTelemetryEvent("meaning_edit", state.project.project_id, { category, action: "removed" });
   }
 
   function startEdit(category: Category, index: number) {
@@ -44,14 +46,17 @@ export function Correction() {
   }
 
   function commitEdit(category: Category, index: number) {
+    const changed = lists[category][index] !== editingValue;
     setLists((prev) => ({ ...prev, [category]: prev[category].map((v, i) => (i === index ? editingValue : v)) }));
     setEditingKey(null);
+    if (changed) logTelemetryEvent("meaning_edit", state.project.project_id, { category, action: "edited" });
   }
 
   function confirm() {
     const finalLists = { ...lists };
     if (missed.trim().length > 0) {
       finalLists.personal_phrases = [...finalLists.personal_phrases, missed.trim()];
+      logTelemetryEvent("meaning_edit", state.project.project_id, { category: "personal_phrases", action: "added" });
     }
     patchProject({
       ...finalLists,

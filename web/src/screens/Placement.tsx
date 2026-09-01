@@ -1,6 +1,7 @@
 import { useRef, useState, type RefObject } from "react";
 import { useJourney } from "../journey/JourneyProvider";
 import { OptionChips } from "../components/OptionChips";
+import { logTelemetryEvent } from "../instrumentation/telemetry";
 
 /** Same cap as ReferenceAttachment, for the same reason -- no backend storage in this build (see §15.7 production blocker note). */
 const MAX_FILE_BYTES = 3 * 1024 * 1024;
@@ -145,7 +146,16 @@ export function Placement() {
             ref={nearbyInputRef}
             type="file"
             accept="image/*"
-            onChange={(e) => attachFile(e.target.files?.[0], (dataUrl, fileName) => setNearbyTattooPhoto({ dataUrl, fileName }), nearbyInputRef)}
+            onChange={(e) =>
+              attachFile(
+                e.target.files?.[0],
+                (dataUrl, fileName) => {
+                  setNearbyTattooPhoto({ dataUrl, fileName });
+                  logTelemetryEvent("reference_requested", state.project.project_id, { context: "nearby_tattoo" });
+                },
+                nearbyInputRef,
+              )
+            }
           />
         )}
       </div>
@@ -168,7 +178,16 @@ export function Placement() {
             ref={placementInputRef}
             type="file"
             accept="image/*"
-            onChange={(e) => attachFile(e.target.files?.[0], (dataUrl) => setPlacementPhoto(dataUrl), placementInputRef)}
+            onChange={(e) =>
+              attachFile(
+                e.target.files?.[0],
+                (dataUrl) => {
+                  setPlacementPhoto(dataUrl);
+                  logTelemetryEvent("reference_requested", state.project.project_id, { context: "placement_photo" });
+                },
+                placementInputRef,
+              )
+            }
           />
         )}
       </div>

@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useJourney } from "../journey/JourneyProvider";
 import { requestDiscovery } from "../api/discovery";
 import { AsyncError } from "../components/AsyncError";
 import { OptionChips } from "../components/OptionChips";
+import { logTelemetryEvent } from "../instrumentation/telemetry";
 import { classifyClarificationResponse, shouldEnterLowConfidencePath } from "@positive-inking/engine";
 
 /** Screen 4 (§8, conditional). Exactly one semantic clarification, ever (§9.4-9.6). */
@@ -14,6 +15,12 @@ export function Clarification() {
   // detail onto a raw_story that already includes it from a prior attempt.
   const [originalStory] = useState(() => state.project.raw_story);
   const [originalConfidence] = useState(() => state.project.confidence);
+
+  // §22: clarification frequency. Screen is shown at most once per journey (§9.4-9.6), so this fires at most once.
+  useEffect(() => {
+    logTelemetryEvent("clarification_shown", state.project.project_id, {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function submit(declined: boolean) {
     const responseText = declined ? "I'm not sure yet." : answer;

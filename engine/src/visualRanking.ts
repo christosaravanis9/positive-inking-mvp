@@ -34,6 +34,11 @@ const PERSONAL_CATEGORIES: ReadonlySet<string> = new Set([
   "personal_person",
 ]);
 
+/** The one place "personal vs. generic" is defined for a source_category — reused by instrumentation (§22) so its personal-vs-generic metric can never drift from the floor rule's own definition. */
+export function isPersonalSourceCategory(sourceCategory: string): boolean {
+  return PERSONAL_CATEGORIES.has(sourceCategory);
+}
+
 /** Weights: personal relevance, story relevance and originality dominate; genericity is penalised; raw visual appeal and reference ease matter least. */
 const WEIGHTS = {
   personal_relevance: 3,

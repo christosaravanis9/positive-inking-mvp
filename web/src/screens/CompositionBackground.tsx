@@ -1,6 +1,7 @@
 import { useJourney } from "../journey/JourneyProvider";
 import { deriveConceptSignals } from "../journey/deriveConceptSignals";
 import { OptionChips } from "../components/OptionChips";
+import { logTelemetryEvent } from "../instrumentation/telemetry";
 import {
   evaluateCompositionFlow,
   getCompositionOptionPool,
@@ -81,7 +82,11 @@ export function CompositionBackground() {
     const projectPatch: Partial<ProjectState> = {};
     if (key === "place_disambiguation") projectPatch.place_role = value as PlaceRole;
     if (key === "composition_type") projectPatch.composition_type = value;
-    if (key === "internal_background") projectPatch.composition_background = value as ProjectState["composition_background"];
+    if (key === "internal_background") {
+      projectPatch.composition_background = value as ProjectState["composition_background"];
+      // §22: no-background rate.
+      logTelemetryEvent("composition_background_confirmed", project.project_id, { background: value });
+    }
     if (key === "density") projectPatch.design_density = value;
     if (key === "negative_space") projectPatch.negative_space_strategy = value;
     if (key === "reading_direction") projectPatch.reading_direction = value;

@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useReducer, type ReactNo
 import type { ProjectState } from "@positive-inking/engine";
 import { createInitialJourneyState, type JourneyState, type UIState, type ApiErrorState } from "./state";
 import { loadPersistedState, savePersistedState, clearPersistedState } from "./persistence";
+import { logTelemetryEvent, hasJourneyStarted } from "../instrumentation/telemetry";
 
 type Action =
   | { type: "patchProject"; payload: Partial<ProjectState> }
@@ -58,6 +59,14 @@ export function JourneyProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     savePersistedState(state);
   }, [state]);
+
+  // §22: completion-rate denominator -- fired once per project, never re-fired on reload.
+  useEffect(() => {
+    if (!hasJourneyStarted(state.project.project_id)) {
+      logTelemetryEvent("journey_started", state.project.project_id, { journey_mode: state.project.journey_mode });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.project.project_id]);
 
   const value = useMemo<JourneyContextValue>(
     () => ({

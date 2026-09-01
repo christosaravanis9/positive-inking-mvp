@@ -4,6 +4,7 @@ import { requestProvenance } from "../api/provenance";
 import { requestDiscovery } from "../api/discovery";
 import { AsyncError } from "../components/AsyncError";
 import { OptionChips } from "../components/OptionChips";
+import { logTelemetryEvent } from "../instrumentation/telemetry";
 import type { DiscoveryData } from "../api/types";
 import type { ProvenanceResult } from "@positive-inking/engine";
 
@@ -37,6 +38,7 @@ export function ImageProvenance() {
       significance_claimed: false,
       provenance_confidence: 1,
     });
+    logTelemetryEvent("provenance_captured", state.project.project_id, { significance_claimed: false, reentry_surfaced: false, mode: "always_liked" });
     patchUI({ provenanceCaptured: true, reentryOffered: true });
   }
 
@@ -54,6 +56,11 @@ export function ImageProvenance() {
         provenance_confidence: result.provenance_confidence,
       });
       setError(null);
+      logTelemetryEvent("provenance_captured", state.project.project_id, {
+        significance_claimed: result.significance_claimed,
+        reentry_surfaced: result.reentry_candidate.surfaced,
+        mode: "described",
+      });
 
       // §8's single optional offer -- only when the model actually flagged evident
       // weight, and never shown again once this project has resolved it once.

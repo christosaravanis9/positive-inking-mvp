@@ -25,6 +25,7 @@ export type ScreenId =
   | "creative_control"
   | "rough_scale"
   | "composition_background"
+  | "style_reference"
   | "artistic_direction"
   | "avoidances"
   | "placement"
@@ -57,6 +58,8 @@ export interface JourneyProgress {
   creativeControlSet: boolean;
   roughScaleSet: boolean;
   compositionFlowDone: boolean;
+  /** §12.10 — the client was offered the chance to name a style/medium/tradition before Screen 11's dimension-by-dimension flow begins. */
+  styleReferenceAsked: boolean;
   artisticFlowDone: boolean;
   avoidancesAsked: boolean;
   placementDone: boolean;
@@ -87,6 +90,7 @@ export function getNextScreen(p: JourneyProgress): ScreenId {
   if (!p.creativeControlSet) return "creative_control";
   if (!p.roughScaleSet) return "rough_scale";
   if (!p.compositionFlowDone) return "composition_background";
+  if (!p.styleReferenceAsked) return "style_reference";
   if (!p.artisticFlowDone) return "artistic_direction";
   if (!p.avoidancesAsked) return "avoidances";
   if (!p.placementDone) return "placement";

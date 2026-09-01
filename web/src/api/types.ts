@@ -64,6 +64,16 @@ export interface AvoidanceData {
   suggestions: string[];
 }
 
+export interface StyleReferenceData {
+  recognized: boolean;
+  under_specified: boolean;
+  summary: string;
+  leaves_open_note: string;
+  style_resolves: ArtisticDimensionKey[];
+  style_leaves_open: ArtisticDimensionKey[];
+  resolved_values: Partial<Record<ArtisticDimensionKey, string>>;
+}
+
 export interface BlueprintData {
   story: string | null;
   why_this_image: string | null;

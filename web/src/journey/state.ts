@@ -47,6 +47,16 @@ export interface UIState {
   blueprintReady: boolean;
   manualPathActive: boolean;
 
+  /** §12.10: the client was offered the chance to name a style/medium/tradition, whether or not they used it. */
+  styleReferenceAsked: boolean;
+  /**
+   * True only when a named style was recognised but under-specified (e.g. a
+   * named artist whose work varies widely) and the client did not attach a
+   * visual example when asked -- feeds ArtisticDirection's rendering_references
+   * eligibility so a genuinely open question isn't silently dropped.
+   */
+  styleUnderSpecified: boolean;
+
   compositionAnswers: Partial<Record<CompositionQuestionKey, string>>;
   compositionBudgetSpent: number;
   artisticAnswers: Partial<Record<ArtisticDimensionKey, string>>;
@@ -127,6 +137,8 @@ export function createInitialJourneyState(): JourneyState {
       designConfirmed: false,
       blueprintReady: false,
       manualPathActive: false,
+      styleReferenceAsked: false,
+      styleUnderSpecified: false,
       compositionAnswers: {},
       compositionBudgetSpent: 0,
       artisticAnswers: {},

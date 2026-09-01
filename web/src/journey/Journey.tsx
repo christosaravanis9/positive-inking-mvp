@@ -16,6 +16,7 @@ import { ElementsDiscovery } from "../screens/ElementsDiscovery";
 import { CreativeControl } from "../screens/CreativeControl";
 import { RoughScale } from "../screens/RoughScale";
 import { CompositionBackground } from "../screens/CompositionBackground";
+import { StyleReference } from "../screens/StyleReference";
 import { ArtisticDirection } from "../screens/ArtisticDirection";
 import { Avoidances } from "../screens/Avoidances";
 import { Placement } from "../screens/Placement";
@@ -38,6 +39,7 @@ const SCREEN_COMPONENTS: Record<ScreenId, () => JSX.Element | null> = {
   creative_control: CreativeControl,
   rough_scale: RoughScale,
   composition_background: CompositionBackground,
+  style_reference: StyleReference,
   artistic_direction: ArtisticDirection,
   avoidances: Avoidances,
   placement: Placement,

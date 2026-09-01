@@ -21,6 +21,7 @@ export function deriveProgress(state: JourneyState): JourneyProgress {
     creativeControlSet: ui.creativeControlSet,
     roughScaleSet: ui.roughScaleSet,
     compositionFlowDone: ui.compositionFlowDone,
+    styleReferenceAsked: ui.styleReferenceAsked,
     artisticFlowDone: ui.artisticFlowDone,
     avoidancesAsked: ui.avoidancesAsked,
     placementDone: ui.placementDone,

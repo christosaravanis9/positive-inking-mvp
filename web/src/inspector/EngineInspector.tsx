@@ -57,7 +57,7 @@ export function EngineInspector() {
     creative_control: signals.creative_control,
     text_led_interpretive_or_open_fidelity:
       signals.concept_shape === "text_led" && project.visual_elements.some((e) => e.fidelity === "interpretive" || e.fidelity === "open"),
-    style_under_specified: false,
+    style_under_specified: ui.styleUnderSpecified,
     style_resolves: project.style_resolves,
     style_reference: project.style_reference,
     already_answered: ui.artisticAnswers,

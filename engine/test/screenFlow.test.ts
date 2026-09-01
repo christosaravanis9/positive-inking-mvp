@@ -20,6 +20,7 @@ function base(overrides: Partial<JourneyProgress> = {}): JourneyProgress {
     creativeControlSet: false,
     roughScaleSet: false,
     compositionFlowDone: false,
+    styleReferenceAsked: false,
     artisticFlowDone: false,
     avoidancesAsked: false,
     placementDone: false,
@@ -87,17 +88,35 @@ describe("getNextScreen (§7-8 sequencing)", () => {
     expect(getNextScreen(attractionDone)).toBe("elements_discovery");
   });
 
-  it("walks the shared tail in order: creative_control -> rough_scale -> composition -> artistic -> avoidances -> placement -> design_confirmation", () => {
+  it("walks the shared tail in order: creative_control -> rough_scale -> composition -> style_reference -> artistic -> avoidances -> placement -> design_confirmation", () => {
     const p = base({ storySubmitted: true, themesSelected: true, intentionConfirmed: true, elementsDiscovered: true });
     expect(getNextScreen(p)).toBe("creative_control");
     expect(getNextScreen({ ...p, creativeControlSet: true })).toBe("rough_scale");
     expect(getNextScreen({ ...p, creativeControlSet: true, roughScaleSet: true })).toBe("composition_background");
-    expect(getNextScreen({ ...p, creativeControlSet: true, roughScaleSet: true, compositionFlowDone: true })).toBe("artistic_direction");
-    expect(getNextScreen({ ...p, creativeControlSet: true, roughScaleSet: true, compositionFlowDone: true, artisticFlowDone: true })).toBe(
-      "avoidances",
-    );
+    expect(getNextScreen({ ...p, creativeControlSet: true, roughScaleSet: true, compositionFlowDone: true })).toBe("style_reference");
     expect(
-      getNextScreen({ ...p, creativeControlSet: true, roughScaleSet: true, compositionFlowDone: true, artisticFlowDone: true, avoidancesAsked: true }),
+      getNextScreen({ ...p, creativeControlSet: true, roughScaleSet: true, compositionFlowDone: true, styleReferenceAsked: true }),
+    ).toBe("artistic_direction");
+    expect(
+      getNextScreen({
+        ...p,
+        creativeControlSet: true,
+        roughScaleSet: true,
+        compositionFlowDone: true,
+        styleReferenceAsked: true,
+        artisticFlowDone: true,
+      }),
+    ).toBe("avoidances");
+    expect(
+      getNextScreen({
+        ...p,
+        creativeControlSet: true,
+        roughScaleSet: true,
+        compositionFlowDone: true,
+        styleReferenceAsked: true,
+        artisticFlowDone: true,
+        avoidancesAsked: true,
+      }),
     ).toBe("placement");
     expect(
       getNextScreen({
@@ -105,6 +124,7 @@ describe("getNextScreen (§7-8 sequencing)", () => {
         creativeControlSet: true,
         roughScaleSet: true,
         compositionFlowDone: true,
+        styleReferenceAsked: true,
         artisticFlowDone: true,
         avoidancesAsked: true,
         placementDone: true,

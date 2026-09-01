@@ -35,6 +35,8 @@ export interface UIState {
 
   imageDescribed: boolean;
   provenanceCaptured: boolean;
+  /** §8/§10 — the single optional re-entry offer has been shown and resolved (accepted or declined), whichever came first. Never shown twice for the same project. */
+  reentryOffered: boolean;
 
   elementsDiscovered: boolean;
   creativeControlSet: boolean;
@@ -127,6 +129,7 @@ export function createInitialJourneyState(): JourneyState {
       intentionConfirmed: false,
       imageDescribed: false,
       provenanceCaptured: false,
+      reentryOffered: false,
       elementsDiscovered: false,
       creativeControlSet: false,
       roughScaleSet: false,

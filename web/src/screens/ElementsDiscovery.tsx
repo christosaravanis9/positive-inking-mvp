@@ -6,6 +6,7 @@ import { ReferenceAttachment, emptyReferenceDraft, type ReferenceDraft } from ".
 import type { VisualElement, ElementFidelity, ConsentRecord, ReferenceStatus } from "@positive-inking/engine";
 import {
   suppressGeneratedSymbolicSuggestions,
+  rankVisualCandidates,
   deriveConceptShape,
   classifyIdeaIteration,
   targetMinutesForJourney,
@@ -144,16 +145,17 @@ export function ElementsDiscovery() {
   } | null>(null);
 
   const hasCandidates = state.ui.associationCandidates.length > 0;
-  // §9.7 scope limit: suppress system-generated artistic_symbol/tattoo_reference
-  // suggestions at low confidence, without ever touching indices -- selected/
-  // fidelityByIndex/referenceByIndex and the "candidate-{i}" id scheme all key off
-  // the *original* array position, so this only hides entries from render, it
-  // never re-indexes them. addedIdeas (user-authored) is a wholly separate array
-  // that never passes through this filter at all.
-  const visibleCandidateIndices = suppressGeneratedSymbolicSuggestions(
-    state.ui.associationCandidates.map((c, i) => ({ source_category: c.source_category, i })),
-    state.project.interpretation_confidence,
-  ).map((c) => c.i);
+  // §11: rank by personal_relevance/story_relevance/originality (outweighing
+  // raw visual appeal) before display, then §9.7 scope limit: suppress
+  // system-generated artistic_symbol/tattoo_reference at low confidence.
+  // Neither step ever touches indices -- selected/fidelityByIndex/
+  // referenceByIndex and the "candidate-{i}" id scheme all key off the
+  // *original* array position, so this only reorders/hides entries for
+  // render. addedIdeas (user-authored) is a wholly separate array that never
+  // passes through either function.
+  const indexedCandidates = state.ui.associationCandidates.map((c, i) => ({ ...c, i }));
+  const rankedAndFiltered = suppressGeneratedSymbolicSuggestions(rankVisualCandidates(indexedCandidates), state.project.interpretation_confidence);
+  const visibleCandidateIndices = rankedAndFiltered.map((c) => c.i);
 
   // §14.2: only offered when there is exactly one already-confirmed element to
   // possibly replace -- this build has no explicit "set hierarchy to primary"

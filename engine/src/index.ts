@@ -10,6 +10,7 @@ export * from "./newIdea.js";
 export * from "./suitability.js";
 export * from "./readiness.js";
 export * from "./referenceChecklist.js";
+export * from "./visualRanking.js";
 export * from "./blueprintSections.js";
 export * from "./workingNotes.js";
 export * from "./compositionFlow.js";

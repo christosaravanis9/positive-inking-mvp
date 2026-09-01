@@ -5,6 +5,7 @@ import { discoveryRouter } from "./routes/discovery.js";
 import { provenanceRouter } from "./routes/provenance.js";
 import { associationRouter } from "./routes/association.js";
 import { blueprintRouter } from "./routes/blueprint.js";
+import { avoidanceRouter } from "./routes/avoidance.js";
 
 /** Separated from index.ts's `app.listen` so tests can exercise the app without binding a port. */
 export function createApp() {
@@ -20,6 +21,7 @@ export function createApp() {
   app.use(provenanceRouter);
   app.use(associationRouter);
   app.use(blueprintRouter);
+  app.use(avoidanceRouter);
 
   app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     // eslint-disable-next-line no-console

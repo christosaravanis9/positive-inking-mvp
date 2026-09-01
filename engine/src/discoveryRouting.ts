@@ -69,3 +69,21 @@ export function lowConfidenceConsequences(): LowConfidenceConsequences {
     canReachBlueprintReady: false,
   };
 }
+
+/**
+ * §9.7's suppression scope note, enforced structurally rather than by
+ * convention: "suppresses artistic_symbol and tattoo_reference in
+ * system-generated suggestions only." The candidates passed in here must
+ * already be *only* the system-generated pool (the Association Engine's
+ * output) -- user-authored material (§3.6's "this has given me another
+ * idea...") lives in a separate array in this codebase and never passes
+ * through this function at all, so there is no path by which it could be
+ * accidentally downranked or removed here (§9.7's "scope limit").
+ */
+export function suppressGeneratedSymbolicSuggestions<T extends { source_category: string }>(
+  candidates: T[],
+  interpretationConfidence: "" | "low" | "standard",
+): T[] {
+  if (interpretationConfidence !== "low") return candidates;
+  return candidates.filter((c) => c.source_category !== "artistic_symbol" && c.source_category !== "tattoo_reference");
+}

@@ -4,6 +4,7 @@ import { requestAssociations } from "../api/association";
 import { AsyncError } from "../components/AsyncError";
 import { ReferenceAttachment, emptyReferenceDraft, type ReferenceDraft } from "../components/ReferenceAttachment";
 import type { VisualElement, ElementFidelity, ConsentRecord, ReferenceStatus } from "@positive-inking/engine";
+import { suppressGeneratedSymbolicSuggestions } from "@positive-inking/engine";
 import type { JourneyState } from "../journey/state";
 
 interface AddedIdea {
@@ -113,6 +114,16 @@ export function ElementsDiscovery() {
   const [fetching, setFetching] = useState(false);
 
   const hasCandidates = state.ui.associationCandidates.length > 0;
+  // §9.7 scope limit: suppress system-generated artistic_symbol/tattoo_reference
+  // suggestions at low confidence, without ever touching indices -- selected/
+  // fidelityByIndex/referenceByIndex and the "candidate-{i}" id scheme all key off
+  // the *original* array position, so this only hides entries from render, it
+  // never re-indexes them. addedIdeas (user-authored) is a wholly separate array
+  // that never passes through this filter at all.
+  const visibleCandidateIndices = suppressGeneratedSymbolicSuggestions(
+    state.ui.associationCandidates.map((c, i) => ({ source_category: c.source_category, i })),
+    state.project.interpretation_confidence,
+  ).map((c) => c.i);
 
   async function fetchAssociations() {
     setFetching(true);
@@ -244,7 +255,9 @@ export function ElementsDiscovery() {
       {fetching && <p className="progress-note">Finding personal and visual directions...</p>}
       {hasCandidates && (
         <div className="option-grid" style={{ flexDirection: "column", alignItems: "stretch" }}>
-          {state.ui.associationCandidates.map((candidate, i) => (
+          {visibleCandidateIndices.map((i) => {
+            const candidate = state.ui.associationCandidates[i]!;
+            return (
             <div key={i} className={`option-chip${selected.has(i) ? " selected" : ""}`}>
               <label style={{ cursor: "pointer", display: "block" }}>
                 <input type="checkbox" checked={selected.has(i)} onChange={() => toggle(i)} style={{ marginRight: 8 }} />
@@ -272,7 +285,8 @@ export function ElementsDiscovery() {
                 </>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

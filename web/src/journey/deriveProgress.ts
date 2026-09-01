@@ -11,6 +11,8 @@ export function deriveProgress(state: JourneyState): JourneyProgress {
     storySubmitted: ui.discoveryCompleted,
     clarificationRequired: project.confidence > 0 && project.confidence < 0.4 && project.visual_confidence < 0.6,
     clarificationShown: ui.clarificationShown,
+    lowConfidenceCorrectionNeeded: ui.lowConfidenceCorrectionNeeded,
+    lowConfidenceCorrectionDone: ui.lowConfidenceCorrectionDone,
     themesSelected: ui.themesSelected,
     intentionConfirmed: ui.intentionConfirmed,
     imageDescribed: ui.imageDescribed,

@@ -10,6 +10,8 @@ function base(overrides: Partial<JourneyProgress> = {}): JourneyProgress {
     storySubmitted: false,
     clarificationRequired: false,
     clarificationShown: false,
+    lowConfidenceCorrectionNeeded: false,
+    lowConfidenceCorrectionDone: false,
     themesSelected: false,
     intentionConfirmed: false,
     imageDescribed: false,
@@ -44,6 +46,25 @@ describe("getNextScreen (§7-8 sequencing)", () => {
   it("full mode never shows clarification once it has already been shown, even if still marked required (one-clarification rule)", () => {
     expect(
       getNextScreen(base({ storySubmitted: true, clarificationRequired: true, clarificationShown: true, themesSelected: false })),
+    ).toBe("meaning_reflection");
+  });
+
+  it("shows the correction screen once, after clarification, when the response didn't resolve it -- never a second clarification (§9.6)", () => {
+    expect(
+      getNextScreen(
+        base({ storySubmitted: true, clarificationShown: true, lowConfidenceCorrectionNeeded: true, lowConfidenceCorrectionDone: false }),
+      ),
+    ).toBe("correction");
+    expect(
+      getNextScreen(
+        base({ storySubmitted: true, clarificationShown: true, lowConfidenceCorrectionNeeded: true, lowConfidenceCorrectionDone: true, themesSelected: false }),
+      ),
+    ).toBe("meaning_reflection");
+  });
+
+  it("does not show the correction screen when the response resolved it (lowConfidenceCorrectionNeeded false)", () => {
+    expect(
+      getNextScreen(base({ storySubmitted: true, clarificationShown: true, lowConfidenceCorrectionNeeded: false, themesSelected: false })),
     ).toBe("meaning_reflection");
   });
 

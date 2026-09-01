@@ -28,6 +28,8 @@ export interface UIState {
   discoveryCompleted: boolean;
   clarificationShown: boolean;
   clarificationUsed: boolean;
+  lowConfidenceCorrectionNeeded: boolean;
+  lowConfidenceCorrectionDone: boolean;
   themesSelected: boolean;
   intentionConfirmed: boolean;
 
@@ -109,6 +111,8 @@ export function createInitialJourneyState(): JourneyState {
       discoveryCompleted: false,
       clarificationShown: false,
       clarificationUsed: false,
+      lowConfidenceCorrectionNeeded: false,
+      lowConfidenceCorrectionDone: false,
       themesSelected: false,
       intentionConfirmed: false,
       imageDescribed: false,

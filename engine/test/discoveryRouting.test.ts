@@ -3,6 +3,7 @@ import {
   routeAfterDiscovery,
   classifyClarificationResponse,
   shouldEnterLowConfidencePath,
+  suppressGeneratedSymbolicSuggestions,
 } from "../src/discoveryRouting.js";
 
 describe("routeAfterDiscovery (§9.3)", () => {
@@ -63,5 +64,34 @@ describe("shouldEnterLowConfidencePath", () => {
     expect(shouldEnterLowConfidencePath("non_resolving")).toBe(true);
     expect(shouldEnterLowConfidencePath("skipped")).toBe(true);
     expect(shouldEnterLowConfidencePath("off_topic")).toBe(true);
+  });
+});
+
+describe("suppressGeneratedSymbolicSuggestions (§9.7 scope limit)", () => {
+  const candidates = [
+    { id: "a", source_category: "personal_memory" },
+    { id: "b", source_category: "artistic_symbol" },
+    { id: "c", source_category: "tattoo_reference" },
+    { id: "d", source_category: "personal_artefact" },
+  ];
+
+  it("passes everything through untouched at standard confidence", () => {
+    expect(suppressGeneratedSymbolicSuggestions(candidates, "standard")).toEqual(candidates);
+    expect(suppressGeneratedSymbolicSuggestions(candidates, "")).toEqual(candidates);
+  });
+
+  it("removes only artistic_symbol and tattoo_reference at low confidence, keeping personal material", () => {
+    const result = suppressGeneratedSymbolicSuggestions(candidates, "low");
+    expect(result.map((c) => c.id)).toEqual(["a", "d"]);
+  });
+
+  it("never touches an array of user-authored material -- it's simply never passed in (structural scope limit)", () => {
+    const userAuthored = [{ id: "e", source_category: "artistic_symbol" }];
+    // If a caller mistakenly ran user-authored material through this function it WOULD be
+    // filtered like anything else -- the real guarantee is architectural (ElementsDiscovery.tsx
+    // keeps addedIdeas in a separate array that never reaches this function), not that this
+    // function can distinguish origins it isn't told about. Documented here so the boundary
+    // is visible rather than assumed.
+    expect(suppressGeneratedSymbolicSuggestions(userAuthored, "low")).toEqual([]);
   });
 });

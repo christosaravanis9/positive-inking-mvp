@@ -16,6 +16,7 @@ export type ScreenId =
   | "viewpoint"
   | "story"
   | "clarification"
+  | "correction"
   | "meaning_reflection"
   | "intention_confirmation"
   | "image_description"
@@ -41,6 +42,9 @@ export interface JourneyProgress {
   storySubmitted: boolean;
   clarificationRequired: boolean;
   clarificationShown: boolean;
+  /** §9.6 — true when the clarification response was anything but "resolving" (non_resolving, skipped, or off_topic). Only meaningful once clarificationShown is true. */
+  lowConfidenceCorrectionNeeded: boolean;
+  lowConfidenceCorrectionDone: boolean;
   themesSelected: boolean;
   intentionConfirmed: boolean;
 
@@ -69,6 +73,8 @@ export function getNextScreen(p: JourneyProgress): ScreenId {
   if (p.journey_mode === "full") {
     if (!p.storySubmitted) return "story";
     if (p.clarificationRequired && !p.clarificationShown) return "clarification";
+    // §9.6: not a second clarification question -- the correction interaction, at most once.
+    if (p.clarificationShown && p.lowConfidenceCorrectionNeeded && !p.lowConfidenceCorrectionDone) return "correction";
     if (!p.themesSelected) return "meaning_reflection";
     if (!p.intentionConfirmed) return "intention_confirmation";
   } else if (p.journey_mode === "attraction" || p.journey_mode === "expert") {

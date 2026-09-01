@@ -7,6 +7,7 @@ import { Welcome } from "../screens/Welcome";
 import { Viewpoint } from "../screens/Viewpoint";
 import { Story } from "../screens/Story";
 import { Clarification } from "../screens/Clarification";
+import { Correction } from "../screens/Correction";
 import { MeaningReflection } from "../screens/MeaningReflection";
 import { IntentionConfirmation } from "../screens/IntentionConfirmation";
 import { ImageDescription } from "../screens/ImageDescription";
@@ -28,6 +29,7 @@ const SCREEN_COMPONENTS: Record<ScreenId, () => JSX.Element | null> = {
   viewpoint: Viewpoint,
   story: Story,
   clarification: Clarification,
+  correction: Correction,
   meaning_reflection: MeaningReflection,
   intention_confirmation: IntentionConfirmation,
   image_description: ImageDescription,

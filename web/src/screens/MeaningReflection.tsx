@@ -17,10 +17,19 @@ export function MeaningReflection() {
     patchUI({ themesSelected: true });
   }
 
+  // §9.7: framed as a starting point, not a finished read, once interpretation_confidence is "low".
+  const isLowConfidence = state.project.interpretation_confidence === "low";
+
   return (
     <div className="screen">
-      <h2>Here is what we heard.</h2>
+      <h2>{isLowConfidence ? "Here is a starting point." : "Here is what we heard."}</h2>
       <div className="reflection-box">{state.ui.discoveryInterpretation}</div>
+      {isLowConfidence && (
+        <p className="supporting">
+          This is a starting point, not the full picture — the details you just confirmed matter more here than any
+          interpretation.
+        </p>
+      )}
       <h3 style={{ marginBottom: 4 }}>What feels most important?</h3>
       <p className="supporting">Select everything that genuinely matters — there's no limit.</p>
       <OptionChips

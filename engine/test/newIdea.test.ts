@@ -4,7 +4,28 @@ import {
   computeInvalidatedQuestions,
   canReaskThisIteration,
   elementReplacementQuestionRequired,
+  targetMinutesForJourney,
 } from "../src/newIdea.js";
+
+describe("targetMinutesForJourney (§5 band mapping)", () => {
+  it("attraction/expert always uses the shortest band", () => {
+    expect(targetMinutesForJourney("attraction", 5, "large")).toBe(3);
+    expect(targetMinutesForJourney("expert", 1, "small")).toBe(3);
+  });
+
+  it("a single small element uses the simple-quick-path band", () => {
+    expect(targetMinutesForJourney("full", 1, "small")).toBe(4);
+  });
+
+  it("multiple elements use the personal/multi-element band", () => {
+    expect(targetMinutesForJourney("full", 2, "medium")).toBe(6);
+  });
+
+  it("large or sleeve scale, or 4+ elements, use the large/immersive band regardless of the other", () => {
+    expect(targetMinutesForJourney("full", 1, "large")).toBe(8);
+    expect(targetMinutesForJourney("full", 4, "small")).toBe(8);
+  });
+});
 
 describe("classifyIdeaIteration (§14)", () => {
   it("iterations 1-3 are full behaviour", () => {

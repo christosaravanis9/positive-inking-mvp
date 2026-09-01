@@ -4,7 +4,25 @@
  * where it leads.
  */
 
+import type { JourneyMode, SizeClass } from "./types.js";
+
 export type IdeaIterationBehavior = "full" | "full_with_scope_reflection" | "demoted_to_notes";
+
+/**
+ * §5's experience-target table gives four named bands (2-4 min, 3-5 min,
+ * 5-7 min, 6-10 min) keyed to project descriptions ("attraction/expert",
+ * "simple quick path", "personal/multi-element", "large/immersive/style-
+ * specific") rather than to element_count/size_class directly. This is this
+ * project's own mapping from the concept signals already on hand onto those
+ * bands (using each band's midpoint in minutes) -- a synthesis, not a
+ * verbatim table, kept in one place so it's a one-line recalibration.
+ */
+export function targetMinutesForJourney(journeyMode: JourneyMode, elementCount: number, sizeClass: SizeClass | ""): number {
+  if (journeyMode === "attraction" || journeyMode === "expert") return 3;
+  if (sizeClass === "large" || sizeClass === "sleeve_or_panel" || elementCount >= 4) return 8;
+  if (elementCount >= 2) return 6;
+  return 4;
+}
 
 /**
  * `iterationNumber` is 1-indexed (the first new idea is iteration 1).

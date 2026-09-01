@@ -4,18 +4,32 @@ import { requestAssociations } from "../api/association";
 import { AsyncError } from "../components/AsyncError";
 import { ReferenceAttachment, emptyReferenceDraft, type ReferenceDraft } from "../components/ReferenceAttachment";
 import type { VisualElement, ElementFidelity, ConsentRecord, ReferenceStatus } from "@positive-inking/engine";
-import { suppressGeneratedSymbolicSuggestions } from "@positive-inking/engine";
+import {
+  suppressGeneratedSymbolicSuggestions,
+  deriveConceptShape,
+  classifyIdeaIteration,
+  targetMinutesForJourney,
+  computeInvalidatedQuestions,
+  lightweightSuitabilityCheck,
+  canReaskThisIteration,
+  type IdeaIterationBehavior,
+  type SuitabilityConsideration,
+} from "@positive-inking/engine";
 import type { JourneyState } from "../journey/state";
 
 interface AddedIdea {
   text: string;
   fidelity: ElementFidelity;
+  /** §14.2 -- the id of the element this idea replaces, or null if it sits alongside everything else. Never inferred; always the user's own choice. */
+  replacesElementId: string | null;
+  /** User-confirmed, not guessed (§14.1's likeness/place and scenic-background triggers need real signal, not text-parsing). */
+  isLikenessOrPlace: boolean;
+  addsScene: boolean;
 }
 
 const NEEDS_REFERENCE: ReadonlySet<ElementFidelity> = new Set(["exact", "closely_based_on"]);
 
 function draftToConsentRecord(referenceId: string, draft: ReferenceDraft): ConsentRecord | null {
-  // Only worth recording once the user actually engaged with reference capture.
   if (!draft.material_type && !draft.dataUrl) return null;
   return {
     reference_id: referenceId,
@@ -70,6 +84,11 @@ function draftFromExisting(elementId: string, state: JourneyState): ReferenceDra
  * Reference attachment (§15) happens right here, inline, at the point the
  * user tells the system a piece needs to be exact -- not on a separate
  * consent screen. §15.3: "One checkbox, one line, at the point of upload."
+ *
+ * The new-idea loop (§14) also lives here -- this is the only screen in
+ * this build that shows "visual material" in the sense §3.6 means (an
+ * option to react to); Screens 10/11 show text option labels, which the
+ * spec's iteration-bound language was never aimed at.
  */
 export function ElementsDiscovery() {
   const { state, patchProject, patchUI, setError, beginAttempt } = useJourney();
@@ -98,8 +117,13 @@ export function ElementsDiscovery() {
     return map;
   });
   const [newIdeaText, setNewIdeaText] = useState("");
+  const [replacesChoice, setReplacesChoice] = useState("");
+  const [isLikenessOrPlaceChecked, setIsLikenessOrPlaceChecked] = useState(false);
+  const [addsSceneChecked, setAddsSceneChecked] = useState(false);
   const [addedIdeas, setAddedIdeas] = useState<AddedIdea[]>(() =>
-    state.project.visual_elements.filter((e) => e.id.startsWith("idea-")).map((e) => ({ text: e.description, fidelity: e.fidelity })),
+    state.project.visual_elements
+      .filter((e) => e.id.startsWith("idea-"))
+      .map((e) => ({ text: e.description, fidelity: e.fidelity, replacesElementId: null, isLikenessOrPlace: false, addsScene: false })),
   );
   const [referenceByIdea, setReferenceByIdea] = useState<Record<number, ReferenceDraft>>(() => {
     const map: Record<number, ReferenceDraft> = {};
@@ -112,6 +136,12 @@ export function ElementsDiscovery() {
     return map;
   });
   const [fetching, setFetching] = useState(false);
+  const [demotedNotice, setDemotedNotice] = useState<string | null>(null);
+  const [scopeReflection, setScopeReflection] = useState<{
+    text: string;
+    prospectiveCount: number;
+    suitability: SuitabilityConsideration | null;
+  } | null>(null);
 
   const hasCandidates = state.ui.associationCandidates.length > 0;
   // §9.7 scope limit: suppress system-generated artistic_symbol/tattoo_reference
@@ -124,6 +154,13 @@ export function ElementsDiscovery() {
     state.ui.associationCandidates.map((c, i) => ({ source_category: c.source_category, i })),
     state.project.interpretation_confidence,
   ).map((c) => c.i);
+
+  // §14.2: only offered when there is exactly one already-confirmed element to
+  // possibly replace -- this build has no explicit "set hierarchy to primary"
+  // step anywhere, so a lone existing element is the one unambiguous anchor for
+  // "confirmed primary" the question can point at without guessing which of
+  // several elements is meant.
+  const existingSoleElement = state.project.visual_elements.length === 1 ? state.project.visual_elements[0]! : null;
 
   async function fetchAssociations() {
     setFetching(true);
@@ -176,10 +213,76 @@ export function ElementsDiscovery() {
     });
   }
 
+  function resetIdeaForm() {
+    setNewIdeaText("");
+    setReplacesChoice("");
+    setIsLikenessOrPlaceChecked(false);
+    setAddsSceneChecked(false);
+  }
+
+  function currentIterationNumber(): number {
+    return state.project.idea_iteration_count + 1;
+  }
+
+  function elapsedOverTargetRatio(): number {
+    const targetMinutes = targetMinutesForJourney(
+      state.project.journey_mode,
+      state.project.visual_elements.length + addedIdeas.length,
+      state.project.size_class,
+    );
+    const elapsedMs = Date.now() - new Date(state.project.created_at).getTime();
+    return elapsedMs / (targetMinutes * 60000);
+  }
+
+  function commitIdea(text: string) {
+    setAddedIdeas((prev) => [
+      ...prev,
+      {
+        text,
+        fidelity: "interpretive",
+        replacesElementId: replacesChoice || null,
+        isLikenessOrPlace: isLikenessOrPlaceChecked,
+        addsScene: addsSceneChecked,
+      },
+    ]);
+    patchProject({ idea_iteration_count: currentIterationNumber() });
+    resetIdeaForm();
+  }
+
+  function demoteIdea(text: string) {
+    patchProject({
+      artist_notes: [...state.project.artist_notes, text],
+      idea_iteration_count: currentIterationNumber(),
+      ideas_demoted_to_notes: state.project.ideas_demoted_to_notes + 1,
+    });
+    setDemotedNotice(text);
+    resetIdeaForm();
+  }
+
   function addIdea() {
     if (newIdeaText.trim().length === 0) return;
-    setAddedIdeas((prev) => [...prev, { text: newIdeaText.trim(), fidelity: "interpretive" }]);
-    setNewIdeaText("");
+    const text = newIdeaText.trim();
+    const behavior: IdeaIterationBehavior = classifyIdeaIteration(currentIterationNumber(), elapsedOverTargetRatio());
+
+    if (behavior === "demoted_to_notes") {
+      demoteIdea(text);
+      return;
+    }
+
+    if (behavior === "full_with_scope_reflection") {
+      const prospectiveCount = state.project.visual_elements.length + addedIdeas.length + 1;
+      const suitability = lightweightSuitabilityCheck(state.project.size_class || "small", prospectiveCount, state.project.creative_control || undefined);
+      setScopeReflection({ text, prospectiveCount, suitability });
+      return;
+    }
+
+    commitIdea(text);
+  }
+
+  function confirmScopeReflection() {
+    if (!scopeReflection) return;
+    commitIdea(scopeReflection.text);
+    setScopeReflection(null);
   }
 
   function confirm() {
@@ -224,7 +327,7 @@ export function ElementsDiscovery() {
         description: idea.text,
         personal_meaning: idea.text,
         source_category: "new_materialisation",
-        hierarchy: "undecided",
+        hierarchy: idea.replacesElementId ? "primary" : "undecided",
         fidelity: idea.fidelity,
         colour_role: "undecided",
         reference_required: NEEDS_REFERENCE.has(idea.fidelity),
@@ -234,18 +337,105 @@ export function ElementsDiscovery() {
       };
     });
 
-    // Replace, don't append: this screen can be revisited (e.g. from Screen
-    // 13's "Add references"), and re-confirming must not duplicate elements
-    // or leave stale consent records for a reference the user removed.
+    // §14.2: a replacement is dropped here, and only here -- the one place the
+    // user explicitly said "instead of", never inferred anywhere else.
+    const replacedIds = new Set(addedIdeas.map((i) => i.replacesElementId).filter((id): id is string => id !== null));
+    const survivingCandidates = fromCandidates.filter((e) => !replacedIds.has(e.id));
+    // Elements already confirmed in a prior visit that aren't represented by the
+    // current selection/addedIdeas state at all (shouldn't normally happen, since
+    // both rehydrate from project.visual_elements on mount) are preserved too,
+    // minus anything just replaced -- belt and suspenders against silent loss.
+    const handledIds = new Set([...survivingCandidates, ...fromIdeas].map((e) => e.id));
+    const untouchedPriorElements = state.project.visual_elements.filter((e) => !handledIds.has(e.id) && !replacedIds.has(e.id));
+
+    const newElements = [...untouchedPriorElements, ...survivingCandidates, ...fromIdeas];
+
+    // §14.1 recomputation -- compare concept_shape before vs after this edit.
+    const anyNewLikenessOrPlace = addedIdeas.some((i) => i.isLikenessOrPlace);
+    const anyNewScene = addedIdeas.some((i) => i.addsScene);
+    const oldConceptShape = deriveConceptShape({
+      element_count: state.project.visual_elements.length,
+      place_role: state.project.place_role,
+      spatial_language_present: state.ui.spatialLanguagePresent,
+      has_text_or_handwriting: state.ui.hasTextOrHandwriting,
+      has_likeness: state.ui.hasLikeness,
+      text_is_primary: state.ui.textIsPrimary,
+      likeness_is_primary: state.ui.likenessIsPrimary,
+    });
+    const newConceptShape = deriveConceptShape({
+      element_count: newElements.length,
+      place_role: state.project.place_role,
+      spatial_language_present: state.ui.spatialLanguagePresent || anyNewScene,
+      has_text_or_handwriting: state.ui.hasTextOrHandwriting,
+      has_likeness: state.ui.hasLikeness || anyNewLikenessOrPlace,
+      text_is_primary: state.ui.textIsPrimary,
+      likeness_is_primary: state.ui.likenessIsPrimary,
+    });
+
+    const iterationKey = String(state.project.idea_iteration_count);
+    const alreadyReaskedThisIteration = state.project.questions_reasked
+      .filter((entry) => entry.startsWith(`${iterationKey}:`))
+      .map((entry) => entry.split(":")[1]!);
+
+    const triggers = {
+      concept_shape_changed: oldConceptShape !== newConceptShape,
+      element_count_crossed_one_to_many: state.project.visual_elements.length === 1 && newElements.length >= 2,
+      likeness_or_place_introduced: anyNewLikenessOrPlace,
+      background_was_none_now_scenic: state.project.composition_background === "none" && anyNewScene,
+    };
+    const invalidated = computeInvalidatedQuestions(triggers, {
+      density_previously_skipped: state.ui.compositionAnswers.density === undefined,
+      realism_previously_skipped_or_defaulted: state.ui.artisticAnswers.realism === undefined,
+    });
+
+    const newlyReasked: string[] = [];
+    const compositionAnswers = { ...state.ui.compositionAnswers };
+    let compositionFlowDone = state.ui.compositionFlowDone;
+    if (invalidated.composition_type && canReaskThisIteration("composition_type", alreadyReaskedThisIteration)) {
+      delete compositionAnswers.composition_type;
+      compositionFlowDone = false;
+      newlyReasked.push("composition_type");
+    }
+    if (invalidated.density && canReaskThisIteration("density", alreadyReaskedThisIteration)) {
+      delete compositionAnswers.density;
+      compositionFlowDone = false;
+      newlyReasked.push("density");
+    }
+    let compositionBackground = state.project.composition_background;
+    if (invalidated.background_decision && canReaskThisIteration("internal_background", alreadyReaskedThisIteration)) {
+      delete compositionAnswers.internal_background;
+      compositionBackground = "undecided"; // never silently overridden -- must be re-asked (AC 46)
+      compositionFlowDone = false;
+      newlyReasked.push("internal_background");
+    }
+    const artisticAnswers = { ...state.ui.artisticAnswers };
+    let artisticFlowDone = state.ui.artisticFlowDone;
+    if (invalidated.realism && canReaskThisIteration("realism", alreadyReaskedThisIteration)) {
+      delete artisticAnswers.realism;
+      artisticFlowDone = false;
+      newlyReasked.push("realism");
+    }
+
     const consentRecordIds = new Set(candidateConsentRecords.map((r) => r.reference_id));
-    const preservedConsentRecords = state.project.consent_records.filter((r) => !consentRecordIds.has(r.reference_id));
+    const preservedConsentRecords = state.project.consent_records.filter((r) => !consentRecordIds.has(r.reference_id) && !replacedIds.has(r.reference_id));
 
     patchProject({
-      visual_elements: [...fromCandidates, ...fromIdeas],
-      visual_inspiration_additions: addedIdeas.map((i) => i.text),
+      visual_elements: newElements,
+      visual_inspiration_additions: [...state.project.visual_inspiration_additions, ...addedIdeas.map((i) => i.text)],
       consent_records: [...preservedConsentRecords, ...candidateConsentRecords],
+      composition_background: compositionBackground,
+      questions_reasked: [...state.project.questions_reasked, ...newlyReasked.map((q) => `${iterationKey}:${q}`)],
     });
-    patchUI({ elementsDiscovered: true, referenceAssets: { ...state.ui.referenceAssets, ...referenceAssets } });
+    patchUI({
+      elementsDiscovered: true,
+      referenceAssets: { ...state.ui.referenceAssets, ...referenceAssets },
+      hasLikeness: state.ui.hasLikeness || anyNewLikenessOrPlace,
+      spatialLanguagePresent: state.ui.spatialLanguagePresent || anyNewScene,
+      compositionAnswers,
+      compositionFlowDone,
+      artisticAnswers,
+      artisticFlowDone,
+    });
   }
 
   return (
@@ -258,33 +448,33 @@ export function ElementsDiscovery() {
           {visibleCandidateIndices.map((i) => {
             const candidate = state.ui.associationCandidates[i]!;
             return (
-            <div key={i} className={`option-chip${selected.has(i) ? " selected" : ""}`}>
-              <label style={{ cursor: "pointer", display: "block" }}>
-                <input type="checkbox" checked={selected.has(i)} onChange={() => toggle(i)} style={{ marginRight: 8 }} />
-                <strong>{candidate.description}</strong> — {candidate.personal_meaning}
-              </label>
-              {selected.has(i) && (
-                <>
-                  <select
-                    value={fidelityByIndex[i] ?? "interpretive"}
-                    onChange={(e) => setFidelityByIndex((prev) => ({ ...prev, [i]: e.target.value as ElementFidelity }))}
-                    style={{ display: "block", marginTop: 6 }}
-                  >
-                    <option value="exact">Exactly as-is (needs a reference)</option>
-                    <option value="closely_based_on">Closely based on this (needs a reference)</option>
-                    <option value="interpretive">Interpreted by the artist</option>
-                    <option value="open">Open — artist's call</option>
-                  </select>
-                  {NEEDS_REFERENCE.has(fidelityByIndex[i] ?? "interpretive") && (
-                    <ReferenceAttachment
-                      value={referenceByIndex[i] ?? emptyReferenceDraft()}
-                      onChange={(next) => setReferenceByIndex((prev) => ({ ...prev, [i]: next }))}
-                      elementDescription={candidate.description}
-                    />
-                  )}
-                </>
-              )}
-            </div>
+              <div key={i} className={`option-chip${selected.has(i) ? " selected" : ""}`}>
+                <label style={{ cursor: "pointer", display: "block" }}>
+                  <input type="checkbox" checked={selected.has(i)} onChange={() => toggle(i)} style={{ marginRight: 8 }} />
+                  <strong>{candidate.description}</strong> — {candidate.personal_meaning}
+                </label>
+                {selected.has(i) && (
+                  <>
+                    <select
+                      value={fidelityByIndex[i] ?? "interpretive"}
+                      onChange={(e) => setFidelityByIndex((prev) => ({ ...prev, [i]: e.target.value as ElementFidelity }))}
+                      style={{ display: "block", marginTop: 6 }}
+                    >
+                      <option value="exact">Exactly as-is (needs a reference)</option>
+                      <option value="closely_based_on">Closely based on this (needs a reference)</option>
+                      <option value="interpretive">Interpreted by the artist</option>
+                      <option value="open">Open — artist's call</option>
+                    </select>
+                    {NEEDS_REFERENCE.has(fidelityByIndex[i] ?? "interpretive") && (
+                      <ReferenceAttachment
+                        value={referenceByIndex[i] ?? emptyReferenceDraft()}
+                        onChange={(next) => setReferenceByIndex((prev) => ({ ...prev, [i]: next }))}
+                        elementDescription={candidate.description}
+                      />
+                    )}
+                  </>
+                )}
+              </div>
             );
           })}
         </div>
@@ -292,6 +482,54 @@ export function ElementsDiscovery() {
 
       <div>
         <p className="supporting">This has given me another idea...</p>
+
+        {demotedNotice && (
+          <p className="supporting">
+            Added to your artist notes — you've reached the point where new ideas get captured for the artist to
+            discuss rather than reshaping the design ("{demotedNotice}").
+          </p>
+        )}
+
+        {scopeReflection && (
+          <div className="reference-attachment">
+            <p style={{ margin: 0 }}>
+              That would be {scopeReflection.prospectiveCount} elements — worth checking they can all live at this
+              size.
+            </p>
+            {scopeReflection.suitability && <p className="reference-note">{scopeReflection.suitability.reason}</p>}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button type="button" onClick={confirmScopeReflection}>
+                Add it anyway
+              </button>
+              <button type="button" className="secondary" onClick={() => setScopeReflection(null)}>
+                Never mind
+              </button>
+            </div>
+          </div>
+        )}
+
+        {existingSoleElement && (
+          <label className="reference-field">
+            <span>Does this replace "{existingSoleElement.description}", or sit alongside it?</span>
+            <select value={replacesChoice} onChange={(e) => setReplacesChoice(e.target.value)}>
+              <option value="">Sits alongside it</option>
+              <option value={existingSoleElement.id}>Replaces it</option>
+            </select>
+          </label>
+        )}
+        {!state.ui.hasLikeness && (
+          <label className="reference-attestation">
+            <input type="checkbox" checked={isLikenessOrPlaceChecked} onChange={(e) => setIsLikenessOrPlaceChecked(e.target.checked)} />
+            This involves a specific person's likeness or a real place
+          </label>
+        )}
+        {state.project.composition_background === "none" && (
+          <label className="reference-attestation">
+            <input type="checkbox" checked={addsSceneChecked} onChange={(e) => setAddsSceneChecked(e.target.checked)} />
+            This adds a scene or setting around the tattoo
+          </label>
+        )}
+
         <div style={{ display: "flex", gap: 8 }}>
           <input type="text" value={newIdeaText} onChange={(e) => setNewIdeaText(e.target.value)} placeholder="Describe the new idea" />
           <button className="secondary" onClick={addIdea}>
@@ -303,6 +541,7 @@ export function ElementsDiscovery() {
             {addedIdeas.map((idea, i) => (
               <div key={i} className="option-chip selected">
                 {idea.text}
+                {idea.replacesElementId && <span className="recommendation-tag">replaces existing element</span>}
                 <select
                   value={idea.fidelity}
                   onChange={(e) =>
@@ -328,7 +567,7 @@ export function ElementsDiscovery() {
         )}
       </div>
 
-      <button onClick={confirm} disabled={selected.size === 0 && addedIdeas.length === 0}>
+      <button onClick={confirm} disabled={selected.size === 0 && addedIdeas.length === 0 && state.project.visual_elements.length === 0}>
         Continue
       </button>
     </div>

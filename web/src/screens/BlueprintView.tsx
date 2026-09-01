@@ -76,6 +76,9 @@ function formatBlueprintAsText(project: ReturnType<typeof useJourney>["state"]["
   }
   section("Statement of inspiration", blueprint.statement_of_inspiration);
   section("Artist Brief", blueprint.artist_brief);
+  if (project.artist_notes.length > 0) {
+    section("Further ideas the client raised (unspecified, for the artist to discuss)", project.artist_notes.map((n) => `- ${n}`).join("\n"));
+  }
   section("Readiness", READINESS_LABEL[blueprint.readiness] ?? blueprint.readiness);
 
   return lines.join("\n").trim();
@@ -224,6 +227,18 @@ export function BlueprintView() {
         <h3>11. Artist Brief</h3>
         <p>{blueprint.artist_brief}</p>
       </section>
+      {project.artist_notes.length > 0 && (
+        <section>
+          {/* §17.1, §14: ideas beyond the iteration/time bound reach the artist, explicitly marked unspecified -- never silently lost. */}
+          <h3>Further ideas the client raised</h3>
+          <p className="supporting">Not developed into the specification above -- unspecified, for the artist to discuss.</p>
+          <ul>
+            {project.artist_notes.map((note, i) => (
+              <li key={i}>{note}</li>
+            ))}
+          </ul>
+        </section>
+      )}
       <section>
         <h3>Avoid</h3>
         {/* §17.5: distinguish declined from unasked -- asked_answered lists exclusions,

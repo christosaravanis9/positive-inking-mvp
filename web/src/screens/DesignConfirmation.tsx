@@ -1,6 +1,7 @@
 import { useJourney } from "../journey/JourneyProvider";
 import { requestBlueprint } from "../api/blueprint";
 import { AsyncError } from "../components/AsyncError";
+import { formatPlacementSummary } from "../journey/placementSummary";
 import { buildReferenceChecklist, isReferenceEntrySatisfied, anyRequiredReferenceMissing } from "@positive-inking/engine";
 
 /** Screen 13 (§8). The complete summary stays on screen next to the action -- no detached verification (§6, AC 64). "Still needed: [references]" is the spec's own Screen 13 bullet (§8). */
@@ -9,6 +10,7 @@ export function DesignConfirmation() {
   const { project } = state;
   const checklist = buildReferenceChecklist(project.visual_elements, project.consent_records);
   const outstanding = checklist.filter((entry) => !isReferenceEntrySatisfied(entry));
+  const placementSummary = formatPlacementSummary(project);
 
   async function build() {
     beginAttempt();
@@ -20,7 +22,7 @@ export function DesignConfirmation() {
         `Composition: ${project.composition_type}, background: ${project.composition_background}, density: ${project.design_density}`,
         `Artistic direction: colour ${project.colour_strategy}, realism ${project.realism_level}, presence ${project.visual_presence}, linework ${project.linework_weight}, shading ${project.shading_method}, contrast ${project.contrast_level}`,
         project.fidelity_treatment ? `Fidelity treatment: ${project.fidelity_treatment}` : "",
-        `Placement: ${project.body_area || project.body_area_coarse}, ${project.size_class}, ${project.wrap_level}`,
+        `Placement: ${placementSummary}`,
         `Creative control: ${project.creative_control}`,
         `Avoid: ${project.avoid_list_status === "asked_answered" ? project.avoid_list.join(", ") : project.avoid_list_status}`,
         outstanding.length > 0
@@ -70,7 +72,7 @@ export function DesignConfirmation() {
           {[project.colour_strategy, project.realism_level, project.visual_presence].filter(Boolean).join(", ") || "—"}
         </dd>
         <dt>Placement</dt>
-        <dd>{[project.body_area || project.body_area_coarse, project.size_class, project.wrap_level].filter(Boolean).join(", ")}</dd>
+        <dd>{placementSummary || "—"}</dd>
         <dt>Creative control</dt>
         <dd>{project.creative_control || "—"}</dd>
         <dt>Avoid</dt>

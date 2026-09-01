@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useJourney } from "../journey/JourneyProvider";
+import { formatPlacementSummary } from "../journey/placementSummary";
 import { buildReferenceChecklist, isReferenceEntrySatisfied, type ReferenceChecklistEntry } from "@positive-inking/engine";
 
 const READINESS_LABEL: Record<string, string> = {
@@ -55,7 +56,7 @@ function formatBlueprintAsText(project: ReturnType<typeof useJourney>["state"]["
     ].join("\n"),
   );
   section("Artistic direction", blueprint.artistic_direction);
-  section("Placement and scale", blueprint.placement);
+  section("Placement and scale", [blueprint.placement, `Captured details: ${formatPlacementSummary(project)}`].filter(Boolean).join("\n\n"));
   const checklist = buildReferenceChecklist(project.visual_elements, project.consent_records);
   if (checklist.length > 0) {
     section(
@@ -175,6 +176,8 @@ export function BlueprintView() {
       <section>
         <h3>7. Placement and scale</h3>
         <p>{blueprint.placement}</p>
+        {/* §8 Screen 12 capture, always shown deterministically so it can never drift from or be dropped by the model's prose above. */}
+        <p className="supporting">Captured details: {formatPlacementSummary(project) || "—"}</p>
       </section>
       {referenceChecklist.length > 0 && (
         <section>

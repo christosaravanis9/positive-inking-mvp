@@ -18,34 +18,43 @@ web/      Vite + React intake UI, imports engine/'s built dist/ (no secrets in i
 ```
 
 `server` and `web` depend on `engine`'s **built** output (`engine/dist/`), not its
-source directly — see "Dev server reliability" below for why that matters.
+source directly — see `docs/dev-server-reliability.md` for why that matters.
 
-## Running it
+## Local Development
 
 Requires Node 20+.
 
 ```bash
 npm install
 cp .env.example server/.env   # then add your ANTHROPIC_API_KEY
-npm run dev                   # builds engine once, then runs engine's watch-build,
-                               # server (:8787), and web (:5173) together
+npm run validate:local        # full environment + build + test + stack + live-API check
+npm run dev                   # starts engine watch, server (:8787), and web (:5173)
 ```
 
 Open http://localhost:5173.
+
+`npm run dev` and `npm run validate:local` are the only two commands needed day to day:
+
+- **`npm run dev`** brings up the whole stack reliably, or fails fast naming the exact
+  process holding a port if one's occupied. Ctrl+C stops everything, including every
+  child process — running `npm run dev` again immediately after always works.
+- **`npm run validate:local`** runs the complete local diagnostic (environment, build,
+  typecheck, unit + integration tests, a real stack boot, real Anthropic latency
+  measurements for Discovery/Association/Blueprint, and a browser journey) and prints
+  one compact PASS/FAIL/BLOCKED report. Verbose output goes to a log file whose path
+  is printed at the end.
+
+A dev-only **"Start fresh test journey"** button is visible in the running app —
+it clears this browser's local journey state and reloads to Screen 1, no private
+window or manual `localStorage` commands needed.
 
 Without a real `ANTHROPIC_API_KEY`, the server still starts, but every model call
 returns a visible `model_not_configured` error — the UI surfaces it directly rather
 than faking success. This is intentional degraded behaviour per V3.0 §16, not a bug.
 
-### Verifying the model round trip on its own
-
-```bash
-npm run verify-model
-```
-
-Sends one real story to the Discovery Engine, validates the structured JSON response,
-and prints it. Run this after adding your API key, before trusting anything built on
-top of it.
+See `docs/local-dev-troubleshooting.md` for anything beyond this — port conflicts,
+what each `validate:local` section checks, `verify-model`/`diagnose-model`, and
+prior dev-server/async-state incidents.
 
 ## Testing
 
@@ -60,30 +69,9 @@ suppressions, the no-background invariant, the one-clarification limit, confirme
 recommended separation. Model output quality (interpretation, tone, personalisation)
 needs a human reading real Blueprints; see `docs/test-journeys.md` once Phase 7 lands.
 
-`web/`'s own suite (`web/src/journey/useAsyncAction.test.tsx`, Vitest + jsdom +
-`@testing-library/react`) covers the React/async-state boundary that engine/'s pure
-functions structurally cannot reach: re-entrancy against duplicate submissions,
-staleness after unmount, and that a superseded or post-navigation model response can
-never mutate project/ui state — the exact guarantee behind the USER-DECISION
-INVARIANT described in `docs/async-state-incident.md`.
-
-Every model-backed route has its own timeout budget rather than one universal number
-(`engine/src/modelTimeouts.ts`, env-overridable per route in `server/.env` — see
-`.env.example`); `docs/timeout-matrix.md` documents the final values and the
-schema/prompt complexity reasoning behind each one.
-
-```bash
-npm run test:integration      # real server + real routes + a local Anthropic
-                              # double against the real Vite-served app --
-                              # not part of `npm test`; takes real wall-clock
-                              # time. See docs/async-state-incident.md.
-
-npm run test:dev-reliability # runs the REAL `npm run dev` and stress-edits
-                              # engine/src while checking the server recovers
-                              # after every burst -- the DEV SERVER INVARIANT.
-                              # Not part of `npm test`. See
-                              # docs/dev-server-reliability.md.
-```
+`npm run validate:local` runs the integration tests, the dev-server reliability test,
+and a real-Vite browser journey automatically, in addition to `npm test` — see
+`docs/local-dev-troubleshooting.md` for what each one covers on its own.
 
 ## Production launch blockers — §15.7 is NOT solved
 

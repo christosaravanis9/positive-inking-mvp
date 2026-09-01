@@ -1,7 +1,7 @@
-import { spawn } from "node:child_process";
 import { chromium } from "playwright";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { spawnManaged, terminateManaged, chromiumLaunchOptions } from "./../scripts/lib/devStack.mjs";
 
 /**
  * Reproduces the async/state race incident (docs/async-state-incident.md)
@@ -67,12 +67,12 @@ async function waitForHttp(url, timeoutMs = 15000) {
 
 async function main() {
   console.log("=== Starting fake Anthropic double ===");
-  const fakeAnthropic = spawn("node", [path.join(__dirname, "fakeAnthropic.mjs"), "0"], { cwd: repoRoot });
+  const fakeAnthropic = spawnManaged("fake-anthropic", "node", [path.join(__dirname, "fakeAnthropic.mjs"), "0"], { cwd: repoRoot });
   const [, fakePortStr] = await waitForLine(fakeAnthropic, /FAKE_ANTHROPIC_LISTENING (\d+)/, "fake-anthropic");
   const fakePort = fakePortStr;
 
   console.log("=== Starting REAL server (actual routes, actual modelClient retry/timeout logic) ===");
-  const server = spawn("npx", ["tsx", "src/index.ts"], {
+  const server = spawnManaged("server", "npx", ["tsx", "src/index.ts"], {
     cwd: path.join(repoRoot, "server"),
     env: {
       ...process.env,
@@ -91,21 +91,17 @@ async function main() {
   await waitForHttp(`http://localhost:${SERVER_PORT}/api/health`);
 
   console.log("=== Starting REAL Vite dev server (actual React app, actual /api proxy) ===");
-  const web = spawn(
-    "npx",
-    ["vite", "--port", String(WEB_PORT), "--strictPort"],
-    {
-      cwd: path.join(repoRoot, "web"),
-      env: { ...process.env },
-    },
-  );
+  const web = spawnManaged("web", "npx", ["vite", "--port", String(WEB_PORT), "--strictPort"], {
+    cwd: path.join(repoRoot, "web"),
+    env: { ...process.env },
+  });
   web.stdout.on("data", (d) => process.stdout.write(`[web] ${d}`));
   web.stderr.on("data", (d) => process.stderr.write(`[web:err] ${d}`));
   // web's vite.config.ts proxies /api to localhost:8787 hardcoded -- point the
   // real server there too by using that exact port instead of a custom one.
   await waitForHttp(`http://localhost:${WEB_PORT}/`);
 
-  const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium" });
+  const browser = await chromium.launch(chromiumLaunchOptions());
 
   try {
     await scenario1_delayedResponseBelowTimeout(browser);
@@ -114,9 +110,12 @@ async function main() {
     await scenario4_navigationAwayDuringRequest(browser);
   } finally {
     await browser.close();
-    server.kill();
-    web.kill();
-    fakeAnthropic.kill();
+    // Process-group teardown (not a bare .kill()) -- server/web are each
+    // spawned via an npx wrapper that itself spawns the real tool (tsx's
+    // supervised app process, vite's esbuild service); killing only the
+    // wrapper orphans those grandchildren, which is exactly what left a
+    // zombie tsx process pinning port 8787 and breaking the next run.
+    await Promise.all([terminateManaged(server), terminateManaged(web), terminateManaged(fakeAnthropic)]);
   }
 
   console.log(`\n=== ${failures === 0 ? "ALL SCENARIOS PASSED" : `${failures} CHECK(S) FAILED`} ===`);

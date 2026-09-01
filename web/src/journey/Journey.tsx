@@ -25,6 +25,7 @@ import { BlueprintView } from "../screens/BlueprintView";
 import { WorkingNotesView } from "../screens/WorkingNotesView";
 import { EngineInspector } from "../inspector/EngineInspector";
 import { TelemetryInspector } from "../inspector/TelemetryInspector";
+import { StartFreshJourneyButton } from "../dev/StartFreshJourneyButton";
 
 const SCREEN_COMPONENTS: Record<ScreenId, () => JSX.Element | null> = {
   welcome: Welcome,
@@ -70,6 +71,7 @@ export function Journey() {
         </div>
       )}
       <ScreenComponent key={screen} />
+      {import.meta.env.DEV && <StartFreshJourneyButton />}
       {import.meta.env.DEV && <EngineInspector />}
       {import.meta.env.DEV && <TelemetryInspector />}
     </div>

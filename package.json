@@ -8,15 +8,14 @@
     "web"
   ],
   "scripts": {
-    "dev": "npm run build -w engine && concurrently -n engine,server,web -c auto \"npm run dev -w engine\" \"npm run dev -w server\" \"npm run dev -w web\"",
+    "dev": "node scripts/dev.mjs",
     "build": "npm run build -w engine && npm run build -w server && npm run build -w web",
     "test": "npm run build -w engine && npm run test -w engine && npm run test -w server && npm run test -w web",
     "test:integration": "node test-integration/asyncStateRace.mjs",
     "test:dev-reliability": "node test-integration/devServerReliability.mjs",
+    "validate:local": "node scripts/validateLocal.mjs",
     "verify-model": "npm run verify-model -w server",
+    "diagnose-model": "npm run diagnose-model -w server",
     "typecheck": "npm run build -w engine && npm run typecheck -w engine && npm run typecheck -w server && npm run typecheck -w web"
-  },
-  "devDependencies": {
-    "concurrently": "^9.1.0"
   }
 }

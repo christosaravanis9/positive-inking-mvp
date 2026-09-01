@@ -1,6 +1,7 @@
-import { createContext, useContext, useMemo, useReducer, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useReducer, type ReactNode } from "react";
 import type { ProjectState } from "@positive-inking/engine";
 import { createInitialJourneyState, type JourneyState, type UIState, type ApiErrorState } from "./state";
+import { loadPersistedState, savePersistedState, clearPersistedState } from "./persistence";
 
 type Action =
   | { type: "patchProject"; payload: Partial<ProjectState> }
@@ -49,7 +50,14 @@ interface JourneyContextValue {
 const JourneyContext = createContext<JourneyContextValue | null>(null);
 
 export function JourneyProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, undefined, createInitialJourneyState);
+  const [state, dispatch] = useReducer(reducer, undefined, loadPersistedState);
+
+  // §16.1: every confirmed answer is persisted as made. Debounced only by
+  // React's own batching -- for this app's write volume (one dispatch per
+  // user action) writing on every change is simple and fast enough.
+  useEffect(() => {
+    savePersistedState(state);
+  }, [state]);
 
   const value = useMemo<JourneyContextValue>(
     () => ({
@@ -58,7 +66,10 @@ export function JourneyProvider({ children }: { children: ReactNode }) {
       patchUI: (payload) => dispatch({ type: "patchUI", payload }),
       setError: (payload) => dispatch({ type: "setError", payload }),
       beginAttempt: () => dispatch({ type: "beginAttempt" }),
-      reset: () => dispatch({ type: "reset" }),
+      reset: () => {
+        clearPersistedState();
+        dispatch({ type: "reset" });
+      },
     }),
     [state],
   );

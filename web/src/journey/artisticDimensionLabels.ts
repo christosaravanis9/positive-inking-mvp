@@ -83,3 +83,8 @@ export function describeDimensionValue(dimension: ArtisticDimensionKey, value: s
   const option = DIMENSION_OPTIONS[dimension]?.find((o) => o.value === value);
   return `${DIMENSION_LABEL[dimension]}: ${option?.label ?? value}`;
 }
+
+/** Just the value's own label ("Selective colour"), no dimension prefix -- for a line that already reads as a list, e.g. a "Treatment" summary. Falls back to the raw value only if it's genuinely unrecognised, never silently to blank. */
+export function labelForDimensionValue(dimension: ArtisticDimensionKey, value: string): string {
+  return DIMENSION_OPTIONS[dimension]?.find((o) => o.value === value)?.label ?? value;
+}

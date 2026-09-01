@@ -1,5 +1,6 @@
 import { buildWorkingNotes } from "@positive-inking/engine";
 import { useJourney } from "../journey/JourneyProvider";
+import { describeCreativeControl } from "../journey/creativeControlLabels";
 
 /** §16.4 -- honest degradation. Never labelled Blueprint, never invented content, entirely local (no model call). */
 export function WorkingNotesView() {
@@ -42,11 +43,11 @@ export function WorkingNotesView() {
       </section>
       <section>
         <h3>Creative control</h3>
-        <p>{notes.creative_control || "Not specified"}</p>
+        <p>{notes.creative_control ? describeCreativeControl(notes.creative_control) : "Not specified"}</p>
       </section>
       <section>
         <h3>Avoid</h3>
-        <p>{notes.avoid_list.length > 0 ? notes.avoid_list.join(", ") : notes.avoid_list_status}</p>
+        <p>{notes.avoid_list.length > 0 ? notes.avoid_list.join(", ") : notes.avoid_list_status.replace(/_/g, " ")}</p>
       </section>
 
       <button onClick={reset}>Start again</button>

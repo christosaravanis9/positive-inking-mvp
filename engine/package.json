@@ -3,13 +3,14 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "main": "src/index.ts",
-  "types": "src/index.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.json --outDir dist",
+    "dev": "tsc -p tsconfig.json --outDir dist --watch --preserveWatchOutput",
     "journeys": "tsx scripts/testJourneys.ts"
   },
   "devDependencies": {

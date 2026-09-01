@@ -3,6 +3,8 @@ import { useAsyncAction } from "../journey/useAsyncAction";
 import { requestBlueprint } from "../api/blueprint";
 import { AsyncError } from "../components/AsyncError";
 import { formatPlacementSummary } from "../journey/placementSummary";
+import { labelForDimensionValue } from "../journey/artisticDimensionLabels";
+import { describeCreativeControl } from "../journey/creativeControlLabels";
 import { logTelemetryEvent, elapsedSinceJourneyStarted } from "../instrumentation/telemetry";
 import { buildReferenceChecklist, isReferenceEntrySatisfied, anyRequiredReferenceMissing } from "@positive-inking/engine";
 
@@ -70,12 +72,18 @@ export function DesignConfirmation() {
         </dd>
         <dt>Treatment</dt>
         <dd>
-          {[project.colour_strategy, project.realism_level, project.visual_presence].filter(Boolean).join(", ") || "—"}
+          {[
+            project.colour_strategy && labelForDimensionValue("colour", project.colour_strategy),
+            project.realism_level && labelForDimensionValue("realism", project.realism_level),
+            project.visual_presence && labelForDimensionValue("visual_presence", project.visual_presence),
+          ]
+            .filter(Boolean)
+            .join(", ") || "—"}
         </dd>
         <dt>Placement</dt>
         <dd>{placementSummary || "—"}</dd>
         <dt>Creative control</dt>
-        <dd>{project.creative_control || "—"}</dd>
+        <dd>{project.creative_control ? describeCreativeControl(project.creative_control) : "—"}</dd>
         <dt>Avoid</dt>
         <dd>{project.avoid_list_status === "asked_answered" ? project.avoid_list.join(", ") || "none listed" : "not specified"}</dd>
         <dt>Still needed</dt>

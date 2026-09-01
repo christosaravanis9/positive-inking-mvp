@@ -14,8 +14,11 @@ interprets stories, recovers provenance, proposes visual associations, and write
 ```
 engine/   deterministic adaptive engine — pure TypeScript, zero deps, Vitest
 server/   Express API — model proxy only, holds the API key, never the client
-web/      Vite + React intake UI, imports engine/ directly (no secrets in it)
+web/      Vite + React intake UI, imports engine/'s built dist/ (no secrets in it)
 ```
+
+`server` and `web` depend on `engine`'s **built** output (`engine/dist/`), not its
+source directly — see "Dev server reliability" below for why that matters.
 
 ## Running it
 
@@ -24,7 +27,8 @@ Requires Node 20+.
 ```bash
 npm install
 cp .env.example server/.env   # then add your ANTHROPIC_API_KEY
-npm run dev                   # runs server (:8787) and web (:5173) together
+npm run dev                   # builds engine once, then runs engine's watch-build,
+                               # server (:8787), and web (:5173) together
 ```
 
 Open http://localhost:5173.
@@ -64,10 +68,16 @@ never mutate project/ui state — the exact guarantee behind the USER-DECISION
 INVARIANT described in `docs/async-state-incident.md`.
 
 ```bash
-npm run test:integration   # real server + real routes + a local Anthropic
-                           # double against the real Vite-served app --
-                           # not part of `npm test`; takes real wall-clock
-                           # time. See docs/async-state-incident.md.
+npm run test:integration      # real server + real routes + a local Anthropic
+                              # double against the real Vite-served app --
+                              # not part of `npm test`; takes real wall-clock
+                              # time. See docs/async-state-incident.md.
+
+npm run test:dev-reliability # runs the REAL `npm run dev` and stress-edits
+                              # engine/src while checking the server recovers
+                              # after every burst -- the DEV SERVER INVARIANT.
+                              # Not part of `npm test`. See
+                              # docs/dev-server-reliability.md.
 ```
 
 ## Production launch blockers — §15.7 is NOT solved

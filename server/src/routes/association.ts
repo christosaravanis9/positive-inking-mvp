@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { callModelForStructuredOutput } from "../modelClient.js";
-import { ModelError } from "../errors.js";
+import { sendModelErrorResponse } from "../errors.js";
 import { abortSignalForRequest } from "../requestAbort.js";
 import { ASSOCIATION_SYSTEM_PROMPT, associationResultSchema, associationToolInputSchema } from "../schemas/association.js";
 
@@ -29,6 +29,7 @@ associationRouter.post("/api/associations", async (req, res) => {
 
   try {
     const result = await callModelForStructuredOutput({
+      stage: "association",
       system: ASSOCIATION_SYSTEM_PROMPT,
       userMessage,
       tool: {
@@ -50,8 +51,6 @@ associationRouter.post("/api/associations", async (req, res) => {
 
     res.json({ data: validated.data });
   } catch (err) {
-    const modelError = err instanceof ModelError ? err : new ModelError("model_network_error", (err as Error).message);
-    const status = modelError.code === "model_not_configured" ? 503 : 502;
-    res.status(status).json({ error: { code: modelError.code, message: modelError.message } });
+    sendModelErrorResponse(res, err);
   }
 });

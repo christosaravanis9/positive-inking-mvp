@@ -1,6 +1,6 @@
 import { postJson } from "./client";
 import type { BlueprintData } from "./types";
-import type { InterpretationConfidence, JourneyMode } from "@positive-inking/engine";
+import { clientTimeoutForRoute, type InterpretationConfidence, type JourneyMode } from "@positive-inking/engine";
 
 export interface BlueprintRequest {
   journey_mode: JourneyMode;
@@ -14,6 +14,6 @@ export interface BlueprintRequest {
 }
 
 export async function requestBlueprint(request: BlueprintRequest): Promise<BlueprintData> {
-  const result = await postJson<{ data: BlueprintData }>("/api/blueprint", request);
+  const result = await postJson<{ data: BlueprintData }>("/api/blueprint", request, clientTimeoutForRoute("blueprint"));
   return result.data;
 }

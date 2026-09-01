@@ -67,6 +67,11 @@ staleness after unmount, and that a superseded or post-navigation model response
 never mutate project/ui state — the exact guarantee behind the USER-DECISION
 INVARIANT described in `docs/async-state-incident.md`.
 
+Every model-backed route has its own timeout budget rather than one universal number
+(`engine/src/modelTimeouts.ts`, env-overridable per route in `server/.env` — see
+`.env.example`); `docs/timeout-matrix.md` documents the final values and the
+schema/prompt complexity reasoning behind each one.
+
 ```bash
 npm run test:integration      # real server + real routes + a local Anthropic
                               # double against the real Vite-served app --

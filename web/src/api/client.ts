@@ -4,26 +4,24 @@ export interface ApiError {
 }
 
 /**
- * Must exceed the server's own worst-case total time for a model call, with
- * real margin for network/Express overhead on top -- otherwise the client
- * gives up while the server is still legitimately working (see
- * server/src/modelClient.ts's callModelForStructuredOutput, which bounds
- * its own total wall-clock time, across its one silent retry, to
- * MODEL_REQUEST_TIMEOUT_MS -- 20000ms by default, see server/.env.example).
- * If either value changes, check the other: this constant should stay
- * comfortably above the server's configured total budget.
- */
-const CLIENT_TIMEOUT_MS = 30000;
-
-/**
  * Shared POST helper for every model-backed endpoint. Never swallows a
  * failure: throws an Error carrying the server's real error code/message,
  * or a client-side timeout/network message, verbatim, for the caller to
  * show the user (§16.2 — a visible, specific failure, never canned content).
+ *
+ * timeoutMs is required, not defaulted, so each call site names the budget
+ * for the route it's actually calling rather than sharing one number across
+ * routes with very different real latency (see engine's
+ * clientTimeoutForRoute and docs/timeout-matrix.md) -- callers should pass
+ * that helper's result, which already carries real margin above the
+ * server's own worst-case total time for that route (see
+ * server/src/modelClient.ts's callModelForStructuredOutput). If the two
+ * ever drift, the margin invariant is asserted directly in
+ * engine/test/modelTimeouts.test.ts.
  */
-export async function postJson<TResponse>(path: string, body: unknown): Promise<TResponse> {
+export async function postJson<TResponse>(path: string, body: unknown, timeoutMs: number): Promise<TResponse> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), CLIENT_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await fetch(path, {

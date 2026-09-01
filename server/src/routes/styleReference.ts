@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { callModelForStructuredOutput } from "../modelClient.js";
-import { ModelError } from "../errors.js";
+import { sendModelErrorResponse } from "../errors.js";
 import { abortSignalForRequest } from "../requestAbort.js";
 import {
   STYLE_REFERENCE_SYSTEM_PROMPT,
@@ -31,6 +31,7 @@ styleReferenceRouter.post("/api/style-reference", async (req, res) => {
 
   try {
     const result = await callModelForStructuredOutput({
+      stage: "style_reference",
       system: STYLE_REFERENCE_SYSTEM_PROMPT,
       userMessage: [
         `Named style/medium/tradition/artist reference:\n${style_reference}`,
@@ -56,8 +57,6 @@ styleReferenceRouter.post("/api/style-reference", async (req, res) => {
 
     res.json({ data: resolution });
   } catch (err) {
-    const modelError = err instanceof ModelError ? err : new ModelError("model_network_error", (err as Error).message);
-    const status = modelError.code === "model_not_configured" ? 503 : 502;
-    res.status(status).json({ error: { code: modelError.code, message: modelError.message } });
+    sendModelErrorResponse(res, err);
   }
 });

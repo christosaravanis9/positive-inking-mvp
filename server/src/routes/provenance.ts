@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { callModelForStructuredOutput } from "../modelClient.js";
-import { ModelError } from "../errors.js";
+import { sendModelErrorResponse } from "../errors.js";
 import { abortSignalForRequest } from "../requestAbort.js";
 import { PROVENANCE_SYSTEM_PROMPT, provenanceResultSchema, provenanceToolInputSchema } from "../schemas/provenance.js";
 
@@ -20,6 +20,7 @@ provenanceRouter.post("/api/provenance", async (req, res) => {
 
   try {
     const result = await callModelForStructuredOutput({
+      stage: "provenance",
       system: PROVENANCE_SYSTEM_PROMPT,
       userMessage: `The user described an image they want, without stating why:\n${parsed.data.raw_story}`,
       tool: {
@@ -40,8 +41,6 @@ provenanceRouter.post("/api/provenance", async (req, res) => {
 
     res.json({ data: validated.data });
   } catch (err) {
-    const modelError = err instanceof ModelError ? err : new ModelError("model_network_error", (err as Error).message);
-    const status = modelError.code === "model_not_configured" ? 503 : 502;
-    res.status(status).json({ error: { code: modelError.code, message: modelError.message } });
+    sendModelErrorResponse(res, err);
   }
 });

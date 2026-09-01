@@ -1,5 +1,6 @@
 import { env, isModelConfigured } from "./env.js";
 import { ModelError } from "./errors.js";
+import type { ModelRoute } from "@positive-inking/engine";
 
 export interface StructuredToolSpec {
   name: string;
@@ -8,9 +9,12 @@ export interface StructuredToolSpec {
 }
 
 export interface StructuredCallRequest {
+  /** Which route this call is for -- resolves the default timeout budget (env.modelTimeouts[stage]) when timeoutMs is not given, and is attached to a model_timeout error's detail for dev-mode diagnosis. */
+  stage: ModelRoute;
   system: string;
   userMessage: string;
   tool: StructuredToolSpec;
+  /** Overrides the stage's configured default -- used by tests; routes should rely on the stage default instead. */
   timeoutMs?: number;
   maxTokens?: number;
   /**
@@ -44,20 +48,30 @@ type FetchLike = (
  * One real round trip to the model, requesting a specific structured JSON
  * shape via forced tool use (so the API itself guarantees a schema-shaped
  * object rather than us regex-parsing prose). Every call:
- *  - has a hard TOTAL wall-clock budget (default from MODEL_REQUEST_TIMEOUT_MS)
- *  - retries exactly once, silently, on a transient failure (timeout,
- *    network error, 5xx) per V3.0 §16.2, but the retry draws from the SAME
- *    total budget rather than getting a fresh full timeout of its own --
- *    a naive "retry once, each attempt gets its own full timeout" policy
- *    lets the server's real worst-case silently double (e.g. two full 20s
- *    attempts = 40s) without the client's own timeout ever being told,
- *    which is exactly the bug this comment now prevents: the client's
- *    fetch (see web/src/api/client.ts's CLIENT_TIMEOUT_MS) would abort at
- *    25s while the server was still legitimately mid-retry, guaranteeing a
+ *  - has a hard TOTAL wall-clock budget, stage-specific (default from
+ *    env.modelTimeouts[request.stage] -- see engine/src/modelTimeouts.ts and
+ *    docs/timeout-matrix.md), not one universal number for every route
+ *  - retries exactly once, silently, on a transient failure (network error,
+ *    5xx) per V3.0 §16.2, but the retry draws from the SAME total budget
+ *    rather than getting a fresh full timeout of its own -- a naive "retry
+ *    once, each attempt gets its own full timeout" policy lets the server's
+ *    real worst-case silently double (e.g. two full 20s attempts = 40s)
+ *    without the client's own timeout ever being told, which is exactly the
+ *    bug this comment now prevents: the client's fetch (see
+ *    web/src/api/client.ts / engine's clientTimeoutForRoute) would abort
+ *    while the server was still legitimately mid-retry, guaranteeing a
  *    client-side "timed out" error on any request that needed the retry at
  *    all, even when the server would have succeeded seconds later. With a
- *    shared total budget, the server's worst case is bounded by
- *    MODEL_REQUEST_TIMEOUT_MS regardless of how many attempts it takes.
+ *    shared total budget, the server's worst case is bounded by the stage's
+ *    configured timeout regardless of how many attempts it takes.
+ *  - does NOT retry a model_timeout. A timeout means the call itself is
+ *    inherently slow (model load, a heavy structured-output request), not a
+ *    transient blip a same-budget retry can fix -- and because the shared
+ *    budget above means a first-attempt timeout always consumes (very close
+ *    to) the entire budget, a "retry" after one would get ~0ms remaining
+ *    and never actually re-call the model anyway. Excluding it here makes
+ *    that explicit by construction rather than relying on the remaining-
+ *    budget check to always happen to land on zero.
  *  - throws a typed, message-bearing ModelError on anything else — never
  *    swallowed, never replaced with placeholder content
  */
@@ -72,7 +86,7 @@ export async function callModelForStructuredOutput(
     );
   }
 
-  const totalBudgetMs = request.timeoutMs ?? env.modelTimeoutMs;
+  const totalBudgetMs = request.timeoutMs ?? env.modelTimeouts[request.stage];
   const deadline = Date.now() + totalBudgetMs;
 
   let lastError: ModelError | null = null;
@@ -96,7 +110,7 @@ export async function callModelForStructuredOutput(
 }
 
 function isTransient(err: ModelError): boolean {
-  return err.code === "model_timeout" || err.code === "model_network_error" || err.code === "model_http_error";
+  return err.code === "model_network_error" || err.code === "model_http_error";
 }
 
 async function attemptCall(
@@ -104,6 +118,7 @@ async function attemptCall(
   fetchImpl: FetchLike,
   timeoutMs: number,
 ): Promise<StructuredCallResult> {
+  const attemptStart = Date.now();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   const onExternalAbort = () => controller.abort();
@@ -154,7 +169,11 @@ async function attemptCall(
   } catch (err) {
     if (err instanceof ModelError) throw err;
     if ((err as Error).name === "AbortError") {
-      throw new ModelError("model_timeout", `Model request timed out after ${timeoutMs}ms.`);
+      throw new ModelError("model_timeout", `Model request timed out after ${timeoutMs}ms.`, {
+        stage: request.stage,
+        elapsedMs: Date.now() - attemptStart,
+        budgetMs: timeoutMs,
+      });
     }
     throw new ModelError("model_network_error", (err as Error).message, err);
   } finally {

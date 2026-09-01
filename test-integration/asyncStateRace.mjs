@@ -79,7 +79,11 @@ async function main() {
       PORT: String(SERVER_PORT),
       ANTHROPIC_API_KEY: "test-key-for-integration-test",
       ANTHROPIC_API_URL: `http://127.0.0.1:${fakePort}/v1/messages`,
-      MODEL_REQUEST_TIMEOUT_MS: String(TOTAL_MODEL_BUDGET_MS),
+      // This scenario only exercises the Story screen's /api/discovery call --
+      // route-specific timeouts (docs/timeout-matrix.md) replaced the old
+      // single MODEL_REQUEST_TIMEOUT_MS, so only discovery's budget needs
+      // overriding here.
+      MODEL_TIMEOUT_DISCOVERY_MS: String(TOTAL_MODEL_BUDGET_MS),
     },
   });
   server.stdout.on("data", (d) => process.stdout.write(`[server] ${d}`));

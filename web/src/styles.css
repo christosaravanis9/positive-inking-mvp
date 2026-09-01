@@ -252,6 +252,99 @@ input[type="text"] {
   color: var(--muted);
 }
 
+.reference-attachment {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 8px;
+  background: rgba(128, 128, 128, 0.04);
+}
+
+.reference-attachment input[type="file"] {
+  font-size: 0.85rem;
+  max-width: 100%;
+}
+
+.reference-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.reference-preview img {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.reference-preview div {
+  min-width: 0;
+  overflow-wrap: break-word;
+  font-size: 0.85rem;
+}
+
+.reference-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+}
+
+.reference-field select {
+  font-size: 1rem;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--fg);
+  max-width: 100%;
+}
+
+.reference-note {
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin: 0;
+}
+
+.reference-error {
+  color: var(--error-fg);
+  font-size: 0.82rem;
+  margin: 0;
+}
+
+.reference-attestation {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.reference-attestation input {
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+
+.reference-copyright p {
+  font-size: 0.85rem;
+  margin: 0 0 6px;
+}
+
+.reference-checklist-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+  font-size: 0.88rem;
+}
+
 .badge {
   display: inline-block;
   font-size: 0.75rem;

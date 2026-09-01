@@ -57,6 +57,16 @@ export interface UIState {
   associationCandidates: VisualCandidate[];
   avoidanceSuggestions: string[];
 
+  /**
+   * §15.7 note: this build has no server-side storage at all (no accounts,
+   * no backend persistence beyond this browser's own localStorage) --
+   * reference files live here as data URLs, keyed by the element/consent
+   * record id they belong to. A real deployment would need actual
+   * encrypted-at-rest storage and the 30-day-post-deletion policy §15.7
+   * describes; this is a prototype-scale stand-in, not that.
+   */
+  referenceAssets: Record<string, { dataUrl: string; fileName: string }>;
+
   // Ephemeral Discovery output not persisted on ProjectState itself (§18 does
   // not carry raw interpretation text or the clarification question) but
   // needed by the next screen or two.
@@ -123,6 +133,7 @@ export function createInitialJourneyState(): JourneyState {
       userIsTattooLiterate: false,
       associationCandidates: [],
       avoidanceSuggestions: [],
+      referenceAssets: {},
       discoveryInterpretation: "",
       discoveryThemeOptions: [],
       discoveryCoreValueCandidates: [],

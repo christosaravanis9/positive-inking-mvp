@@ -2,7 +2,62 @@ import { useEffect, useState } from "react";
 import { useJourney } from "../journey/JourneyProvider";
 import { requestAssociations } from "../api/association";
 import { AsyncError } from "../components/AsyncError";
-import type { VisualElement, ElementFidelity } from "@positive-inking/engine";
+import { ReferenceAttachment, emptyReferenceDraft, type ReferenceDraft } from "../components/ReferenceAttachment";
+import type { VisualElement, ElementFidelity, ConsentRecord, ReferenceStatus } from "@positive-inking/engine";
+import type { JourneyState } from "../journey/state";
+
+interface AddedIdea {
+  text: string;
+  fidelity: ElementFidelity;
+}
+
+const NEEDS_REFERENCE: ReadonlySet<ElementFidelity> = new Set(["exact", "closely_based_on"]);
+
+function draftToConsentRecord(referenceId: string, draft: ReferenceDraft): ConsentRecord | null {
+  // Only worth recording once the user actually engaged with reference capture.
+  if (!draft.material_type && !draft.dataUrl) return null;
+  return {
+    reference_id: referenceId,
+    material_type: draft.material_type ?? "own_material",
+    subject_relationship: draft.subject_relationship,
+    attestation_given: draft.attestation_given,
+    attestation_text: draft.attestation_text,
+    attested_at: draft.attestation_given ? new Date().toISOString() : null,
+    copyright_flag: draft.copyright_flag,
+    flag_resolution: draft.flag_resolution,
+  };
+}
+
+function statusFromDraft(fidelity: ElementFidelity, sourceCategory: string, draft: ReferenceDraft | undefined): ReferenceStatus {
+  if (!NEEDS_REFERENCE.has(fidelity)) return "not_needed";
+  if (draft?.dataUrl) return "available";
+  if (sourceCategory === "new_materialisation") return "to_create";
+  return "to_upload";
+}
+
+/**
+ * Rehydrates a ReferenceDraft from already-confirmed project data (a prior
+ * consent record + any attached file). Without this, navigating back to
+ * this screen -- e.g. via Screen 13's "Add references" -- would silently
+ * discard everything the user already entered, which is exactly the kind
+ * of "don't make users reconfirm what they just did" failure V3.0 warns
+ * against (§5), just aimed backwards instead of forwards.
+ */
+function draftFromExisting(elementId: string, state: JourneyState): ReferenceDraft | undefined {
+  const record = state.project.consent_records.find((r) => r.reference_id === elementId);
+  const asset = state.ui.referenceAssets[elementId];
+  if (!record && !asset) return undefined;
+  return {
+    dataUrl: asset?.dataUrl ?? null,
+    fileName: asset?.fileName ?? null,
+    material_type: record?.material_type ?? null,
+    subject_relationship: record?.subject_relationship ?? "self",
+    attestation_given: record?.attestation_given ?? false,
+    attestation_text: record?.attestation_text ?? "",
+    copyright_flag: record?.copyright_flag ?? false,
+    flag_resolution: record?.flag_resolution ?? null,
+  };
+}
 
 /**
  * Screen 7 (§8) -- all modes converge here. Runs the Association Engine
@@ -10,13 +65,51 @@ import type { VisualElement, ElementFidelity } from "@positive-inking/engine";
  * a fixed menu. "This has given me another idea..." (§3.6) is always
  * available and adds a user-authored element, never merely feedback on the
  * options shown.
+ *
+ * Reference attachment (§15) happens right here, inline, at the point the
+ * user tells the system a piece needs to be exact -- not on a separate
+ * consent screen. §15.3: "One checkbox, one line, at the point of upload."
  */
 export function ElementsDiscovery() {
   const { state, patchProject, patchUI, setError, beginAttempt } = useJourney();
-  const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [fidelityByIndex, setFidelityByIndex] = useState<Record<number, ElementFidelity>>({});
+
+  const [selected, setSelected] = useState<Set<number>>(() => {
+    const set = new Set<number>();
+    state.ui.associationCandidates.forEach((_, i) => {
+      if (state.project.visual_elements.some((e) => e.id === `candidate-${i}`)) set.add(i);
+    });
+    return set;
+  });
+  const [fidelityByIndex, setFidelityByIndex] = useState<Record<number, ElementFidelity>>(() => {
+    const map: Record<number, ElementFidelity> = {};
+    state.ui.associationCandidates.forEach((_, i) => {
+      const el = state.project.visual_elements.find((e) => e.id === `candidate-${i}`);
+      if (el) map[i] = el.fidelity;
+    });
+    return map;
+  });
+  const [referenceByIndex, setReferenceByIndex] = useState<Record<number, ReferenceDraft>>(() => {
+    const map: Record<number, ReferenceDraft> = {};
+    state.ui.associationCandidates.forEach((_, i) => {
+      const draft = draftFromExisting(`candidate-${i}`, state);
+      if (draft) map[i] = draft;
+    });
+    return map;
+  });
   const [newIdeaText, setNewIdeaText] = useState("");
-  const [addedIdeas, setAddedIdeas] = useState<string[]>([]);
+  const [addedIdeas, setAddedIdeas] = useState<AddedIdea[]>(() =>
+    state.project.visual_elements.filter((e) => e.id.startsWith("idea-")).map((e) => ({ text: e.description, fidelity: e.fidelity })),
+  );
+  const [referenceByIdea, setReferenceByIdea] = useState<Record<number, ReferenceDraft>>(() => {
+    const map: Record<number, ReferenceDraft> = {};
+    state.project.visual_elements
+      .filter((e) => e.id.startsWith("idea-"))
+      .forEach((e, i) => {
+        const draft = draftFromExisting(e.id, state);
+        if (draft) map[i] = draft;
+      });
+    return map;
+  });
   const [fetching, setFetching] = useState(false);
 
   const hasCandidates = state.ui.associationCandidates.length > 0;
@@ -74,47 +167,74 @@ export function ElementsDiscovery() {
 
   function addIdea() {
     if (newIdeaText.trim().length === 0) return;
-    setAddedIdeas((prev) => [...prev, newIdeaText.trim()]);
+    setAddedIdeas((prev) => [...prev, { text: newIdeaText.trim(), fidelity: "interpretive" }]);
     setNewIdeaText("");
   }
 
   function confirm() {
+    const candidateConsentRecords: ConsentRecord[] = [];
+    const referenceAssets: Record<string, { dataUrl: string; fileName: string }> = {};
+
     const fromCandidates: VisualElement[] = [...selected].map((i) => {
       const candidate = state.ui.associationCandidates[i]!;
       const fidelity = fidelityByIndex[i] ?? "interpretive";
+      const id = `candidate-${i}`;
+      const draft = referenceByIndex[i];
+      if (draft) {
+        const record = draftToConsentRecord(id, draft);
+        if (record) candidateConsentRecords.push(record);
+        if (draft.dataUrl && draft.fileName) referenceAssets[id] = { dataUrl: draft.dataUrl, fileName: draft.fileName };
+      }
       return {
-        id: `candidate-${i}`,
+        id,
         description: candidate.description,
         personal_meaning: candidate.personal_meaning,
         source_category: candidate.source_category,
         hierarchy: "undecided",
         fidelity,
         colour_role: "undecided",
-        reference_required: fidelity === "exact",
-        reference_status: fidelity === "exact" ? "to_upload" : "not_needed",
+        reference_required: NEEDS_REFERENCE.has(fidelity),
+        reference_status: statusFromDraft(fidelity, candidate.source_category, draft),
         origin: "system_suggestion",
         user_selected: true,
       };
     });
-    const fromIdeas: VisualElement[] = addedIdeas.map((text, i) => ({
-      id: `idea-${i}`,
-      description: text,
-      personal_meaning: text,
-      source_category: "new_materialisation",
-      hierarchy: "undecided",
-      fidelity: "interpretive",
-      colour_role: "undecided",
-      reference_required: false,
-      reference_status: "not_needed",
-      origin: "visual_inspiration",
-      user_selected: true,
-    }));
+
+    const fromIdeas: VisualElement[] = addedIdeas.map((idea, i) => {
+      const id = `idea-${i}`;
+      const draft = referenceByIdea[i];
+      if (draft) {
+        const record = draftToConsentRecord(id, draft);
+        if (record) candidateConsentRecords.push(record);
+        if (draft.dataUrl && draft.fileName) referenceAssets[id] = { dataUrl: draft.dataUrl, fileName: draft.fileName };
+      }
+      return {
+        id,
+        description: idea.text,
+        personal_meaning: idea.text,
+        source_category: "new_materialisation",
+        hierarchy: "undecided",
+        fidelity: idea.fidelity,
+        colour_role: "undecided",
+        reference_required: NEEDS_REFERENCE.has(idea.fidelity),
+        reference_status: statusFromDraft(idea.fidelity, "new_materialisation", draft),
+        origin: "visual_inspiration",
+        user_selected: true,
+      };
+    });
+
+    // Replace, don't append: this screen can be revisited (e.g. from Screen
+    // 13's "Add references"), and re-confirming must not duplicate elements
+    // or leave stale consent records for a reference the user removed.
+    const consentRecordIds = new Set(candidateConsentRecords.map((r) => r.reference_id));
+    const preservedConsentRecords = state.project.consent_records.filter((r) => !consentRecordIds.has(r.reference_id));
 
     patchProject({
       visual_elements: [...fromCandidates, ...fromIdeas],
-      visual_inspiration_additions: addedIdeas,
+      visual_inspiration_additions: addedIdeas.map((i) => i.text),
+      consent_records: [...preservedConsentRecords, ...candidateConsentRecords],
     });
-    patchUI({ elementsDiscovered: true });
+    patchUI({ elementsDiscovered: true, referenceAssets: { ...state.ui.referenceAssets, ...referenceAssets } });
   }
 
   return (
@@ -125,23 +245,33 @@ export function ElementsDiscovery() {
       {hasCandidates && (
         <div className="option-grid" style={{ flexDirection: "column", alignItems: "stretch" }}>
           {state.ui.associationCandidates.map((candidate, i) => (
-            <label key={i} className={`option-chip${selected.has(i) ? " selected" : ""}`} style={{ cursor: "pointer" }}>
-              <input type="checkbox" checked={selected.has(i)} onChange={() => toggle(i)} style={{ marginRight: 8 }} />
-              <strong>{candidate.description}</strong> — {candidate.personal_meaning}
+            <div key={i} className={`option-chip${selected.has(i) ? " selected" : ""}`}>
+              <label style={{ cursor: "pointer", display: "block" }}>
+                <input type="checkbox" checked={selected.has(i)} onChange={() => toggle(i)} style={{ marginRight: 8 }} />
+                <strong>{candidate.description}</strong> — {candidate.personal_meaning}
+              </label>
               {selected.has(i) && (
-                <select
-                  value={fidelityByIndex[i] ?? "interpretive"}
-                  onChange={(e) => setFidelityByIndex((prev) => ({ ...prev, [i]: e.target.value as ElementFidelity }))}
-                  style={{ display: "block", marginTop: 6 }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <option value="exact">Exactly as-is (needs a reference)</option>
-                  <option value="closely_based_on">Closely based on this</option>
-                  <option value="interpretive">Interpreted by the artist</option>
-                  <option value="open">Open — artist's call</option>
-                </select>
+                <>
+                  <select
+                    value={fidelityByIndex[i] ?? "interpretive"}
+                    onChange={(e) => setFidelityByIndex((prev) => ({ ...prev, [i]: e.target.value as ElementFidelity }))}
+                    style={{ display: "block", marginTop: 6 }}
+                  >
+                    <option value="exact">Exactly as-is (needs a reference)</option>
+                    <option value="closely_based_on">Closely based on this (needs a reference)</option>
+                    <option value="interpretive">Interpreted by the artist</option>
+                    <option value="open">Open — artist's call</option>
+                  </select>
+                  {NEEDS_REFERENCE.has(fidelityByIndex[i] ?? "interpretive") && (
+                    <ReferenceAttachment
+                      value={referenceByIndex[i] ?? emptyReferenceDraft()}
+                      onChange={(next) => setReferenceByIndex((prev) => ({ ...prev, [i]: next }))}
+                      elementDescription={candidate.description}
+                    />
+                  )}
+                </>
               )}
-            </label>
+            </div>
           ))}
         </div>
       )}
@@ -155,11 +285,32 @@ export function ElementsDiscovery() {
           </button>
         </div>
         {addedIdeas.length > 0 && (
-          <ul>
+          <div className="option-grid" style={{ flexDirection: "column", alignItems: "stretch" }}>
             {addedIdeas.map((idea, i) => (
-              <li key={i}>{idea}</li>
+              <div key={i} className="option-chip selected">
+                {idea.text}
+                <select
+                  value={idea.fidelity}
+                  onChange={(e) =>
+                    setAddedIdeas((prev) => prev.map((it, idx) => (idx === i ? { ...it, fidelity: e.target.value as ElementFidelity } : it)))
+                  }
+                  style={{ display: "block", marginTop: 6 }}
+                >
+                  <option value="interpretive">Interpreted by the artist</option>
+                  <option value="open">Open — artist's call</option>
+                  <option value="exact">Exactly as-is (needs a reference)</option>
+                  <option value="closely_based_on">Closely based on this (needs a reference)</option>
+                </select>
+                {NEEDS_REFERENCE.has(idea.fidelity) && (
+                  <ReferenceAttachment
+                    value={referenceByIdea[i] ?? emptyReferenceDraft()}
+                    onChange={(next) => setReferenceByIdea((prev) => ({ ...prev, [i]: next }))}
+                    elementDescription={idea.text}
+                  />
+                )}
+              </div>
             ))}
-          </ul>
+          </div>
         )}
       </div>
 

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useJourney } from "../journey/JourneyProvider";
+import { buildReferenceChecklist, isReferenceEntrySatisfied, type ReferenceChecklistEntry } from "@positive-inking/engine";
 
 const READINESS_LABEL: Record<string, string> = {
   blueprint_ready: "Artist-ready",
@@ -8,6 +9,31 @@ const READINESS_LABEL: Record<string, string> = {
   artist_consultation_recommended: "Recommend an artist consultation",
   needs_refinement: "Needs refinement",
 };
+
+const RELATIONSHIP_LABEL: Record<string, string> = {
+  self: "the client's own material",
+  living_other: "another living person's material",
+  child: "a child's material",
+  deceased: "material belonging to someone who has passed",
+  unknown: "relationship not specified",
+};
+
+/** §15.2: attestation only ever applies to a living third party, a child, or someone deceased -- "unknown" and "self" never needed it, so the line should not imply they're missing something that was never required. */
+function requiresAttestation(subjectRelationship: ReferenceChecklistEntry["subject_relationship"]): boolean {
+  return subjectRelationship === "living_other" || subjectRelationship === "child" || subjectRelationship === "deceased";
+}
+
+/** §17.1 section 8: "each with provenance and attestation status." Never uses the word "consent" for the deceased case (§15.5). */
+function referenceProvenanceLine(entry: ReferenceChecklistEntry): string {
+  const relationship = RELATIONSHIP_LABEL[entry.subject_relationship ?? "unknown"] ?? "relationship not specified";
+  if (!requiresAttestation(entry.subject_relationship)) return relationship;
+  const attestation = entry.attestation_given
+    ? entry.subject_relationship === "deceased"
+      ? "the client has confirmed they are the right person to make this decision"
+      : "attested by the client"
+    : "no attestation recorded yet";
+  return `${relationship} — ${attestation}`;
+}
 
 /** Builds the plain-text version used by Copy and Save (§4). */
 function formatBlueprintAsText(project: ReturnType<typeof useJourney>["state"]["project"], blueprint: NonNullable<ReturnType<typeof useJourney>["state"]["ui"]["blueprint"]>): string {
@@ -30,6 +56,21 @@ function formatBlueprintAsText(project: ReturnType<typeof useJourney>["state"]["
   );
   section("Artistic direction", blueprint.artistic_direction);
   section("Placement and scale", blueprint.placement);
+  const checklist = buildReferenceChecklist(project.visual_elements, project.consent_records);
+  if (checklist.length > 0) {
+    section(
+      "Personal references",
+      checklist
+        .map((entry) => {
+          const satisfied = isReferenceEntrySatisfied(entry);
+          const flag = entry.copyright_flag
+            ? ` [copyright: ${entry.flag_resolution === "switched_to_inspired_by" ? "used as inspiration only" : "noted as direct reference"}]`
+            : "";
+          return `- ${entry.description}: ${entry.status.replace(/_/g, " ")}${satisfied ? "" : " (MISSING -- " + entry.requirement.replace(/_/g, " ") + ")"} — ${referenceProvenanceLine(entry)}${flag}`;
+        })
+        .join("\n"),
+    );
+  }
   if (blueprint.design_considerations.length > 0) {
     section("Design considerations", blueprint.design_considerations.map((c) => `- ${c}`).join("\n"));
   }
@@ -79,7 +120,7 @@ export function BlueprintView() {
     patchUI({ blueprintReady: false, designConfirmed: false });
   }
 
-  const referencedElements = project.visual_elements.filter((e) => e.reference_required || e.fidelity === "exact");
+  const referenceChecklist = buildReferenceChecklist(project.visual_elements, project.consent_records);
 
   return (
     <div className="screen">
@@ -132,15 +173,34 @@ export function BlueprintView() {
         <h3>7. Placement and scale</h3>
         <p>{blueprint.placement}</p>
       </section>
-      {referencedElements.length > 0 && (
+      {referenceChecklist.length > 0 && (
         <section>
           <h3>8. Personal references</h3>
           <ul>
-            {referencedElements.map((e) => (
-              <li key={e.id}>
-                {e.description} — <span className="recommendation-tag">{e.reference_status.replace(/_/g, " ")}</span> (fidelity: {e.fidelity})
-              </li>
-            ))}
+            {referenceChecklist.map((entry) => {
+              const satisfied = isReferenceEntrySatisfied(entry);
+              return (
+                <li key={entry.element_id}>
+                  <strong>{entry.description}</strong> —{" "}
+                  <span className="recommendation-tag">{entry.status.replace(/_/g, " ")}</span>
+                  {!satisfied && (
+                    <span className="recommendation-tag" style={{ borderColor: "var(--error-fg)", color: "var(--error-fg)" }}>
+                      missing — {entry.requirement.replace(/_/g, " ")}
+                    </span>
+                  )}
+                  <br />
+                  <span className="supporting">{referenceProvenanceLine(entry)}</span>
+                  {entry.copyright_flag && (
+                    <>
+                      <br />
+                      <span className="supporting">
+                        Copyright: {entry.flag_resolution === "switched_to_inspired_by" ? "used as inspiration only, not a direct copy" : "noted as a direct reference for the artist to discuss"}
+                      </span>
+                    </>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </section>
       )}

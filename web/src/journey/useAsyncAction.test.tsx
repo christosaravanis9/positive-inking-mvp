@@ -47,6 +47,20 @@ describe("useAsyncAction", () => {
     expect(result.current.journey.state.ui.error).toBeNull();
   });
 
+  it("the previous test's rendered tree was actually unmounted -- regression guard for the vitest-never-exits incident (see vitest.setup.ts)", () => {
+    // The test above never calls its own unmount() -- like most tests in
+    // this file, it relies on @testing-library/react's afterEach(cleanup)
+    // (registered in vitest.setup.ts) to tear the tree down between tests.
+    // If that registration ever silently stops firing again (e.g. someone
+    // removes setupFiles, or a refactor masks the gap differently), mounted
+    // roots accumulate across every test in this file -- which is what left
+    // `vitest run` unable to return to the shell on a real run. This proves
+    // DOM cleanup actually ran; it can't observe the deeper scheduler/timer
+    // handle that specifically caused the hang, since that did not
+    // reproduce in this test environment regardless of cleanup being wired.
+    expect(document.body.innerHTML).toBe("");
+  });
+
   it("rapid double submit: a second run() call while the first is still pending is a synchronous no-op -- the action fires only once, closing the exact gap that let a user fire duplicate real API calls", async () => {
     const { result } = renderHarness();
     const gate = deferred<void>();

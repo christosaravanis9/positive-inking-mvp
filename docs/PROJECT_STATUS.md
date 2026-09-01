@@ -28,23 +28,25 @@ against the real architecture (not just mocks), the Blueprint pipeline has
 a concreteness gate so unresolved candidates can no longer reach a
 Blueprint as confirmed primary elements, model-call timeouts are per-route
 instead of one universal number, and local development runs on two
-commands (`npm run dev`, `npm run validate:local` — see README). 202 unit
+commands (`npm run dev`, `npm run validate:local` — see README). 193 unit
 tests pass across engine/server/web; typecheck and build are clean across
 all three workspaces.
 
-**In progress:** nothing actively mid-change right now — the reliability/
-dev-experience chapter (session log entry below) just closed out clean.
+**In progress:** nothing actively mid-change right now.
 
 **Open decisions waiting on you:**
-- **Association's real-world latency.** It has timed out at 20s, then
-  30s, in real use. The tooling to measure it exists (`npm run
-  validate:local`'s live-diagnostics section, or standalone `npm run
-  diagnose-model`) but needs your real `ANTHROPIC_API_KEY` to run against
-  the actual Anthropic endpoint — that hasn't happened yet. Once you have
-  a real number, the fix direction (raise the ceiling further / a faster
-  model for interactive stages / trim the Association schema / streaming
-  / split the work) is a product call this project has deliberately left
-  to you rather than guessing at.
+- **Confirm Association's (and Discovery's) new timeout ceilings against
+  more real data.** A real `npm run diagnose-model` run against
+  `claude-sonnet-4-5-20250929` measured Association at 32310ms (over its
+  then-30000ms budget) and Discovery at 12937ms (under its then-16000ms
+  budget, but only ~3s of margin). Based on that one run, Association's
+  production budget was raised 30000ms → 40000ms and Discovery's
+  16000ms → 20000ms (`engine/src/modelTimeouts.ts`,
+  `docs/timeout-matrix.md`). **This is one sample per stage, not a
+  confirmed stable ceiling** — a few more `diagnose-model` runs would be
+  worth doing to check 40s/20s actually hold before treating them as
+  settled, rather than discovering under real traffic that they need
+  raising again.
 - **§15.7 production launch blockers** (encrypted-at-rest storage,
   project-scoped access control, deletion/retention, training-use policy,
   legal review of the consent flow) are all still open — see README.md's
@@ -52,13 +54,34 @@ dev-experience chapter (session log entry below) just closed out clean.
   of this build's upload paths should be treated as production-ready
   until those are deliberately resolved.
 
-**Known risks:** none newly introduced this session beyond the two items
-above; see `docs/session-summary.md` and the incident docs it links
+**Known risks:** the timeout numbers above are provisional (see the open
+decision); nothing else newly introduced this session. See
+`docs/session-summary.md` and the incident docs it links
 (`docs/async-state-incident.md`, `docs/dev-server-reliability.md`,
 `docs/timeout-matrix.md`) for the detailed history behind how the codebase
 got to its current, tested state.
 
 ## Session log
+
+### 2026-09-01 — Raised Discovery/Association timeouts from real diagnostic data
+A real `npm run diagnose-model` run against `claude-sonnet-4-5-20250929`
+measured Association at 32310ms elapsed against its 30000ms production
+budget (over budget) and Discovery at 12937ms against its 16000ms budget
+(under, but only ~3s margin); Blueprint at 18718ms against 30000ms was
+comfortable and left untouched, as were Provenance/Avoidance/Style
+Reference. Raised Association's default to 40000ms and Discovery's to
+20000ms in `engine/src/modelTimeouts.ts` (the shared source both server
+and client import from — the client margin of +10000ms applies on top
+automatically, no separate edit needed). Updated the two hardcoded
+assertions in `engine/test/modelTimeouts.test.ts` that encoded the old
+numbers (the ceiling cap and the exact-matrix check); no new test logic
+added, per instruction. `docs/timeout-matrix.md` now documents the actual
+measured elapsed times as the justification. This is one sample per
+stage, not a confirmed stable ceiling — see the current-status section's
+open item on this. Scope was deliberately narrow: no change to
+`model_timeout`'s no-retry behaviour, no other route touched, no new
+tests. Verified: typecheck and build clean across all three workspaces;
+full test suite passes (193 tests: 144 engine, 39 server, 10 web).
 
 ### 2026-09-01 — Established this file as the canonical status/handoff doc
 Converted the one-off `docs/session-summary.md` into this persistent,

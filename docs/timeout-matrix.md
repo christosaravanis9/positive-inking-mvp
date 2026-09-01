@@ -28,9 +28,9 @@ the heavy route or was needlessly generous for the light one.
 | `provenance` | 10000ms | 20000ms | Smallest schema (`server/src/schemas/provenance.ts`): `attraction_origin`, `origin_period`, `origin_source`, a short `personal_entities[]`, two scalars, one small nested object. Default `maxTokens` (2048), never raised by the route. Pure short-field extraction. |
 | `avoidance` | 10000ms | 20000ms | Smallest possible shape: 5–7 short suggestion strings, nothing nested (`server/src/schemas/avoidance.ts`). Default `maxTokens`. |
 | `style_reference` | 12000ms | 22000ms | A closed classification against a fixed 7-dimension vocabulary (`RESOLVABLE_STYLE_DIMENSIONS`), at most 7 `{dimension, value}` pairs plus two short text fields. More judgement than pure extraction (recognising a named style/artist and deciding what it does and doesn't settle), so a small step above the floor. Default `maxTokens`. |
-| `discovery` | 16000ms | 26000ms | The largest field count of any route (14+ string/array fields — themes, personal people/places/objects/events/memories/phrases, open threads, a clarification decision, two confidence scores) but every field is short; this is semantic extraction and a judgement call (whether to clarify), not long-form generation. Default `maxTokens`. |
-| `association` | 30000ms | 40000ms | The heaviest structured schema in the app: an array of candidate visual elements, each with `description`, `personal_meaning`, `source_category`, `resolution_state`, an optional `follow_up_prompt`, and 6 numeric ranking scores, plus top-level classification flags and a `contradictions_noticed[]` list. The route explicitly raises `maxTokens` to 4096 (double every other route) — the same signal used here to justify the largest timeout ceiling. This is the route that timed out in the reported incident. |
-| `blueprint` | 30000ms | 40000ms | Fewer top-level fields than Association, but the most prose-heavy generation in the app: up to ~10 written sections (story/why, visual direction, artistic direction, placement, design considerations, statement of inspiration, artist brief). Also explicitly raises `maxTokens` to 4096. Generation *volume*, not field count, drives latency here, which is why it sits at the same ceiling as Association rather than lower. |
+| `discovery` | 20000ms | 30000ms | The largest field count of any route (14+ string/array fields — themes, personal people/places/objects/events/memories/phrases, open threads, a clarification decision, two confidence scores) but every field is short; this is semantic extraction and a judgement call (whether to clarify), not long-form generation. Default `maxTokens`. Raised from 16000ms — see "Revised from real diagnostic data" below. |
+| `association` | 40000ms | 50000ms | The heaviest structured schema in the app: an array of candidate visual elements, each with `description`, `personal_meaning`, `source_category`, `resolution_state`, an optional `follow_up_prompt`, and 6 numeric ranking scores, plus top-level classification flags and a `contradictions_noticed[]` list. The route explicitly raises `maxTokens` to 4096 (double every other route) — the same signal used here to justify the largest timeout ceiling. This is the route that timed out in the reported incident, twice. Raised from 30000ms — see "Revised from real diagnostic data" below. |
+| `blueprint` | 30000ms | 40000ms | Fewer top-level fields than Association, but the most prose-heavy generation in the app: up to ~10 written sections (story/why, visual direction, artistic direction, placement, design considerations, statement of inspiration, artist brief). Also explicitly raises `maxTokens` to 4096. Generation *volume*, not field count, drives latency here, which is why it sits close to Association's ceiling rather than down with the simple routes. Not touched by the revision below — comfortable margin in the one real run so far. |
 
 Defaults live in `engine/src/modelTimeouts.ts` (`MODEL_ROUTE_TIMEOUT_DEFAULTS_MS`),
 the one place both `server/` and `web/` import from, so the two sides of the
@@ -40,7 +40,7 @@ timeout — comfortably above typical network/Express overhead, and asserted
 directly in `engine/test/modelTimeouts.test.ts` rather than left as an
 unchecked convention.
 
-No route is unlimited: the highest ceiling (30s server / 40s client) is
+No route is unlimited: the highest ceiling (40s server / 50s client) is
 still a hard bound, not a fallback to "wait indefinitely."
 
 ## Overriding a route's budget
@@ -49,9 +49,9 @@ Each route's server budget can be overridden independently via an env var
 in `server/.env` (see `.env.example`):
 
 ```
-MODEL_TIMEOUT_DISCOVERY_MS=16000
+MODEL_TIMEOUT_DISCOVERY_MS=20000
 MODEL_TIMEOUT_PROVENANCE_MS=10000
-MODEL_TIMEOUT_ASSOCIATION_MS=30000
+MODEL_TIMEOUT_ASSOCIATION_MS=40000
 MODEL_TIMEOUT_AVOIDANCE_MS=10000
 MODEL_TIMEOUT_STYLE_REFERENCE_MS=12000
 MODEL_TIMEOUT_BLUEPRINT_MS=30000
@@ -148,6 +148,45 @@ This is intentionally the *only* change made in response to the second
 report — no ceiling was raised, no schema trimmed, no streaming added —
 until a real trace exists to justify which fix actually addresses the
 observed cause rather than the assumed one.
+
+## Revised from real diagnostic data (one run so far)
+
+`npm run diagnose-model` was run for real against `claude-sonnet-4-5-20250929`.
+Measured elapsed time per stage, against the budgets that were in effect
+at the time:
+
+| Stage | Elapsed | Budget at the time | Result |
+|---|---|---|---|
+| Discovery | 12937ms | 16000ms | Under budget, but only ~3s of margin |
+| Association | 32310ms | 30000ms | **Over budget** — would time out in production as-is |
+| Blueprint | 18718ms | 30000ms | Comfortable, ~11s margin |
+
+This is one sample per stage, not an average — treat the new numbers
+below as a working adjustment based on a real signal, not a confirmed
+final ceiling. **A few more `diagnose-model` runs would be worth doing
+to confirm 40000ms/20000ms are the right numbers before treating them as
+settled** (see `docs/PROJECT_STATUS.md`'s current-status section, which
+carries this same caveat).
+
+Based on this one run:
+- **Association: 30000ms → 40000ms.** It was already over budget, so any
+  smaller increase risks the same failure recurring on the very next
+  moderately-slower call.
+- **Discovery: 16000ms → 20000ms.** Not currently failing, but ~3s of
+  margin on a single clean run is too thin to trust in production —
+  raised pre-emptively rather than waiting for it to actually time out.
+- **Provenance, Avoidance, Style Reference, Blueprint: left untouched.**
+  No pressure shown in this data. Blueprint in particular ran comfortably
+  under its 30000ms budget (18718ms, ~11s margin) despite being the same
+  tier as Association — no reason to move it.
+
+This was a data-driven number change only. It does not touch
+`model_timeout`'s no-retry behaviour (`docs/timeout-matrix.md`'s own
+"Retry policy" section above, still current) or the client-margin design
+— `clientTimeoutForRoute()` still adds the same `CLIENT_TIMEOUT_MARGIN_MS`
+(10000ms) on top of whatever the server budget is, so Association's
+client timeout became 50000ms and Discovery's became 30000ms
+automatically, with no separate edit required.
 
 ## Tests
 

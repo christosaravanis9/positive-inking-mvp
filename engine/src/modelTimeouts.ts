@@ -42,13 +42,25 @@ export const MODEL_ROUTES: readonly ModelRoute[] = [
   "blueprint",
 ];
 
-/** Server-side total wall-clock budget per route (ms), across modelClient's one shared-budget retry. Env-overridable per route -- see server/src/env.ts. */
+/**
+ * Server-side total wall-clock budget per route (ms), across modelClient's
+ * one shared-budget retry. Env-overridable per route -- see
+ * server/src/env.ts.
+ *
+ * discovery (16000 -> 20000) and association (30000 -> 40000) were raised
+ * from their original values after a real `npm run diagnose-model` run
+ * against claude-sonnet-4-5-20250929 measured association at 32310ms
+ * (already over its 30000ms budget) and discovery at 12937ms (under
+ * budget, but only ~3s of margin against 16000ms) -- see
+ * docs/timeout-matrix.md for the full run data and the explicit caveat
+ * that this is one sample, not a confirmed stable ceiling yet.
+ */
 export const MODEL_ROUTE_TIMEOUT_DEFAULTS_MS: Record<ModelRoute, number> = {
   provenance: 10000,
   avoidance: 10000,
   style_reference: 12000,
-  discovery: 16000,
-  association: 30000,
+  discovery: 20000,
+  association: 40000,
   blueprint: 30000,
 };
 

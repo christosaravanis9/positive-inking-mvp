@@ -7,6 +7,7 @@ import { logTelemetryEvent } from "../instrumentation/telemetry";
 import type { StyleReferenceData } from "../api/types";
 import type { ArtisticDimensionKey, ProjectState } from "@positive-inking/engine";
 
+/** Same cap as ReferenceAttachment, for the same reason -- no backend storage in this build (see §15.7 production blocker note). */
 const MAX_FILE_BYTES = 3 * 1024 * 1024;
 
 /**

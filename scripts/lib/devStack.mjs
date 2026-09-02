@@ -22,6 +22,12 @@ export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url
 
 export const PORTS = { server: 8787, web: 5173 };
 
+/** Where `npm run start` records the PIDs it launched, so `npm run stop` and `npm run doctor` can find them without the user hunting PIDs by hand. Git-ignored -- purely a runtime marker. */
+export const STACK_MARKER_PATH = path.join(REPO_ROOT, ".dev-stack.json");
+
+/** Where `npm run validate:local` records the last commit that passed a full validation run, so `npm run doctor` can tell you if you've drifted from it. Git-ignored -- purely a runtime marker. */
+export const LAST_KNOWN_GOOD_PATH = path.join(REPO_ROOT, ".last-known-good-commit.json");
+
 export class PortConflictError extends Error {
   constructor(port, owner) {
     const detail = owner?.pid
@@ -140,11 +146,80 @@ function killGroup(pid, signal) {
   }
 }
 
-/** SIGTERM the whole process group, wait a grace period, SIGKILL if it's still alive. */
+/** True if `pid` is currently alive (signal 0 is a no-op existence probe, never actually sent). */
+export function isPidAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * True only if `pid` is both alive AND its working directory is this repo
+ * (or a path inside it, e.g. a workspace package -- `npm run dev -w engine`
+ * chdirs into engine/). This is the check that lets start/stop distinguish
+ * "a stale copy of this project's own processes" (safe to auto-kill) from
+ * "some unrelated process that happens to be squatting the port" (never
+ * touched -- reported by PID/command instead, same as today).
+ */
+export function isOwnedByThisRepo(pid) {
+  if (!isPidAlive(pid)) return false;
+  try {
+    const out = execFileSync("lsof", ["-a", "-p", String(pid), "-d", "cwd", "-Fn"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+    const cwdLine = out.split("\n").find((line) => line.startsWith("n"));
+    const cwd = cwdLine ? cwdLine.slice(1) : null;
+    return Boolean(cwd && path.resolve(cwd).startsWith(REPO_ROOT));
+  } catch {
+    // lsof missing or the PID vanished between isPidAlive and this call --
+    // either way we can't prove ownership, so never auto-kill.
+    return false;
+  }
+}
+
+/** Waits up to timeoutMs for `pid` to no longer exist, polling every 100ms. */
+async function waitForPidExit(pid, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (!isPidAlive(pid)) return true;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return !isPidAlive(pid);
+}
+
+/** Same SIGTERM-then-SIGKILL escalation as terminateManaged, but for a bare PID recorded from a previous process (e.g. read back from the stack marker file) rather than a live child handle. */
+export async function terminatePidGroup(pid, { graceMs = 3000 } = {}) {
+  if (!isPidAlive(pid)) return;
+  killGroup(pid, "SIGTERM");
+  const exited = await waitForPidExit(pid, graceMs);
+  if (!exited) {
+    killGroup(pid, "SIGKILL");
+    await waitForPidExit(pid, 2000);
+  }
+}
+
+/**
+ * SIGTERM the whole process group, wait a grace period, SIGKILL if it's
+ * still alive. Always signals the group -- even when the directly-tracked
+ * child (e.g. the `npm` process for "npm run dev -w engine") has already
+ * exited -- because a grandchild it spawned (e.g. `tsc --watch`, which
+ * retains the same process-group id) can survive as an orphan. Observed
+ * directly: a crash-triggered shutdown where the tracked npm process had
+ * already died left tsc running, un-killed, because an earlier version of
+ * this function skipped signaling the group entirely once the tracked
+ * child's own exit had already fired.
+ */
 export async function terminateManaged(child, { graceMs = 3000 } = {}) {
   if (!child?.pid) return;
-  if (child.exitCode !== null || child.signalCode !== null) return;
   killGroup(child.pid, "SIGTERM");
+  if (child.exitCode !== null || child.signalCode !== null) {
+    // The tracked child is already gone -- give any surviving group member
+    // a moment to react to the SIGTERM just sent, then make sure with SIGKILL.
+    await new Promise((r) => setTimeout(r, 300));
+    killGroup(child.pid, "SIGKILL");
+    return;
+  }
   const exited = await waitForExit(child, graceMs);
   if (!exited) {
     killGroup(child.pid, "SIGKILL");
@@ -184,6 +259,85 @@ export async function waitForHttp(url, { timeoutMs = 20000, intervalMs = 250 } =
     await new Promise((r) => setTimeout(r, intervalMs));
   }
   return false;
+}
+
+/** Current commit (short hash) and branch name -- used both for the always-visible dev-app build identifier and for `npm run doctor`. Never throws: a repo in a detached/weird state just reports "unknown" rather than crashing the caller. */
+export function gitInfo() {
+  const run = (args) => {
+    try {
+      return execFileSync("git", args, { cwd: REPO_ROOT, encoding: "utf8" }).trim();
+    } catch {
+      return null;
+    }
+  };
+  const commit = run(["rev-parse", "--short", "HEAD"]) ?? "unknown";
+  const branch = run(["rev-parse", "--abbrev-ref", "HEAD"]) ?? "unknown";
+  const dirty = run(["status", "--porcelain"]);
+  return { commit, branch, dirty: Boolean(dirty && dirty.length > 0) };
+}
+
+/** Parses server/.env the same simple way validateLocal.mjs does. Returns null if the file doesn't exist. */
+export function readServerEnvFile() {
+  const envPath = path.join(REPO_ROOT, "server", ".env");
+  if (!fs.existsSync(envPath)) return null;
+  const text = fs.readFileSync(envPath, "utf8");
+  const vars = {};
+  for (const line of text.split("\n")) {
+    const match = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/);
+    if (match) vars[match[1]] = match[2];
+  }
+  return vars;
+}
+
+/**
+ * Fail-fast environment check for `npm run start`: confirms server/.env
+ * exists and ANTHROPIC_API_KEY is non-empty, without ever reading the value
+ * into a log or return value that could get printed. Returns
+ * { ok: true } or { ok: false, reason: string }.
+ */
+export function validateEnvBeforeStart() {
+  const envPath = path.join(REPO_ROOT, "server", ".env");
+  const vars = readServerEnvFile();
+  if (!vars) return { ok: false, reason: `server/.env is missing. Copy server/.env.example to ${envPath} and set ANTHROPIC_API_KEY.` };
+  if (!vars.ANTHROPIC_API_KEY?.trim()) return { ok: false, reason: "ANTHROPIC_API_KEY is not set in server/.env." };
+  return { ok: true };
+}
+
+/** Reads the stack marker file (PIDs from the last `npm run start`), or null if there isn't one / it's unreadable. */
+export function readStackMarker() {
+  try {
+    return JSON.parse(fs.readFileSync(STACK_MARKER_PATH, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+/** Records the PIDs `npm run start` just launched, so a later `npm run stop` (possibly in a different terminal) or `npm run doctor` can find them. */
+export function writeStackMarker({ pids, commit, branch }) {
+  fs.writeFileSync(STACK_MARKER_PATH, JSON.stringify({ pids, commit, branch, startedAt: new Date().toISOString() }, null, 2));
+}
+
+/** Removes the stack marker file, if present. Safe to call even when it's already gone. */
+export function clearStackMarker() {
+  try {
+    fs.unlinkSync(STACK_MARKER_PATH);
+  } catch {
+    /* already gone */
+  }
+}
+
+/** Records the commit `npm run validate:local` just fully validated, for `npm run doctor` to compare HEAD against. */
+export function writeLastKnownGood({ commit, branch }) {
+  fs.writeFileSync(LAST_KNOWN_GOOD_PATH, JSON.stringify({ commit, branch, validatedAt: new Date().toISOString() }, null, 2));
+}
+
+/** Reads the last-known-good marker, or null if `npm run validate:local` has never fully passed on this checkout. */
+export function readLastKnownGood() {
+  try {
+    return JSON.parse(fs.readFileSync(LAST_KNOWN_GOOD_PATH, "utf8"));
+  } catch {
+    return null;
+  }
 }
 
 /**

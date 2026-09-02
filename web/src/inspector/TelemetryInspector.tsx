@@ -29,7 +29,9 @@ export function TelemetryInspector() {
 
   return (
     <details className="inspector">
-      <summary>Telemetry (dev only)</summary>
+      <summary>
+        Telemetry (dev only) — {__GIT_BRANCH__}@{__GIT_COMMIT__}
+      </summary>
       <p className="supporting">
         Local-only, first-party event log (§22). Nothing here is read by the app itself -- it exists to verify
         instrumentation is capturing what §22 asks for, and to preview what a future analytics backend would receive.

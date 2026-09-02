@@ -49,7 +49,22 @@ session log entry. It is deliberately not rolled out to the other 12
 screens yet; doing so is a separate future decision, not assumed by this
 change. All new styling lives in scoped `.ledger-*` classes/CSS custom
 properties in `web/src/styles.css` and in Screen 7's own markup — no
-shared component or other screen's styling was touched.
+shared component or other screen's styling was touched. **ChatGPT Sites is
+now the frozen visual/UX reference** — no more bidirectional feature
+merging between the two; visual/UX direction flows from it into this
+project, not back and forth.
+
+**Workflow/tooling:** a full local-dev-friction pass landed as its own
+chapter (see the latest session log entry) — this was tooling/DX work,
+not a feature chapter, and touched no application logic, UI, or product
+behaviour. `npm run start` / `npm run stop` / `npm run doctor` now sit
+alongside the existing `npm run dev` / `npm run validate:local` (both
+unchanged) as the reliable way to run the stack locally, with automatic
+recovery from a stale copy of this project's own processes, fail-fast
+environment validation, and a commit/branch identifier that's always
+visible in the running app (footer + Telemetry panel, dev-only) so
+"is this browser running current code" never again requires leaving it
+to compare terminal output by hand.
 
 **In progress:** nothing actively mid-change right now.
 
@@ -174,6 +189,100 @@ decision); nothing else newly introduced this session. See
 got to its current, tested state.
 
 ## Session log
+
+### 2026-09-02 — Local dev workflow/tooling chapter: start/stop/doctor, auto port-conflict recovery, always-visible build identifier
+This is a workflow/tooling chapter, not a feature chapter — no
+application logic, UI, or product behaviour changed. Trigger: a session
+that repeatedly lost time to port conflicts, stale git pulls, and not
+knowing whether the running app matched what was pushed — most costly of
+all, four separate instances of debugging against stale code without
+realizing it, because checking required leaving the browser and comparing
+terminal output by hand.
+
+**Built:**
+1. **`npm run start`** — wraps the existing `startStack()` (unchanged;
+   `npm run dev` is untouched and still works exactly as before) with:
+   fail-fast `server/.env` / `ANTHROPIC_API_KEY` validation before
+   spawning anything (value never printed); automatic reclaim of a stale
+   copy of *this project's own* processes (from a previous `npm run
+   start` that didn't shut down cleanly), with a printed explanation of
+   what was killed and why; the existing named-PID `PortConflictError`
+   behaviour preserved unchanged for anything that isn't provably this
+   repo's own process; post-boot health checks (engine/server/web all
+   actually responding, not just spawned); and a success banner that
+   names the URL, the running commit, and the branch.
+2. **`npm run stop`** — stops only this project's own processes, no
+   manual PID-hunting. Two sources, both used: the PID marker
+   `npm run start` writes (`.dev-stack.json`, git-ignored — this is what
+   catches the engine watcher, which holds no port), and a live check of
+   ports 8787/5173 as a fallback for a missing/stale marker. Anything not
+   provably this repo's own process (working directory doesn't match) is
+   reported and left alone, never killed.
+3. **`npm run doctor`** — read-only diagnostic: git branch and whether
+   it's behind origin (best-effort `git fetch`, degrades gracefully
+   offline), port occupancy (and whether the occupant is this repo's own
+   process), whether `server/.env`/`ANTHROPIC_API_KEY` are present
+   (value never printed), and — new — a last-known-good-commit
+   comparison: `npm run validate:local` now records the commit it last
+   fully validated (`.last-known-good-commit.json`, git-ignored) on a
+   full PASS, and `doctor` reports whether HEAD still matches it.
+4. **Always-visible build identifier** — `web/vite.config.ts` now has a
+   `define` block computing the short git commit hash and branch fresh
+   from git at every dev-server start/build (`web/src/vite-env.d.ts`
+   declares the injected `__GIT_COMMIT__`/`__GIT_BRANCH__` globals). A
+   new dev-only `web/src/dev/BuildIdentifier.tsx` renders it as a small
+   fixed footer badge — deliberately *not* inside `TelemetryInspector`'s
+   collapsed `<details>`, so it never requires a click — and it's also
+   echoed in that panel's `<summary>` line (visible without expanding)
+   for redundancy. This directly targets the single most time-costly
+   failure mode from tonight's session.
+5. **`Start Positive Inking.command`** — a Mac double-click launcher
+   (`cd` to the repo, run `npm run start`) so starting the stack never
+   requires opening Terminal manually first.
+
+**A real bug found and fixed along the way, in shared plumbing:**
+`scripts/lib/devStack.mjs`'s `terminateManaged()` skipped signaling a
+child's process group entirely once the *directly tracked* process (e.g.
+the `npm` process for `npm run dev -w engine`) had already exited —
+reasoning "nothing to do here." That's wrong when a grandchild it spawned
+(`tsc --watch`, which retains the same process-group id) survives as an
+orphan: nothing ever signals it. Found this directly while verifying the
+stop→start cycle: a pre-existing, platform-timing-dependent race already
+documented in `docs/dev-server-reliability.md` (not something this
+chapter introduced — reproduced even against an unmodified `npm run dev`)
+occasionally causes the engine watcher to receive an external SIGTERM
+shortly after boot, which triggers the existing crash-cascade shutdown in
+both `dev.mjs` and the new `start.mjs`; with the old `terminateManaged`,
+that cascade left `tsc --watch` running orphaned, undetected by port
+checks (it holds no port). Fixed by always signaling the process group,
+regardless of whether the tracked child has already exited. This is a
+tooling-only fix to shared process-lifecycle plumbing — the underlying
+file-watcher race itself was not (and, per that doc, could not reliably
+be) chased further; it remains an accepted, already-documented flake in
+the dev stack, not a regression from this chapter.
+
+**Verified live, not just read:**
+- Stop→start cycled 5 times in a row (`npm run start` → confirm health →
+  `npm run stop` → confirm ports free, repeat). All 5 stops fully cleaned
+  up and every subsequent start succeeded — including the ~2/5 cycles
+  where the pre-existing engine-watch race above fired mid-cycle, proving
+  the tooling itself never gets stuck even when the underlying dev stack
+  does.
+- Port-conflict-recovery path: started the stack, `kill -9`'d the
+  `npm run start` process directly (simulating a killed terminal — leaves
+  engine/server/web running orphaned with a stale marker on disk), then
+  ran `npm run start` again with no manual cleanup. It found the stale
+  marker, confirmed each PID via working-directory ownership, printed
+  what it was reclaiming and why, and came up clean — both ports
+  responding — with zero manual intervention.
+- `npm run doctor`'s stale-branch detection against real git history:
+  `git reset --soft HEAD~1` (simulating a checkout behind its own
+  remote-tracking ref) made `doctor` correctly report "1 commit(s)
+  behind -- you are looking at OLD code, pull before debugging further";
+  reset back to the real HEAD afterward.
+- `npm run typecheck`, `npm test` (226 tests, unchanged), and
+  `npm run test:dev-reliability` (the existing stress-edit regression
+  test) all still pass after the `terminateManaged` change.
 
 ### 2026-09-02 — Investigated a reported style_reference "2+ minute hang": no code bug found
 Trigger: a live report of a successful `style_reference` model call

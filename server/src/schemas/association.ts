@@ -76,6 +76,13 @@ category name for information you do not have yet.
   idea the client has explicitly chosen not to tie to a literal object —
   concreteness is about whether the visual idea itself is real, not about
   whether it is literal or abstract in style.
+  personal_meaning does not need description's same literal concreteness —
+  a real, honestly abstract emotional truth is a legitimate answer — but it
+  must be grounded in a specific detail from the client's own story or from
+  this candidate's own description, never a sentence generic enough to fit
+  equally well on a different client's story. If nothing in the story
+  grounds the meaning yet, say so plainly rather than reaching for
+  boilerplate phrasing.
 
 9. OUTPUT — valid structured data via the record_associations tool.`;
 

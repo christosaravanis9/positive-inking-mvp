@@ -50,18 +50,31 @@ all three workspaces.
   worth doing to check 40s/20s actually hold before treating them as
   settled, rather than discovering under real traffic that they need
   raising again.
-- **Association candidate wording — proposed prompt change not yet
-  applied.** Investigated why memorial/tribute object candidates lean on
-  abstract phrasing (e.g. "already carries the weight of connection") in
-  `personal_meaning`. Finding: `server/src/schemas/association.ts`'s rule
-  8 (CONCRETENESS) constrains only the `description` field, with explicit
-  BAD/BETTER examples — there is no equivalent guidance for
+- **Association candidate wording — prompt change applied, real-model
+  verification still needed from you.** Investigated why memorial/tribute
+  object candidates lean on abstract phrasing (e.g. "already carries the
+  weight of connection") in `personal_meaning`. Root cause:
+  `server/src/schemas/association.ts`'s rule 8 (CONCRETENESS) constrained
+  only the `description` field — there was no equivalent guidance for
   `personal_meaning`, which is where the abstract phrasing actually lives.
-  Smallest proposed change (**not applied — needs your confirmation, since
-  it affects live model output for all users**): add one prompt sentence
-  asking `personal_meaning` to name the specific personal connection in
-  the client's own story terms rather than reaching for generic
-  emotionally-resonant phrasing, mirroring rule 8's own pattern.
+  Three options were proposed at different strictness levels; **Option C
+  (a grounding requirement, not a literalness requirement) was chosen and
+  is now live** in the prompt: `personal_meaning` no longer needs
+  `description`'s literal concreteness (a genuinely abstract emotional
+  truth is still legitimate) but must name a specific detail from the
+  client's own story or the candidate's own description rather than a
+  sentence generic enough to fit any client, and the model is told to say
+  plainly when nothing yet grounds the meaning rather than reach for
+  boilerplate. **This sandbox has no `ANTHROPIC_API_KEY` configured**
+  (`server/.env` doesn't exist; `npm run dev` reports "Model configured:
+  NO"), so the actual before/after wording change could not be observed
+  against the real model here — only the prompt text change itself, a
+  full typecheck/test pass, and the request/response pipeline shape were
+  verified. **You should run `npm run diagnose-model` (or the app itself)
+  with a real key against the "handmade wall art" scenario to confirm
+  `personal_meaning` reads more specifically before treating this as
+  settled** — see the latest session log entry for exact wording and
+  what was and wasn't checked.
 - **"Whose is it?" reference field — investigated, no change made.**
   The dropdown (`web/src/components/ReferenceAttachment.tsx`,
   `subject_relationship`) renders whenever a candidate's chosen fidelity
@@ -104,6 +117,40 @@ decision); nothing else newly introduced this session. See
 got to its current, tested state.
 
 ## Session log
+
+### 2026-09-02 — Association CONCRETENESS rule extended to personal_meaning (Option C)
+Follow-up to the same day's live-test session below: item 4's investigation
+proposed three prompt-change options at different strictness levels for
+`server/src/schemas/association.ts`'s CONCRETENESS rule (which constrained
+only `description`, not `personal_meaning` — the field where abstract
+phrasing like "already carries the weight of connection" actually lives).
+You chose **Option C**, a grounding requirement rather than a literalness
+requirement: `personal_meaning` can stay honestly abstract when that's
+what the story supports, but must be grounded in a specific detail from
+the client's story or the candidate's own description, never a sentence
+generic enough to fit any client — and the model should say plainly when
+nothing yet grounds the meaning, rather than default to boilerplate.
+Applied as one paragraph appended to rule 8, immediately after its
+existing `description` guidance; no schema/type change, since this is
+prompt wording only.
+
+**Verified:** typecheck and build clean across all three workspaces; full
+test suite passes (207 tests — unchanged, since no schema or behavior
+contract changed, only prompt text the schema doesn't validate).
+**Not verified — and could not be, in this environment:** whether
+`personal_meaning` actually reads more specifically against the real
+model. This sandbox has no `ANTHROPIC_API_KEY` configured (`server/.env`
+does not exist; `npm run dev` reports "Model configured: NO"), and the
+project's fake-model test double (`test-integration/fakeAnthropic.mjs`)
+returns hardcoded canned text regardless of prompt content, so it cannot
+demonstrate a wording-quality change either — running the app against it
+would not have been a genuine check, so it wasn't staged as one. **Before
+treating this change as validated, run `npm run diagnose-model` (or the
+app itself) with a real `ANTHROPIC_API_KEY` against the "handmade wall
+art" scenario and confirm `personal_meaning` no longer defaults to generic
+phrasing like "already carries the weight of connection."** If it still
+does, the next step is likely Option A (the stricter variant) rather than
+further tweaking C's wording.
 
 ### 2026-09-02 — Live end-to-end test fixes: Screen 7 layout, readiness reasons, Blueprint prose leaks
 Trigger: a real, full end-to-end browser test journey (screenshots and the

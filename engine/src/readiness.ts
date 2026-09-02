@@ -15,7 +15,7 @@
  * MVP's scope.
  */
 
-import type { InterpretationConfidence, ReadinessState } from "./types.js";
+import type { ContradictionRecord, InterpretationConfidence, ReadinessState } from "./types.js";
 
 export interface ReadinessInputs {
   interpretationConfidence: InterpretationConfidence;
@@ -68,7 +68,16 @@ export interface ReadinessReasonInputs {
   missingReferenceDescriptions: string[];
   /** The two signals DesignConfirmation ORs together into hasUnresolvedContradiction before this ever reaches computeReadiness -- split back out here so a "needs_refinement" reason can name which one actually applies, rather than reaching for the generic case every time. */
   hasUnresolvedPrimaryImagery: boolean;
-  hasOtherContradiction: boolean;
+  /**
+   * The Association Engine's own contradictions_noticed, passed through in
+   * full (not flattened to a bare description) -- a live-test report
+   * correctly pointed out that "A noted contradiction in the design is
+   * still unresolved" gives no way to act on it. Each record's own
+   * resolutions (the model's own "one or two resolutions" per §11 rule 7)
+   * become the reason's "what to do about it," never a newly-invented
+   * suggestion.
+   */
+  otherContradictions: ContradictionRecord[];
 }
 
 /**
@@ -96,8 +105,12 @@ export function describeReadinessReason(inputs: ReadinessReasonInputs): string[]
       if (inputs.hasUnresolvedPrimaryImagery) {
         reasons.push("One or more primary visual elements are still an open decision for the client, not yet a concrete idea.");
       }
-      if (inputs.hasOtherContradiction) {
-        reasons.push("A noted contradiction in the design is still unresolved.");
+      for (const contradiction of inputs.otherContradictions) {
+        const nextSteps =
+          contradiction.resolutions.length > 0
+            ? ` Possible next step${contradiction.resolutions.length > 1 ? "s" : ""}: ${contradiction.resolutions.join(", or ")}.`
+            : "";
+        reasons.push(`${contradiction.description}${nextSteps}`);
       }
       return reasons.length > 0 ? reasons : ["Some details are still unresolved and need refining before this design is final."];
     }

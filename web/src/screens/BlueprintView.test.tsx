@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { createEmptyProjectState, type VisualElement } from "@positive-inking/engine";
+import { createEmptyProjectState, type VisualElement, type ContradictionRecord } from "@positive-inking/engine";
 import { JourneyProvider } from "../journey/JourneyProvider";
 import { createInitialJourneyState, type JourneyState } from "../journey/state";
 import { savePersistedState } from "../journey/persistence";
@@ -23,13 +23,15 @@ import { BlueprintView } from "./BlueprintView";
  * that goes back to reading `e.hierarchy` directly in the JSX). These
  * tests close that gap by rendering the real component tree.
  *
- * Section 4 was also restructured from one merged paragraph into a
- * decision map (Core concept / Personal reference / Other elements / Still
- * undecided) -- so "undecided" is now a legitimate, intentional heading
- * word, and the old blanket "the word 'undecided' never appears anywhere in
- * this section" assertion would be wrong on its own terms. What still must
- * never happen is the word appearing *tacked onto a specific element's own
- * line* (the actual bug shape); the tests below scope to that.
+ * A THIRD live-test report followed this decision-map restructure itself:
+ * an element that was both personal and unranked appeared verbatim in BOTH
+ * "Other elements" and "Still undecided" (groupVisualElementsForHierarchySection
+ * originally treated stillUndecided as a cross-cutting overlay, not a
+ * mutually-exclusive bucket), and "Still undecided" rendered bare
+ * `e.description` instead of going through the same visualElementSentence()
+ * composition "Personal reference"/"Other elements" already used. Both are
+ * fixed in blueprintSummary.ts; the tests below assert each element now
+ * appears in exactly one group, and that group always uses composed prose.
  */
 
 function elementFixture(overrides: Partial<VisualElement>): VisualElement {
@@ -51,7 +53,7 @@ function elementFixture(overrides: Partial<VisualElement>): VisualElement {
   };
 }
 
-function seedBlueprintState(overrides: { visualElements?: VisualElement[]; contradictions?: string[] }): JourneyState {
+function seedBlueprintState(overrides: { visualElements?: VisualElement[]; contradictions?: ContradictionRecord[] }): JourneyState {
   const state = createInitialJourneyState();
   state.project = {
     ...state.project,
@@ -81,7 +83,38 @@ function seedBlueprintState(overrides: { visualElements?: VisualElement[]; contr
   return state;
 }
 
-describe("BlueprintView -- Visual hierarchy rendering (regression: raw '(undecided)' leak)", () => {
+/** Counts how many times a needle string appears verbatim in a section's text. */
+function occurrences(haystack: string, needle: string): number {
+  return haystack.split(needle).length - 1;
+}
+
+describe("BlueprintView -- Visual hierarchy rendering (regression: raw '(undecided)' leak, then duplication)", () => {
+  it("an unranked personal element appears only under 'Still undecided', not also under 'Personal reference'", () => {
+    seedBlueprintState({});
+    render(
+      <JourneyProvider>
+        <BlueprintView />
+      </JourneyProvider>,
+    );
+
+    expect(screen.queryByText("Personal reference:")).toBeNull();
+    screen.getByText("Still undecided:"); // throws if not found
+  });
+
+  it("never duplicates one element's text across two groups -- the exact live-test regression", () => {
+    seedBlueprintState({});
+    render(
+      <JourneyProvider>
+        <BlueprintView />
+      </JourneyProvider>,
+    );
+
+    const section = screen.getByRole("heading", { name: "4. Visual hierarchy" }).closest("section")!;
+    // The fixture's description contains a comma-free, distinctive substring safe to count.
+    expect(occurrences(section.textContent!, "craft wire and plaster fabric")).toBe(1);
+    expect(occurrences(section.textContent!, "A concrete thing from your shared world")).toBe(1);
+  });
+
   it("never tacks the raw '(undecided)' hierarchy tag onto an unranked element's own line", () => {
     seedBlueprintState({});
     render(
@@ -91,16 +124,12 @@ describe("BlueprintView -- Visual hierarchy rendering (regression: raw '(undecid
     );
 
     const section = screen.getByRole("heading", { name: "4. Visual hierarchy" }).closest("section")!;
-    // "undecided" is now a legitimate heading word ("Still undecided:"); what must
-    // never happen is the exact old bug shape -- a parenthetical tag glued to an
-    // element's description -- or the word appearing inside the element's own
-    // Personal reference bullet.
     expect(section.textContent).not.toMatch(/\(undecided\)/i);
-    const personalReferenceItem = screen.getByText("Personal reference:").closest("section")!.querySelector("ul li")!;
-    expect(personalReferenceItem.textContent).not.toMatch(/\bundecided\b/i);
+    const stillUndecidedItem = screen.getByText("Still undecided:").closest("section")!.querySelector("ul li")!;
+    expect(stillUndecidedItem.textContent).not.toMatch(/\bundecided\b/i);
   });
 
-  it("still surfaces personal_meaning as prose under Personal reference", () => {
+  it("still surfaces personal_meaning as composed prose under Still undecided -- not the bare raw description", () => {
     seedBlueprintState({});
     render(
       <JourneyProvider>
@@ -108,11 +137,12 @@ describe("BlueprintView -- Visual hierarchy rendering (regression: raw '(undecid
       </JourneyProvider>,
     );
 
-    const section = screen.getByRole("heading", { name: "4. Visual hierarchy" }).closest("section")!;
-    expect(section.textContent).toContain("A concrete thing from your shared world that already carries the weight of connection");
+    const stillUndecidedItem = screen.getByText("Still undecided:").closest("section")!.querySelector("ul li")!;
+    expect(stillUndecidedItem.textContent).toContain("A specific small object that belongs to your daughter");
+    expect(stillUndecidedItem.textContent).toContain("A concrete thing from your shared world that already carries the weight of connection");
   });
 
-  it("shows a real hierarchy role label (not a raw enum) once an element is ranked", () => {
+  it("shows a real hierarchy role label (not a raw enum) once an element is ranked, and it leaves 'Still undecided'", () => {
     seedBlueprintState({ visualElements: [elementFixture({ hierarchy: "primary" })] });
     render(
       <JourneyProvider>
@@ -122,24 +152,11 @@ describe("BlueprintView -- Visual hierarchy rendering (regression: raw '(undecid
 
     const section = screen.getByRole("heading", { name: "4. Visual hierarchy" }).closest("section")!;
     expect(section.textContent).toContain("Primary");
-    // Once resolved, the element must no longer appear under "Still undecided".
     expect(screen.queryByText("Still undecided:")).toBeNull();
+    screen.getByText("Personal reference:"); // now resolved, so it's back in its category bucket
   });
 
-  it("lists an unranked element under 'Still undecided' as its own labelled group, not merged into its description", () => {
-    seedBlueprintState({});
-    render(
-      <JourneyProvider>
-        <BlueprintView />
-      </JourneyProvider>,
-    );
-
-    const stillUndecidedHeading = screen.getByText("Still undecided:");
-    const stillUndecidedItem = stillUndecidedHeading.closest("section")!.querySelectorAll("ul")[1]!.querySelector("li")!;
-    expect(stillUndecidedItem.textContent).toContain("A specific small object that belongs to your daughter");
-  });
-
-  it("partitions every element into Personal reference or Other elements -- an element made by the client that is not a personal source category still appears somewhere", () => {
+  it("partitions every resolved element into Personal reference or Other elements -- an element made by the client that is not a personal source category still appears somewhere", () => {
     seedBlueprintState({
       visualElements: [elementFixture({ id: "idea-0", source_category: "new_materialisation", hierarchy: "primary", personal_meaning: "A new mark made for this project" })],
     });
@@ -156,9 +173,9 @@ describe("BlueprintView -- Visual hierarchy rendering (regression: raw '(undecid
   });
 });
 
-describe("BlueprintView -- Readiness reason rendering (regression: bare label with no reason)", () => {
+describe("BlueprintView -- Readiness reason rendering (regression: bare label with no reason, then too-vague reason)", () => {
   it("never shows 'Needs refinement' with nothing else -- always surfaces at least one reason", () => {
-    seedBlueprintState({ contradictions: ["The script style is undecided but fidelity is closely_based_on."] });
+    seedBlueprintState({ contradictions: [{ description: "An exact artefact is specified with no uploaded reference.", resolutions: ["Upload a reference photo"] }] });
     render(
       <JourneyProvider>
         <BlueprintView />
@@ -172,8 +189,10 @@ describe("BlueprintView -- Readiness reason rendering (regression: bare label wi
     expect(section.querySelectorAll("p.supporting").length).toBeGreaterThan(0);
   });
 
-  it("names the actual contradiction signal as the reason, not a generic restatement", () => {
-    seedBlueprintState({ contradictions: ["The script style is undecided but fidelity is closely_based_on."] });
+  it("names the actual contradiction and its next step, not a generic restatement -- the second live-test regression", () => {
+    seedBlueprintState({
+      contradictions: [{ description: "An exact artefact is specified with no uploaded reference.", resolutions: ["Upload a reference photo", "switch to an interpretive rendering"] }],
+    });
     render(
       <JourneyProvider>
         <BlueprintView />
@@ -181,6 +200,9 @@ describe("BlueprintView -- Readiness reason rendering (regression: bare label wi
     );
 
     const section = screen.getByRole("heading", { name: "12. Readiness" }).closest("section")!;
-    expect(section.textContent).toContain("A noted contradiction in the design is still unresolved.");
+    expect(section.textContent).toContain("An exact artefact is specified with no uploaded reference.");
+    expect(section.textContent).toContain("Upload a reference photo");
+    expect(section.textContent).toContain("switch to an interpretive rendering");
+    expect(section.textContent).not.toContain("A noted contradiction in the design is still unresolved.");
   });
 });

@@ -137,6 +137,17 @@ export interface ConsentRecord {
   flag_resolution: "proceeded" | "switched_to_inspired_by" | "removed" | null;
 }
 
+/**
+ * §11 rule 7 — the Association Engine's own contradictions_noticed: "plain
+ * descriptions with one or two resolutions." Kept as this full shape (not
+ * flattened to a bare description string) so a readiness reason can say
+ * what to do about a contradiction, not just that one exists.
+ */
+export interface ContradictionRecord {
+  description: string;
+  resolutions: string[];
+}
+
 /** §9.2 — AI Action A: Discovery analysis output. */
 export interface DiscoveryResult {
   primary_viewpoint: Viewpoint;
@@ -292,7 +303,7 @@ export interface ProjectState {
 
   reference_checklist: string[];
   consent_records: ConsentRecord[];
-  contradictions: string[];
+  contradictions: ContradictionRecord[];
   unsupported_inferences: string[];
   generation_readiness: ReadinessState | "";
 

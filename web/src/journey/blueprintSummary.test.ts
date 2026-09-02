@@ -111,31 +111,35 @@ describe("REFERENCE_STATUS_LABEL", () => {
 });
 
 /**
- * Section 4's restructure into a decision map (item #3): every element must
- * land somewhere (personal vs. other are exhaustive and mutually exclusive
- * by source_category), and "still undecided" is a separate, cross-cutting
- * flag an element can carry regardless of which category bucket it's in --
- * this is what turns an unresolved hierarchy into its own visibly separate
- * list instead of a word buried mid-sentence (the root cause item #1b
- * investigation traced to a stale build, not live code -- but this locks in
- * the new structure's own correctness going forward).
+ * Section 4's restructure into a decision map (item #3): every element
+ * lands in EXACTLY ONE of personal/other/stillUndecided, never more than
+ * one. The first version of this grouping treated stillUndecided as a
+ * cross-cutting flag an element could carry alongside its category bucket
+ * -- which is exactly what produced a live-test duplication bug (one
+ * personal, unranked element's full text appearing verbatim in both
+ * "Other elements" and "Still undecided"). stillUndecided now takes
+ * priority: an unranked element is flagged there and ONLY there; once
+ * resolved, it moves into personal/other, which remain exhaustive and
+ * mutually exclusive for resolved elements exactly as before.
  */
 describe("groupVisualElementsForHierarchySection", () => {
-  it("puts a personal-source element under 'personal', never 'other'", () => {
-    const groups = groupVisualElementsForHierarchySection([elementFixture({ source_category: "personal_artefact" })]);
+  it("puts a resolved personal-source element under 'personal', never 'other' or 'stillUndecided'", () => {
+    const groups = groupVisualElementsForHierarchySection([elementFixture({ source_category: "personal_artefact", hierarchy: "primary" })]);
     expect(groups.personal).toHaveLength(1);
     expect(groups.other).toHaveLength(0);
+    expect(groups.stillUndecided).toHaveLength(0);
   });
 
-  it("puts a non-personal-source element under 'other', never 'personal'", () => {
+  it("puts a resolved non-personal-source element under 'other', never 'personal' or 'stillUndecided'", () => {
     const groups = groupVisualElementsForHierarchySection([elementFixture({ source_category: "new_materialisation", hierarchy: "primary" })]);
     expect(groups.personal).toHaveLength(0);
     expect(groups.other).toHaveLength(1);
+    expect(groups.stillUndecided).toHaveLength(0);
   });
 
-  it("every element lands in exactly one of personal/other -- the partition is exhaustive", () => {
+  it("every resolved element lands in exactly one of personal/other -- the partition is exhaustive", () => {
     const elements = [
-      elementFixture({ id: "a", source_category: "personal_artefact" }),
+      elementFixture({ id: "a", source_category: "personal_artefact", hierarchy: "primary" }),
       elementFixture({ id: "b", source_category: "public_artefact", hierarchy: "primary" }),
       elementFixture({ id: "c", source_category: "artistic_symbol", hierarchy: "accent" }),
     ];
@@ -143,12 +147,28 @@ describe("groupVisualElementsForHierarchySection", () => {
     expect(groups.personal.length + groups.other.length).toBe(elements.length);
   });
 
-  it("'still undecided' is a cross-cutting flag independent of the personal/other bucket", () => {
-    const groups = groupVisualElementsForHierarchySection([
-      elementFixture({ id: "personal-undecided", source_category: "personal_artefact", hierarchy: "undecided" }),
-      elementFixture({ id: "other-undecided", source_category: "new_materialisation", hierarchy: "undecided" }),
-    ]);
+  it("an unranked element -- personal or not -- appears in 'stillUndecided' ONLY, never also in 'personal' or 'other' -- the exact live-test duplication regression", () => {
+    const personalUndecided = elementFixture({ id: "personal-undecided", source_category: "personal_artefact", hierarchy: "undecided" });
+    const otherUndecided = elementFixture({ id: "other-undecided", source_category: "new_materialisation", hierarchy: "undecided" });
+    const groups = groupVisualElementsForHierarchySection([personalUndecided, otherUndecided]);
+
     expect(groups.stillUndecided.map((e) => e.id).sort()).toEqual(["other-undecided", "personal-undecided"]);
+    expect(groups.personal).toHaveLength(0);
+    expect(groups.other).toHaveLength(0);
+  });
+
+  it("every element across all three groups appears exactly once total, whatever the mix of resolved and unranked", () => {
+    const elements = [
+      elementFixture({ id: "personal-resolved", source_category: "personal_artefact", hierarchy: "primary" }),
+      elementFixture({ id: "personal-undecided", source_category: "personal_artefact", hierarchy: "undecided" }),
+      elementFixture({ id: "other-resolved", source_category: "new_materialisation", hierarchy: "accent" }),
+      elementFixture({ id: "other-undecided", source_category: "new_materialisation", hierarchy: "undecided" }),
+    ];
+    const groups = groupVisualElementsForHierarchySection(elements);
+    const allIds = [...groups.personal, ...groups.other, ...groups.stillUndecided].map((e) => e.id);
+    expect(allIds.sort()).toEqual(elements.map((e) => e.id).sort());
+    // Exactly once each -- no id appears twice across the combined groups.
+    expect(new Set(allIds).size).toBe(allIds.length);
   });
 
   it("a resolved element never appears under 'still undecided'", () => {

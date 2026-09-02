@@ -50,7 +50,7 @@ describe("describeReadinessReason", () => {
       readiness: "artist_consultation_recommended",
       missingReferenceDescriptions: [],
       hasUnresolvedPrimaryImagery: false,
-      hasOtherContradiction: false,
+      otherContradictions: [],
     });
     expect(reasons).toHaveLength(1);
     expect(reasons[0]).toMatch(/low-confidence/);
@@ -61,7 +61,7 @@ describe("describeReadinessReason", () => {
       readiness: "references_needed",
       missingReferenceDescriptions: ["a photo of the handwriting", "a photo of the tattoo it commemorates"],
       hasUnresolvedPrimaryImagery: false,
-      hasOtherContradiction: false,
+      otherContradictions: [],
     });
     expect(reasons).toHaveLength(1);
     expect(reasons[0]).toContain("a photo of the handwriting");
@@ -73,7 +73,7 @@ describe("describeReadinessReason", () => {
       readiness: "references_needed",
       missingReferenceDescriptions: [],
       hasUnresolvedPrimaryImagery: false,
-      hasOtherContradiction: false,
+      otherContradictions: [],
     });
     expect(reasons).toEqual(["A required reference is still outstanding."]);
   });
@@ -83,29 +83,57 @@ describe("describeReadinessReason", () => {
       readiness: "needs_refinement",
       missingReferenceDescriptions: [],
       hasUnresolvedPrimaryImagery: true,
-      hasOtherContradiction: false,
+      otherContradictions: [],
     });
     expect(reasons).toEqual(["One or more primary visual elements are still an open decision for the client, not yet a concrete idea."]);
   });
 
-  it("names the other contradiction for needs_refinement", () => {
+  it("names the actual contradiction and its resolutions for needs_refinement -- not a generic restatement", () => {
     const reasons = describeReadinessReason({
       readiness: "needs_refinement",
       missingReferenceDescriptions: [],
       hasUnresolvedPrimaryImagery: false,
-      hasOtherContradiction: true,
+      otherContradictions: [
+        { description: "An exact artefact is specified with no uploaded reference.", resolutions: ["Upload a reference photo", "switch to an interpretive rendering"] },
+      ],
     });
-    expect(reasons).toEqual(["A noted contradiction in the design is still unresolved."]);
+    expect(reasons).toHaveLength(1);
+    expect(reasons[0]).toContain("An exact artefact is specified with no uploaded reference.");
+    expect(reasons[0]).toContain("Upload a reference photo");
+    expect(reasons[0]).toContain("switch to an interpretive rendering");
   });
 
-  it("names both when both signals are present for needs_refinement", () => {
+  it("names a contradiction with no resolutions attached without inventing one", () => {
+    const reasons = describeReadinessReason({
+      readiness: "needs_refinement",
+      missingReferenceDescriptions: [],
+      hasUnresolvedPrimaryImagery: false,
+      otherContradictions: [{ description: "Two incompatible placements were both confirmed.", resolutions: [] }],
+    });
+    expect(reasons).toEqual(["Two incompatible placements were both confirmed."]);
+  });
+
+  it("names one reason per contradiction, plus the primary-imagery reason, when both signals are present", () => {
     const reasons = describeReadinessReason({
       readiness: "needs_refinement",
       missingReferenceDescriptions: [],
       hasUnresolvedPrimaryImagery: true,
-      hasOtherContradiction: true,
+      otherContradictions: [{ description: "An exact artefact is specified with no uploaded reference.", resolutions: ["Upload a reference photo"] }],
     });
     expect(reasons).toHaveLength(2);
+  });
+
+  it("names every contradiction when more than one is present", () => {
+    const reasons = describeReadinessReason({
+      readiness: "needs_refinement",
+      missingReferenceDescriptions: [],
+      hasUnresolvedPrimaryImagery: false,
+      otherContradictions: [
+        { description: "First contradiction.", resolutions: [] },
+        { description: "Second contradiction.", resolutions: [] },
+      ],
+    });
+    expect(reasons).toEqual(["First contradiction.", "Second contradiction."]);
   });
 
   it("falls back to a generic line for needs_refinement when neither specific signal is set", () => {
@@ -113,7 +141,7 @@ describe("describeReadinessReason", () => {
       readiness: "needs_refinement",
       missingReferenceDescriptions: [],
       hasUnresolvedPrimaryImagery: false,
-      hasOtherContradiction: false,
+      otherContradictions: [],
     });
     expect(reasons).toEqual(["Some details are still unresolved and need refining before this design is final."]);
   });
@@ -121,7 +149,7 @@ describe("describeReadinessReason", () => {
   it("returns no reasons for blueprint_ready and concept_visual_ready", () => {
     for (const readiness of ["blueprint_ready", "concept_visual_ready"] as const) {
       expect(
-        describeReadinessReason({ readiness, missingReferenceDescriptions: [], hasUnresolvedPrimaryImagery: false, hasOtherContradiction: false }),
+        describeReadinessReason({ readiness, missingReferenceDescriptions: [], hasUnresolvedPrimaryImagery: false, otherContradictions: [] }),
       ).toEqual([]);
     }
   });

@@ -76,7 +76,7 @@ function readinessReasons(project: ProjectState, readiness: ReadinessState): str
     readiness,
     missingReferenceDescriptions,
     hasUnresolvedPrimaryImagery: hasUnresolvedPrimaryImagery(project.visual_elements),
-    hasOtherContradiction: project.contradictions.length > 0,
+    otherContradictions: project.contradictions,
   });
 }
 
@@ -105,7 +105,7 @@ function formatBlueprintAsText(project: ReturnType<typeof useJourney>["state"]["
       hierarchyGroups.personal.length > 0 ? ["", "Personal reference:", ...hierarchyGroups.personal.map(elementLine)].join("\n") : "",
       hierarchyGroups.other.length > 0 ? ["", "Other elements:", ...hierarchyGroups.other.map(elementLine)].join("\n") : "",
       hierarchyGroups.stillUndecided.length > 0
-        ? ["", "Still undecided:", ...hierarchyGroups.stillUndecided.map((e) => `- ${e.description}`)].join("\n")
+        ? ["", "Still undecided:", ...hierarchyGroups.stillUndecided.map(elementLine)].join("\n")
         : "",
     ]
       .filter(Boolean)
@@ -236,11 +236,7 @@ export function BlueprintView() {
             <p className="supporting">
               <strong>Still undecided:</strong>
             </p>
-            <ul>
-              {hierarchyGroups.stillUndecided.map((e) => (
-                <li key={e.id}>{e.description}</li>
-              ))}
-            </ul>
+            <ul>{hierarchyGroups.stillUndecided.map((e) => <ElementLine key={e.id} element={e} />)}</ul>
           </>
         )}
       </section>

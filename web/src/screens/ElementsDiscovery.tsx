@@ -214,7 +214,10 @@ export function ElementsDiscovery() {
       });
       patchProject({
         place_role: result.place_role,
-        contradictions: result.contradictions_noticed.map((c) => c.description),
+        // Kept as the full {description, resolutions} record, not flattened to a
+        // bare description -- a readiness reason needs the resolutions too, to
+        // say what to do about a contradiction, not just that one exists.
+        contradictions: result.contradictions_noticed,
       });
     }, "Finding what could represent it");
   }

@@ -29,9 +29,12 @@ a concreteness gate so unresolved candidates can no longer reach a
 Blueprint as confirmed primary elements, model-call timeouts are per-route
 instead of one universal number, and local development runs on two
 commands (`npm run dev`, `npm run validate:local` — see README). The
-Blueprint's Section 4 (Visual hierarchy) is now a labelled decision map
-(Core concept / Personal reference / Other elements / Still undecided)
-rather than one merged paragraph — see the latest session log entry. 219
+Blueprint's Section 4 (Visual hierarchy) is a labelled decision map (Core
+concept / Personal reference / Other elements / Still undecided), with
+every element assigned to exactly one group (a live-test report caught a
+duplication bug in the first version of this grouping — see the latest
+session log entry), and the Readiness section names the actual
+contradiction and its concrete next step, not just that one exists. 223
 unit tests pass across engine/server/web; typecheck and build are clean
 across all three workspaces.
 
@@ -146,6 +149,62 @@ decision); nothing else newly introduced this session. See
 got to its current, tested state.
 
 ## Session log
+
+### 2026-09-02 — Fixed a real duplication bug in the new Visual hierarchy decision map; readiness reason now names the contradiction and its next step
+Follow-up to the same day's prior session (below): live browser evidence
+confirmed the decision-map restructure and prior fixes were rendering
+correctly overall, but surfaced two new, genuinely live bugs in the new
+code itself -- unlike the earlier same-day report, these were NOT a stale
+build.
+
+**Fixed:**
+1. **Duplication bug in `groupVisualElementsForHierarchySection`.** The
+   prior session's own design treated `stillUndecided` as a
+   cross-cutting flag an element could carry *alongside* its
+   `personal`/`other` category bucket -- so a personal, unranked element
+   appeared verbatim in both "Other elements" and "Still undecided" on a
+   real Blueprint. Changed the grouping so every element lands in
+   EXACTLY ONE of the three groups: `stillUndecided` now takes priority
+   (an unranked element is flagged there and nowhere else); once
+   resolved, it moves into `personal`/`other`, which remain exhaustive
+   and mutually exclusive as before.
+2. **"Still undecided" bypassed prose composition.** The same report
+   correctly noticed the duplicated element's text read as raw,
+   unprocessed input in that group, unlike "Personal reference"/"Other
+   elements". Root cause: "Still undecided" rendered bare `e.description`
+   directly instead of going through `visualElementSentence()`
+   (`ElementLine` in `BlueprintView.tsx`) the way the other two groups
+   already did. Now routed through the identical composition path in
+   both the on-screen JSX and the plain-text export.
+3. **Readiness reason too vague to act on.** "A noted contradiction in
+   the design is still unresolved" named no contradiction and no next
+   step. Root cause: the Association Engine's own `contradictions_noticed`
+   (`{description, resolutions}` per §11 rule 7, "plain descriptions with
+   one or two resolutions") was being flattened to a bare description
+   string the moment it landed in `project.contradictions`
+   (`ElementsDiscovery.tsx`), discarding the resolutions entirely before
+   anything downstream could use them. `ProjectState.contradictions` is
+   now `ContradictionRecord[]` (`{description, resolutions}`, a new
+   engine type) end to end; `describeReadinessReason()`
+   (`engine/src/readiness.ts`) takes the full records instead of a
+   `hasOtherContradiction` boolean and composes one reason per
+   contradiction naming its description and, when present, its own
+   "Possible next step(s)" -- never an invented suggestion, only what the
+   model itself already proposed.
+
+**Verification:** typecheck and build clean across engine/server/web; full
+test suite passes (223 tests: 154 engine -- 8 new/rewritten covering the
+new `ContradictionRecord`-based reasons -- 39 server, 30 web -- new/rewritten
+tests in `blueprintSummary.test.ts` proving no element ever appears twice
+across the three groups, and in `BlueprintView.test.tsx` proving the exact
+live-test duplication no longer reproduces and the readiness reason names
+real contradiction text). Live-browser-verified with the exact reported
+"Athena wire" element (personal source category, unranked hierarchy, a
+real contradiction with two resolutions attached): the element's text now
+appears exactly once in Section 4, under "Still undecided" alone, composed
+identically to the other groups; Section 12 now reads the actual
+contradiction plus both possible next steps, never the old generic
+sentence -- screenshot reviewed directly.
 
 ### 2026-09-02 — Investigated readiness/undecided-tag regression reports (stale build, not a code bug); fixed Statement of Inspiration sourcing; restructured Visual hierarchy into a decision map
 Trigger: a live session reported two apparent regressions on a fresh

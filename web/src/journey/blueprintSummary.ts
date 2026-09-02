@@ -101,15 +101,17 @@ export function visualElementSentence(e: VisualElement): { description: string; 
  * exactly what let a personal-reference element's own confirmed description
  * and its still-open hierarchy decision sit in the same undifferentiated
  * block (the "(undecided)" live-test bug, task #54/#1b). Grouping into a
- * small, labelled decision map instead: `personal` and `other` partition
- * every element exhaustively by isPersonalSourceCategory (§22's own
- * definition, reused rather than a second hand-maintained list) so nothing
- * is silently dropped, and `stillUndecided` is a separate, cross-cutting
- * flag list (an element can appear there AND in its category bucket -- being
- * a personal reference and having an undecided hierarchy are two different
- * facts about the same element, not alternatives). Making "needs a decision"
- * its own visibly separate list is also what would have made #1b's leak
- * immediately obvious as a structural anomaly rather than a buried word.
+ * small, labelled decision map instead: every element lands in EXACTLY ONE
+ * of the three groups below, never more than one. `stillUndecided` takes
+ * priority -- an unranked element is flagged there and nowhere else, not
+ * also duplicated into `personal`/`other`, which is what a real Blueprint
+ * did when this was first built as a cross-cutting flag (the same element's
+ * full text appeared twice, once per group). Once an element's hierarchy is
+ * resolved, `personal`/`other` then partition it exhaustively by
+ * isPersonalSourceCategory (§22's own definition, reused rather than a
+ * second hand-maintained list). Making "needs a decision" its own group is
+ * still what makes #1b's kind of leak immediately obvious as a structural
+ * anomaly -- it just has to be *one* group per element, not an overlay.
  */
 export interface VisualHierarchyGroups {
   personal: VisualElement[];
@@ -118,9 +120,11 @@ export interface VisualHierarchyGroups {
 }
 
 export function groupVisualElementsForHierarchySection(elements: readonly VisualElement[]): VisualHierarchyGroups {
+  const stillUndecided = elements.filter((e) => e.hierarchy === "undecided");
+  const resolved = elements.filter((e) => e.hierarchy !== "undecided");
   return {
-    personal: elements.filter((e) => isPersonalSourceCategory(e.source_category)),
-    other: elements.filter((e) => !isPersonalSourceCategory(e.source_category)),
-    stillUndecided: elements.filter((e) => e.hierarchy === "undecided"),
+    personal: resolved.filter((e) => isPersonalSourceCategory(e.source_category)),
+    other: resolved.filter((e) => !isPersonalSourceCategory(e.source_category)),
+    stillUndecided,
   };
 }

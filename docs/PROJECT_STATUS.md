@@ -153,8 +153,14 @@ shared component or other screen's styling was touched.
   of Inspiration's *content*, which this session's item #2 fixed — see
   below; this note is about typography/visual treatment only.)
 - **Free-text input + suggestion chips on binary confirmation screens**
-  ("Here's what that suggests" style screens) — currently only
-  right/try-again, no way to add nuance or see suggested phrasing.
+  ("Here's what that suggests" style screens, e.g. `StyleReference.tsx`'s
+  resolution step) — currently only right/try-again, no way to add
+  nuance or see suggested phrasing. **Sharpened by later feedback:** the
+  ask is for both together on the same screen, not either/or —
+  multiple suggestion boxes (alternative phrasings/interpretations to
+  pick from, not just the one shown) *and* a free-text input to type a
+  correction/refinement directly, rather than only being able to accept
+  or reject the single suggestion. Still not built.
 - **Timer/countdown UI during model-call waits** — may overlap with the
   already-specced placement-preference "productive waiting" MVP; should
   probably be coordinated with it rather than built separately.

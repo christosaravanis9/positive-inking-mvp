@@ -370,3 +370,253 @@ input[type="text"] {
   border: 1px solid var(--accent);
   color: var(--accent);
 }
+
+/**
+ * "Studio ledger" design direction -- approved live on Screen 7
+ * (ElementsDiscovery) only, per an isolated standalone preview reviewed
+ * separately. Every rule here is scoped under .ledger-screen (applied
+ * alongside, never instead of, the shared .screen class on that one
+ * component) or to a .ledger-* class name, so nothing here can affect any
+ * other screen -- no existing shared rule above this comment is modified.
+ * Rolling this direction out further is a separate future decision.
+ *
+ * Deliberately NOT dark-mode-aware: this is one fixed warm-paper palette,
+ * matching the approved preview, which also had no dark variant. A few
+ * shared, secondary controls inside this screen (the "add your own idea"
+ * input/button, the reference-attachment sub-component -- its classes are
+ * reused independently by Placement/StyleReference) are left on the app's
+ * ordinary styling on purpose: the ledger treatment is reserved for the
+ * primary candidate-review moment, not applied blanket to every control.
+ */
+.ledger-screen {
+  --ledger-paper: #f7f2e6;
+  --ledger-paper-deep: #efe6d3;
+  --ledger-ink: #2b241c;
+  --ledger-ink-soft: #6d6152;
+  --ledger-ink-faint: #9a8f7d;
+  --ledger-rule: #ddcfb0;
+  --ledger-rule-soft: #e8ddc4;
+  --ledger-ember: #a3461f;
+  --ledger-ember-deep: #8a3a19;
+  --ledger-ember-tint: rgba(163, 70, 31, 0.07);
+  --ledger-font-display: Georgia, "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
+
+  background: var(--ledger-paper);
+  color: var(--ledger-ink);
+  padding: 28px 24px 32px;
+  border-radius: 6px;
+}
+
+.ledger-header-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+
+.ledger-step-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  color: var(--ledger-ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.ledger-progress-track {
+  position: relative;
+  height: 2px;
+  background: var(--ledger-rule-soft);
+  border-radius: 2px;
+  margin-bottom: 24px;
+  overflow: hidden;
+}
+
+.ledger-progress-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 54%; /* Screen 7 of 13 -- see the docstring on ElementsDiscovery */
+  background: var(--ledger-ember);
+  border-radius: 2px;
+}
+
+.ledger-headline {
+  font-family: var(--ledger-font-display);
+  font-weight: 400;
+  font-size: 1.85rem;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--ledger-ink);
+  margin: 0 0 24px;
+}
+
+.ledger-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.ledger-candidate {
+  position: relative;
+  padding: 22px 0 22px 30px;
+  border-top: 1px solid var(--ledger-rule);
+}
+.ledger-candidate:last-child {
+  border-bottom: 1px solid var(--ledger-rule);
+}
+
+.ledger-candidate.selected {
+  background: linear-gradient(to right, var(--ledger-ember-tint), transparent 70%);
+  margin: 0 -20px;
+  padding-left: 50px;
+  padding-right: 20px;
+  border-radius: 2px;
+}
+
+.ledger-candidate-row {
+  display: block;
+  cursor: pointer;
+}
+
+/* Visually-hidden but still focusable/clickable -- the real checkbox stays
+   in the accessibility tree and keyboard flow; only its default box is
+   replaced by .ledger-seal below via a sibling selector on :checked. */
+.ledger-seal-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.ledger-seal {
+  position: absolute;
+  left: 0;
+  top: 24px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 1.5px solid var(--ledger-ink-faint);
+  background: transparent;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.ledger-candidate.selected .ledger-seal {
+  left: 20px;
+}
+.ledger-seal-input:checked ~ .ledger-seal {
+  border-color: var(--ledger-ember);
+  background: var(--ledger-ember);
+  box-shadow: 0 0 0 3px var(--ledger-ember-tint);
+}
+.ledger-seal-input:focus-visible ~ .ledger-seal {
+  outline: 2px solid var(--ledger-ember-deep);
+  outline-offset: 2px;
+}
+
+.ledger-candidate-body {
+  display: block;
+  font-size: 1.02rem;
+  line-height: 1.6;
+  color: var(--ledger-ink);
+}
+
+.ledger-candidate-meaning {
+  font-style: italic;
+  color: var(--ledger-ink-soft);
+}
+
+.ledger-marginalia {
+  margin-top: 20px;
+  padding-left: 18px;
+  border-left: 2px solid var(--ledger-ember);
+}
+
+.ledger-marginalia-field {
+  display: block;
+  margin-bottom: 18px;
+}
+
+.ledger-marginalia-label {
+  display: block;
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ledger-ember-deep);
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.ledger-lined-input {
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid var(--ledger-rule);
+  background: transparent;
+  font-family: var(--font-ui, inherit);
+  font-size: 0.98rem;
+  color: var(--ledger-ink);
+  padding: 4px 2px 10px;
+  border-radius: 0;
+}
+.ledger-lined-input::placeholder {
+  color: var(--ledger-ink-faint);
+  font-style: italic;
+}
+
+.ledger-fidelity-row {
+  margin-bottom: 4px;
+}
+
+.ledger-fidelity {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.ledger-fidelity-pill {
+  font-family: inherit;
+  font-size: 0.78rem;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--ledger-rule);
+  color: var(--ledger-ink-soft);
+  background: transparent;
+  cursor: pointer;
+}
+.ledger-fidelity-pill.active {
+  background: var(--ledger-ink);
+  border-color: var(--ledger-ink);
+  color: var(--ledger-paper);
+}
+
+.ledger-idea-tag {
+  font-size: 0.7rem;
+  color: var(--ledger-ember-deep);
+  border: 1px solid var(--ledger-rule);
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+.ledger-footer {
+  margin-top: 8px;
+  padding-top: 22px;
+  border-top: 1px solid var(--ledger-rule);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.ledger-cta {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--ledger-paper);
+  background: var(--ledger-ink);
+  border: 1px solid var(--ledger-ink);
+  padding: 13px 28px;
+  border-radius: 999px;
+}
+.ledger-cta:disabled {
+  opacity: 0.5;
+}

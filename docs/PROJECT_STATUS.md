@@ -38,8 +38,18 @@ concrete next step, not just that one exists. Screen 13 ("Ready to build
 your Blueprint") now has a matching "Open decisions" row using the same
 wording, so it can no longer read "Nothing outstanding" moments before
 the generated Blueprint flags an unresolved contradiction — see the
-latest session log entry. 226 unit tests pass across engine/server/web;
-typecheck and build are clean across all three workspaces.
+session log. 226 unit tests pass across engine/server/web; typecheck and
+build are clean across all three workspaces.
+
+**Design:** a new "studio ledger" visual direction (warm parchment
+background, serif headline, ember-accented selection/marginalia, no card
+chrome) was explored as an isolated static preview, approved, and is now
+applied live to Screen 7 (`ElementsDiscovery.tsx`) only — see the latest
+session log entry. It is deliberately not rolled out to the other 12
+screens yet; doing so is a separate future decision, not assumed by this
+change. All new styling lives in scoped `.ledger-*` classes/CSS custom
+properties in `web/src/styles.css` and in Screen 7's own markup — no
+shared component or other screen's styling was touched.
 
 **In progress:** nothing actively mid-change right now.
 
@@ -152,6 +162,64 @@ decision); nothing else newly introduced this session. See
 got to its current, tested state.
 
 ## Session log
+
+### 2026-09-02 — Applied the "studio ledger" design direction to Screen 7 (live, not a preview)
+An earlier same-day exploration produced an isolated static-HTML preview of
+a new visual direction for one representative screen, entirely outside the
+app (no repo files touched): warm parchment background, a serif (Georgia)
+headline over clean system-sans body/UI text, one ember-red accent reserved
+only for selection state and a marginalia rule, candidates as a flowing
+hairline-separated list instead of bordered "chip" cards, a hollow-ring
+"wax seal" selection marker, expanded follow-ups styled as indented
+marginalia (left rule, small-caps label, lined input), and a quiet 2px
+progress hairline with a "0X / 13 · stage" label. That preview was
+reviewed and approved. This session integrated it for real into
+`ElementsDiscovery.tsx` (Screen 7) -- the only screen touched.
+
+**What changed:** markup and CSS only, in two files --
+`web/src/screens/ElementsDiscovery.tsx` (structure/classNames; the native
+fidelity `<select>` became a segmented pill button group calling the exact
+same `setFidelityByIndex`/`setAddedIdeas` state updates as before, just
+from a `<button onClick>` instead of a `<select onChange>`) and
+`web/src/styles.css` (a new block of `.ledger-*` classes and CSS custom
+properties, purely additive -- no existing rule was edited or removed).
+No state shape, handler, async/staleness guard (`useAsyncAction`,
+`guard.isStale()`), or data flow changed anywhere.
+
+**Scope discipline, deliberate:** the new palette/typography is scoped
+under a `.ledger-screen` modifier applied alongside (never instead of) the
+shared `.screen` class, so no other screen's look changed. Three things
+inside Screen 7 itself were left on the app's ordinary shared styling on
+purpose, since their CSS classes (`.reference-attachment`, `.reference-*`,
+`.option-chip`) are reused independently by `Placement.tsx` and
+`StyleReference.tsx`: the "add your own idea" input/button row, the
+existing-sole-element/likeness/scene micro-questions, and the
+`ReferenceAttachment` sub-component's own internals. The `.option-chip`
+class itself (and its `.candidate-card` modifier from the earlier
+layout-bug fix, task #52) is no longer used by Screen 7's own candidate
+rendering at all -- Screen 7 now uses new `.ledger-candidate` markup
+instead -- but the old rule is untouched in `styles.css` since every other
+screen using plain `.option-chip` still needs it exactly as it was.
+
+**Verification:** typecheck and build clean across all three workspaces;
+full test suite passes unchanged (226 tests -- no existing test asserted
+on Screen 7's specific markup/classNames, so none needed updating).
+Live-browser-verified with the exact "handmade wall art / Athena"
+scenario used throughout today's session, extended with a second
+follow-up-bearing candidate: selection, expansion, typed follow-up text
+(read via `inputValue()`, since a typed value never appears in
+`innerText`), fidelity-pill selection, and the `ReferenceAttachment`
+sub-component all work identically to before. Explicitly checked the
+layout-bug class from task #52 does not recur: iterated the actual
+rendered DOM order (Association's ranking can reorder candidates by
+score, so array order isn't rendered order) and confirmed each
+candidate's bounding box starts at or after the previous one's bottom --
+no overlap anywhere, including with two candidates expanded
+simultaneously with long typed answers. Screenshots reviewed directly,
+both collapsed and with two candidates expanded.
+
+Rolling this direction out to the remaining 12 screens is an explicit,
+separate future decision -- not assumed or begun here.
 
 ### 2026-09-02 — Fixed the Screen 13 "Nothing outstanding" vs. post-Blueprint contradiction inconsistency
 Follow-up to item #3 of the same day's earlier report, which the prior

@@ -34,6 +34,28 @@ interface AddedIdea {
 const NEEDS_REFERENCE: ReadonlySet<ElementFidelity> = new Set(["exact", "closely_based_on"]);
 
 /**
+ * "Studio ledger" direction: the native <select> fidelity dropdowns became
+ * segmented pill buttons. Same values, same setState calls as before -- only
+ * the triggering control's shape changed, not what it does. Two orderings
+ * (matching the original two <select>s' own option order) since a
+ * system-suggested candidate defaults toward "exact"/"closely_based_on"
+ * first, while a client's own idea defaults toward "interpretive" first.
+ */
+const CANDIDATE_FIDELITY_OPTIONS: { value: ElementFidelity; label: string }[] = [
+  { value: "exact", label: "Exactly as-is (needs a reference)" },
+  { value: "closely_based_on", label: "Closely based on this (needs a reference)" },
+  { value: "interpretive", label: "Interpreted by the artist" },
+  { value: "open", label: "Open — artist's call" },
+];
+
+const IDEA_FIDELITY_OPTIONS: { value: ElementFidelity; label: string }[] = [
+  { value: "interpretive", label: "Interpreted by the artist" },
+  { value: "open", label: "Open — artist's call" },
+  { value: "exact", label: "Exactly as-is (needs a reference)" },
+  { value: "closely_based_on", label: "Closely based on this (needs a reference)" },
+];
+
+/**
  * §11 concreteness — a candidate marked needs_client_specific_detail carries
  * a category, not yet a real visual idea (e.g. "a specific object that
  * belongs to her"). Answering its one follow_up_prompt turns it into one by
@@ -497,43 +519,59 @@ export function ElementsDiscovery() {
   }
 
   return (
-    <div className="screen">
-      <h2>Let us find what could represent it.</h2>
+    <div className="screen ledger-screen">
+      <div className="ledger-header-row">
+        <span className="ledger-step-label">07 / 13 &nbsp;·&nbsp; Finding the image</span>
+      </div>
+      <div className="ledger-progress-track">
+        <div className="ledger-progress-fill" />
+      </div>
+      <h2 className="ledger-headline">Let us find what could represent it.</h2>
       <AsyncError onRetry={fetchAssociations} />
       {fetching && <p className="progress-note">Finding personal and visual directions...</p>}
       {hasCandidates && (
-        <div className="option-grid" style={{ flexDirection: "column", alignItems: "stretch" }}>
+        <div className="ledger-list">
           {visibleCandidateIndices.map((i) => {
             const candidate = state.ui.associationCandidates[i]!;
             return (
-              <div key={i} className={`option-chip candidate-card${selected.has(i) ? " selected" : ""}`}>
-                <label style={{ cursor: "pointer", display: "block" }}>
-                  <input type="checkbox" checked={selected.has(i)} onChange={() => toggle(i)} style={{ marginRight: 8 }} />
-                  <strong>{candidate.description}</strong> — {candidate.personal_meaning}
+              <div key={i} className={`ledger-candidate${selected.has(i) ? " selected" : ""}`}>
+                <label className="ledger-candidate-row">
+                  <input type="checkbox" className="ledger-seal-input" checked={selected.has(i)} onChange={() => toggle(i)} />
+                  <span className="ledger-seal" aria-hidden="true" />
+                  <span className="ledger-candidate-body">
+                    <strong>{candidate.description}</strong>
+                    {" — "}
+                    <span className="ledger-candidate-meaning">{candidate.personal_meaning}</span>
+                  </span>
                 </label>
                 {selected.has(i) && (
-                  <>
+                  <div className="ledger-marginalia">
                     {candidate.resolution_state === "needs_client_specific_detail" && (
-                      <label className="reference-field" style={{ display: "block", marginTop: 6 }}>
-                        <span>{candidate.follow_up_prompt ?? "What specifically is this?"}</span>
+                      <div className="ledger-marginalia-field">
+                        <span className="ledger-marginalia-label">{candidate.follow_up_prompt ?? "What specifically is this?"}</span>
                         <input
                           type="text"
+                          className="ledger-lined-input"
                           value={detailByIndex[i] ?? ""}
                           onChange={(e) => setDetailByIndex((prev) => ({ ...prev, [i]: e.target.value }))}
                           placeholder="Optional, but this is what makes it a real design rather than a placeholder"
                         />
-                      </label>
+                      </div>
                     )}
-                    <select
-                      value={fidelityByIndex[i] ?? "interpretive"}
-                      onChange={(e) => setFidelityByIndex((prev) => ({ ...prev, [i]: e.target.value as ElementFidelity }))}
-                      style={{ display: "block", marginTop: 6 }}
-                    >
-                      <option value="exact">Exactly as-is (needs a reference)</option>
-                      <option value="closely_based_on">Closely based on this (needs a reference)</option>
-                      <option value="interpretive">Interpreted by the artist</option>
-                      <option value="open">Open — artist's call</option>
-                    </select>
+                    <div className="ledger-fidelity-row">
+                      <div className="ledger-fidelity" role="group" aria-label="Fidelity">
+                        {CANDIDATE_FIDELITY_OPTIONS.map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            className={`ledger-fidelity-pill${(fidelityByIndex[i] ?? "interpretive") === opt.value ? " active" : ""}`}
+                            onClick={() => setFidelityByIndex((prev) => ({ ...prev, [i]: opt.value }))}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                     {NEEDS_REFERENCE.has(fidelityByIndex[i] ?? "interpretive") && (
                       <ReferenceAttachment
                         value={referenceByIndex[i] ?? emptyReferenceDraft()}
@@ -541,7 +579,7 @@ export function ElementsDiscovery() {
                         elementDescription={candidate.description}
                       />
                     )}
-                  </>
+                  </div>
                 )}
               </div>
             );
@@ -606,39 +644,53 @@ export function ElementsDiscovery() {
           </button>
         </div>
         {addedIdeas.length > 0 && (
-          <div className="option-grid" style={{ flexDirection: "column", alignItems: "stretch" }}>
+          <div className="ledger-list">
             {addedIdeas.map((idea, i) => (
-              <div key={i} className="option-chip candidate-card selected">
-                {idea.text}
-                {idea.replacesElementId && <span className="recommendation-tag">replaces existing element</span>}
-                <select
-                  value={idea.fidelity}
-                  onChange={(e) =>
-                    setAddedIdeas((prev) => prev.map((it, idx) => (idx === i ? { ...it, fidelity: e.target.value as ElementFidelity } : it)))
-                  }
-                  style={{ display: "block", marginTop: 6 }}
-                >
-                  <option value="interpretive">Interpreted by the artist</option>
-                  <option value="open">Open — artist's call</option>
-                  <option value="exact">Exactly as-is (needs a reference)</option>
-                  <option value="closely_based_on">Closely based on this (needs a reference)</option>
-                </select>
-                {NEEDS_REFERENCE.has(idea.fidelity) && (
-                  <ReferenceAttachment
-                    value={referenceByIdea[i] ?? emptyReferenceDraft()}
-                    onChange={(next) => setReferenceByIdea((prev) => ({ ...prev, [i]: next }))}
-                    elementDescription={idea.text}
-                  />
-                )}
+              <div key={i} className="ledger-candidate selected">
+                <div className="ledger-candidate-body">
+                  {idea.text}
+                  {idea.replacesElementId && <span className="ledger-idea-tag">replaces existing element</span>}
+                </div>
+                <div className="ledger-marginalia">
+                  <div className="ledger-fidelity-row">
+                    <div className="ledger-fidelity" role="group" aria-label="Fidelity">
+                      {IDEA_FIDELITY_OPTIONS.map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          className={`ledger-fidelity-pill${idea.fidelity === opt.value ? " active" : ""}`}
+                          onClick={() =>
+                            setAddedIdeas((prev) => prev.map((it, idx) => (idx === i ? { ...it, fidelity: opt.value } : it)))
+                          }
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {NEEDS_REFERENCE.has(idea.fidelity) && (
+                    <ReferenceAttachment
+                      value={referenceByIdea[i] ?? emptyReferenceDraft()}
+                      onChange={(next) => setReferenceByIdea((prev) => ({ ...prev, [i]: next }))}
+                      elementDescription={idea.text}
+                    />
+                  )}
+                </div>
               </div>
             ))}
           </div>
         )}
       </div>
 
-      <button onClick={confirm} disabled={selected.size === 0 && addedIdeas.length === 0 && state.project.visual_elements.length === 0}>
-        Continue
-      </button>
+      <div className="ledger-footer">
+        <button
+          className="ledger-cta"
+          onClick={confirm}
+          disabled={selected.size === 0 && addedIdeas.length === 0 && state.project.visual_elements.length === 0}
+        >
+          Continue
+        </button>
+      </div>
     </div>
   );
 }

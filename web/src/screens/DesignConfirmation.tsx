@@ -7,7 +7,7 @@ import { labelForDimensionValue } from "../journey/artisticDimensionLabels";
 import { describeCreativeControl } from "../journey/creativeControlLabels";
 import { buildConfirmedProjectSummary } from "../journey/blueprintSummary";
 import { logTelemetryEvent, elapsedSinceJourneyStarted } from "../instrumentation/telemetry";
-import { buildReferenceChecklist, isReferenceEntrySatisfied, anyRequiredReferenceMissing, hasUnresolvedPrimaryImagery } from "@positive-inking/engine";
+import { buildReferenceChecklist, isReferenceEntrySatisfied, anyRequiredReferenceMissing, hasUnresolvedPrimaryImagery, describeReadinessReason } from "@positive-inking/engine";
 
 /** Screen 13 (§8). The complete summary stays on screen next to the action -- no detached verification (§6, AC 64). "Still needed: [references]" is the spec's own Screen 13 bullet (§8). */
 export function DesignConfirmation() {
@@ -17,6 +17,25 @@ export function DesignConfirmation() {
   const checklist = buildReferenceChecklist(project.visual_elements, project.consent_records);
   const outstanding = checklist.filter((entry) => !isReferenceEntrySatisfied(entry));
   const placementSummary = formatPlacementSummary(project);
+  // "Still needed" (below) is specifically the §8 reference-checklist bullet -- it
+  // was reading "Nothing outstanding" moments before a generated Blueprint's
+  // Readiness flagged an unresolved contradiction, because that's a genuinely
+  // different check (contradictions_noticed / hasUnresolvedPrimaryImagery, not
+  // missing references) that was never surfaced here even though both signals are
+  // already computed on this screen for the has_unresolved_contradiction sent to
+  // the server below. Reusing describeReadinessReason's own "needs_refinement"
+  // phrasing keeps the wording identical to what Readiness will say, rather than
+  // inventing separate text that could drift from it.
+  const primaryImageryUnresolved = hasUnresolvedPrimaryImagery(project.visual_elements);
+  const hasOpenDecision = project.contradictions.length > 0 || primaryImageryUnresolved;
+  const openDecisionReasons = hasOpenDecision
+    ? describeReadinessReason({
+        readiness: "needs_refinement",
+        missingReferenceDescriptions: [],
+        hasUnresolvedPrimaryImagery: primaryImageryUnresolved,
+        otherContradictions: project.contradictions,
+      })
+    : [];
 
   function build() {
     void run(async (guard) => {
@@ -78,6 +97,8 @@ export function DesignConfirmation() {
             ? "Nothing outstanding"
             : outstanding.map((o) => `${o.description} — ${o.status.replace(/_/g, " ")}${o.requirement === "required" ? " (required)" : ""}`).join("; ")}
         </dd>
+        <dt>Open decisions</dt>
+        <dd>{openDecisionReasons.length > 0 ? openDecisionReasons.join(" ") : "None noted"}</dd>
       </dl>
       {/* §13.4: the Blueprint may be complete while exact design references remain outstanding -- this is informational, never a hard block. */}
       {outstanding.length > 0 && (

@@ -32,11 +32,14 @@ commands (`npm run dev`, `npm run validate:local` — see README). The
 Blueprint's Section 4 (Visual hierarchy) is a labelled decision map (Core
 concept / Personal reference / Other elements / Still undecided), with
 every element assigned to exactly one group (a live-test report caught a
-duplication bug in the first version of this grouping — see the latest
-session log entry), and the Readiness section names the actual
-contradiction and its concrete next step, not just that one exists. 223
-unit tests pass across engine/server/web; typecheck and build are clean
-across all three workspaces.
+duplication bug in the first version of this grouping — see the session
+log), and the Readiness section names the actual contradiction and its
+concrete next step, not just that one exists. Screen 13 ("Ready to build
+your Blueprint") now has a matching "Open decisions" row using the same
+wording, so it can no longer read "Nothing outstanding" moments before
+the generated Blueprint flags an unresolved contradiction — see the
+latest session log entry. 226 unit tests pass across engine/server/web;
+typecheck and build are clean across all three workspaces.
 
 **In progress:** nothing actively mid-change right now.
 
@@ -149,6 +152,31 @@ decision); nothing else newly introduced this session. See
 got to its current, tested state.
 
 ## Session log
+
+### 2026-09-02 — Fixed the Screen 13 "Nothing outstanding" vs. post-Blueprint contradiction inconsistency
+Follow-up to item #3 of the same day's earlier report, which the prior
+session's summary omitted. Investigated as asked: "Still needed" on
+Screen 13 (`DesignConfirmation.tsx`) is specifically the §8
+reference-checklist bullet, computed only from `buildReferenceChecklist`/
+`isReferenceEntrySatisfied` -- a genuinely different check from the
+contradiction/`hasUnresolvedPrimaryImagery` signals that later drive the
+Readiness reason. Confirmed this was a quick, well-scoped wording/display
+fix, not new detection: both signals were already computed on that exact
+screen (for the `has_unresolved_contradiction` boolean sent to the server
+in `build()`), just never displayed. Added an "Open decisions" row next
+to "Still needed" that calls `describeReadinessReason()` with the same
+inputs, so its wording can never drift from what Readiness will actually
+say -- shows "None noted" when clean, or the real contradiction
+description(s) and their resolutions when not.
+
+**Verification:** typecheck and build clean across engine/server/web; full
+test suite passes (226 tests, 3 new in a new
+`web/src/screens/DesignConfirmation.test.tsx` -- one proving "Still
+needed: Nothing outstanding" and a populated "Open decisions" can appear
+together, the exact reported inconsistency, now resolved). Live-browser-
+verified with the reported scenario (no outstanding references, one real
+contradiction with two resolutions): Screen 13 shows both rows correctly,
+screenshot reviewed directly.
 
 ### 2026-09-02 — Fixed a real duplication bug in the new Visual hierarchy decision map; readiness reason now names the contradiction and its next step
 Follow-up to the same day's prior session (below): live browser evidence

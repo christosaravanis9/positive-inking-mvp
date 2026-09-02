@@ -1,4 +1,5 @@
 import type { ProjectState, ReferenceChecklistEntry, VisualElement } from "@positive-inking/engine";
+import { isPersonalSourceCategory } from "@positive-inking/engine";
 import { describeDimensionValue } from "./artisticDimensionLabels";
 import { describeCreativeControl } from "./creativeControlLabels";
 import { formatPlacementSummary } from "./placementSummary";
@@ -91,5 +92,35 @@ export function visualElementSentence(e: VisualElement): { description: string; 
     description: e.description,
     roleLabel: HIERARCHY_LABEL[e.hierarchy] ?? null,
     meaning: e.personal_meaning.trim() && e.personal_meaning.trim() !== e.description.trim() ? e.personal_meaning : null,
+  };
+}
+
+/**
+ * Section 4 (Visual hierarchy) used to be the model's own visual_direction
+ * paragraph followed by one merged bullet list of every element -- which is
+ * exactly what let a personal-reference element's own confirmed description
+ * and its still-open hierarchy decision sit in the same undifferentiated
+ * block (the "(undecided)" live-test bug, task #54/#1b). Grouping into a
+ * small, labelled decision map instead: `personal` and `other` partition
+ * every element exhaustively by isPersonalSourceCategory (§22's own
+ * definition, reused rather than a second hand-maintained list) so nothing
+ * is silently dropped, and `stillUndecided` is a separate, cross-cutting
+ * flag list (an element can appear there AND in its category bucket -- being
+ * a personal reference and having an undecided hierarchy are two different
+ * facts about the same element, not alternatives). Making "needs a decision"
+ * its own visibly separate list is also what would have made #1b's leak
+ * immediately obvious as a structural anomaly rather than a buried word.
+ */
+export interface VisualHierarchyGroups {
+  personal: VisualElement[];
+  other: VisualElement[];
+  stillUndecided: VisualElement[];
+}
+
+export function groupVisualElementsForHierarchySection(elements: readonly VisualElement[]): VisualHierarchyGroups {
+  return {
+    personal: elements.filter((e) => isPersonalSourceCategory(e.source_category)),
+    other: elements.filter((e) => !isPersonalSourceCategory(e.source_category)),
+    stillUndecided: elements.filter((e) => e.hierarchy === "undecided"),
   };
 }

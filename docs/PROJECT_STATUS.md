@@ -28,12 +28,12 @@ against the real architecture (not just mocks), the Blueprint pipeline has
 a concreteness gate so unresolved candidates can no longer reach a
 Blueprint as confirmed primary elements, model-call timeouts are per-route
 instead of one universal number, and local development runs on two
-commands (`npm run dev`, `npm run validate:local` — see README). A live,
-full end-to-end browser test journey (screenshots + the resulting
-Blueprint document reviewed directly, not `diagnose-model`) then surfaced
-and fixed two more real bugs — see the latest session log entry. 207 unit
-tests pass across engine/server/web; typecheck and build are clean across
-all three workspaces.
+commands (`npm run dev`, `npm run validate:local` — see README). The
+Blueprint's Section 4 (Visual hierarchy) is now a labelled decision map
+(Core concept / Personal reference / Other elements / Still undecided)
+rather than one merged paragraph — see the latest session log entry. 219
+unit tests pass across engine/server/web; typecheck and build are clean
+across all three workspaces.
 
 **In progress:** nothing actively mid-change right now.
 
@@ -99,15 +99,44 @@ all three workspaces.
   "Production launch blockers" section for the full, unchanged list. None
   of this build's upload paths should be treated as production-ready
   until those are deliberately resolved.
+- **If you see a bare "Needs refinement" or a raw "(undecided)" tag again,
+  check your running code before reporting a new bug.** A live session
+  reported both, on the same fresh Blueprint, immediately after 8c3a7fa
+  shipped. Investigated (see the latest session log entry for the full
+  trace): current code cannot produce either symptom -- both are
+  byte-for-byte reproductions of 8c3a7fa's OLD, pre-fix formatting
+  (confirmed by reconstructing the exact old template literals). This
+  points to a stale dev server process, browser tab, or checkout that
+  predated the fix, not a surviving code defect -- this project has hit
+  exactly this class of issue before (`docs/dev-server-reliability.md`).
+  No code change was made for this; two component-level regression tests
+  now lock in the correct current behaviour
+  (`web/src/screens/BlueprintView.test.tsx`). If it recurs against a
+  verified-current checkout with a hard-refreshed browser, that would be
+  a genuine new regression worth re-opening.
 
 **Known, deliberately deferred issues (not lost, just not this chapter's scope):**
 - **Voice input timeout/cutoff behaviour** — a roughly 10s recording limit
   and roughly 3s silence timeout were observed to cut off voice input
   during a live test. Values are from user observation, not measured
   instrumentation. Deliberately deferred; needs its own investigation.
-- **Statement of Inspiration typography and overall Blueprint visual
-  formatting/premium polish** — deliberately deferred to a later,
-  dedicated polish pass, not current work.
+- **Voice input, second failure mode** — sometimes doesn't respond to
+  activation at all (separate from the cutoff issue above). Degrades
+  visibly to "Voice input isn't responding — you can still type," which
+  is working as intended as a fallback, but the underlying voice issues
+  (both this and the cutoff above) remain unresolved.
+- **Statement of Inspiration visual formatting** (quote-style typography)
+  **and overall Blueprint premium polish** — deliberately deferred to a
+  later, dedicated polish pass, not current work. (Distinct from Statement
+  of Inspiration's *content*, which this session's item #2 fixed — see
+  below; this note is about typography/visual treatment only.)
+- **Free-text input + suggestion chips on binary confirmation screens**
+  ("Here's what that suggests" style screens) — currently only
+  right/try-again, no way to add nuance or see suggested phrasing.
+- **Timer/countdown UI during model-call waits** — may overlap with the
+  already-specced placement-preference "productive waiting" MVP; should
+  probably be coordinated with it rather than built separately.
+- **Overall journey progress/timeline indicator** across all screens.
 
 **Known risks:** the timeout numbers above are provisional (see the open
 decision); nothing else newly introduced this session. See
@@ -117,6 +146,93 @@ decision); nothing else newly introduced this session. See
 got to its current, tested state.
 
 ## Session log
+
+### 2026-09-02 — Investigated readiness/undecided-tag regression reports (stale build, not a code bug); fixed Statement of Inspiration sourcing; restructured Visual hierarchy into a decision map
+Trigger: a live session reported two apparent regressions on a fresh
+Blueprint, right after 8c3a7fa shipped -- Readiness showing bare "Needs
+refinement" with nothing else, and "(undecided)" leaking into Visual
+hierarchy in a *different* rendering shape than the bug 8c3a7fa fixed,
+suggesting a second, uncaught code path. Instructed to investigate both
+fully before touching anything.
+
+**Investigation findings for #1 and #1b (report-first, as instructed):**
+- Confirmed 8c3a7fa and its follow-up (3f2af40) are present on both the
+  local working tree and `origin/claude/positive-inking-implementation-ckncmj`
+  -- no stale branch, no uncommitted drift, no leftover dev process in this
+  sandbox to have served old code.
+- Proved algebraically that current code cannot produce either symptom:
+  `describeReadinessReason()` always returns at least one string for
+  `needs_refinement` (only `blueprint_ready`/`concept_visual_ready` -- a
+  different label entirely -- return empty), and current
+  `HIERARCHY_LABEL` has no entry for `"undecided"`, so no code path can
+  emit a parenthetical `(undecided)` tag.
+- Reconstructed the exact reported text byte-for-byte from 8c3a7fa's
+  **pre-fix** `formatBlueprintAsText`: the OLD line
+  `` `- ${e.description} (${e.hierarchy}) -- ${e.personal_meaning}` ``
+  produces precisely `"(undecided) -- <meaning>"` for an unranked element
+  (matching #1b's exact parens + double-hyphen formatting, which neither
+  the old NOR new on-screen JSX -- both use a bare em-dash, no parens --
+  could produce), and the OLD bare `section("Readiness",
+  READINESS_LABEL[...])` call produces precisely #1's reported bare label.
+- **Conclusion: not two bugs, and not a second rendering path.** Both
+  symptoms are one root cause -- the live session that generated this
+  Blueprint was running pre-8c3a7fa code (a stale dev server process,
+  browser tab, or checkout predating the fix), consistent with this
+  project's documented history of exactly this failure class. No code fix
+  was made for #1/#1b themselves. Per the coverage gap the report
+  correctly identified (only the pure helpers were unit-tested, nothing
+  exercised BlueprintView's actual rendered output), added
+  `web/src/screens/BlueprintView.test.tsx`: component-level regression
+  tests rendering the real tree, so a future regression that stops calling
+  `visualElementSentence()`/`describeReadinessReason()` from the JSX would
+  actually be caught.
+
+**Fixed:**
+- **#2, Statement of Inspiration drew from aesthetics instead of
+  story/why.** `server/src/schemas/blueprint.ts`'s
+  `BLUEPRINT_SYSTEM_PROMPT` had zero guidance for `statement_of_inspiration`
+  at all -- it was listed as a required schema field with no phrasing
+  instruction, so the model defaulted to the richest available material
+  (visual/aesthetic technique description) over the terser Story/Why
+  fields. Added one paragraph: one or two sentences, drawn primarily from
+  story and why, not from visual_direction/artistic_direction's execution
+  detail. Prompt-only change (no schema/type change).
+- **#3, Section 4 (Visual hierarchy) restructured into a decision map.**
+  Proposed structure (Core concept / Personal reference / Other elements /
+  Still undecided) implemented in both `BlueprintView.tsx`'s on-screen JSX
+  and its plain-text export, backed by a new pure
+  `groupVisualElementsForHierarchySection()` in `blueprintSummary.ts`:
+  `personal`/`other` exhaustively partition every element by
+  `isPersonalSourceCategory` (§22's own existing definition, not a second
+  hand-maintained list) so nothing is silently dropped, and
+  `stillUndecided` is a separate, cross-cutting flag list (an element can
+  be both a personal reference and still-undecided -- those are two
+  different facts about the same element). This directly serves the
+  report's own observation: making "needs a decision" its own visibly
+  separate list is what would have made #1b's kind of leak immediately
+  obvious as a structural anomaly rather than a buried word.
+
+**Verification:** typecheck and build clean across engine/server/web; full
+test suite passes (219 tests: 152 engine, 39 server, 28 web -- 12 new this
+session: 5 pure-function tests for `groupVisualElementsForHierarchySection`
+in `blueprintSummary.test.ts`, 7 component-level tests in the new
+`BlueprintView.test.tsx` covering both the #1/#1b regression-proof and the
+new decision-map structure). Live-browser-verified against the exact
+"handmade wall art / Athena" scenario via a seeded journey state: Section 4
+now shows Core concept / Personal reference / Still undecided cleanly with
+no raw tags, and Section 12 shows the readiness reason inline -- screenshot
+reviewed directly. #2's model-input change could not be live-verified
+against a real model in this sandbox (no `ANTHROPIC_API_KEY` configured,
+same limitation as the prior session's Association prompt change); the
+prompt text itself and full test/typecheck pass were confirmed instead.
+
+Per instruction, four items were noted rather than built this session --
+now recorded above under "Known, deliberately deferred issues": free-text
+input + suggestion chips on binary confirmation screens, a timer/countdown
+during model-call waits (flagged as possibly overlapping the
+placement-preference "productive waiting" MVP), an overall journey
+progress indicator, and a second voice-input failure mode (no response to
+activation at all, distinct from the earlier cutoff issue).
 
 ### 2026-09-02 — Association CONCRETENESS rule extended to personal_meaning (Option C)
 Follow-up to the same day's live-test session below: item 4's investigation

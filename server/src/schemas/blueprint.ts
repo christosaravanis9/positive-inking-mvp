@@ -62,6 +62,13 @@ sections just to make each one sound complete on its own -- mention it once
 where it is load-bearing, and only repeat it elsewhere if that section
 genuinely cannot be understood without it.
 
+Statement of inspiration is one or two sentences only, drawn primarily from
+the client's story and why -- the personal, human reason this tattoo
+matters -- not from the visual or aesthetic execution already covered by
+visual_direction and artistic_direction. It should read like something the
+client would say about why this matters to them, not a description of how
+the design will look or the technique used to render it.
+
 Artistic-dimension facts are given to you as "Dimension: Value" pairs (e.g.
 "Realism: Graphic"). The value names one choice among mutually exclusive
 alternatives for that dimension -- never write a dimension's own name

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createEmptyProjectState, type ProjectState, type VisualElement } from "@positive-inking/engine";
-import { buildConfirmedProjectSummary, visualElementSentence, REFERENCE_STATUS_LABEL } from "./blueprintSummary";
+import { buildConfirmedProjectSummary, visualElementSentence, REFERENCE_STATUS_LABEL, groupVisualElementsForHierarchySection } from "./blueprintSummary";
 
 /**
  * Regression coverage for the Athena Blueprint incident: the summary sent to
@@ -107,5 +107,52 @@ describe("REFERENCE_STATUS_LABEL", () => {
 
   it("phrases 'to_upload' as what actually happened, not the bare enum word", () => {
     expect(REFERENCE_STATUS_LABEL.to_upload).toBe("Not yet uploaded");
+  });
+});
+
+/**
+ * Section 4's restructure into a decision map (item #3): every element must
+ * land somewhere (personal vs. other are exhaustive and mutually exclusive
+ * by source_category), and "still undecided" is a separate, cross-cutting
+ * flag an element can carry regardless of which category bucket it's in --
+ * this is what turns an unresolved hierarchy into its own visibly separate
+ * list instead of a word buried mid-sentence (the root cause item #1b
+ * investigation traced to a stale build, not live code -- but this locks in
+ * the new structure's own correctness going forward).
+ */
+describe("groupVisualElementsForHierarchySection", () => {
+  it("puts a personal-source element under 'personal', never 'other'", () => {
+    const groups = groupVisualElementsForHierarchySection([elementFixture({ source_category: "personal_artefact" })]);
+    expect(groups.personal).toHaveLength(1);
+    expect(groups.other).toHaveLength(0);
+  });
+
+  it("puts a non-personal-source element under 'other', never 'personal'", () => {
+    const groups = groupVisualElementsForHierarchySection([elementFixture({ source_category: "new_materialisation", hierarchy: "primary" })]);
+    expect(groups.personal).toHaveLength(0);
+    expect(groups.other).toHaveLength(1);
+  });
+
+  it("every element lands in exactly one of personal/other -- the partition is exhaustive", () => {
+    const elements = [
+      elementFixture({ id: "a", source_category: "personal_artefact" }),
+      elementFixture({ id: "b", source_category: "public_artefact", hierarchy: "primary" }),
+      elementFixture({ id: "c", source_category: "artistic_symbol", hierarchy: "accent" }),
+    ];
+    const groups = groupVisualElementsForHierarchySection(elements);
+    expect(groups.personal.length + groups.other.length).toBe(elements.length);
+  });
+
+  it("'still undecided' is a cross-cutting flag independent of the personal/other bucket", () => {
+    const groups = groupVisualElementsForHierarchySection([
+      elementFixture({ id: "personal-undecided", source_category: "personal_artefact", hierarchy: "undecided" }),
+      elementFixture({ id: "other-undecided", source_category: "new_materialisation", hierarchy: "undecided" }),
+    ]);
+    expect(groups.stillUndecided.map((e) => e.id).sort()).toEqual(["other-undecided", "personal-undecided"]);
+  });
+
+  it("a resolved element never appears under 'still undecided'", () => {
+    const groups = groupVisualElementsForHierarchySection([elementFixture({ hierarchy: "primary" })]);
+    expect(groups.stillUndecided).toHaveLength(0);
   });
 });

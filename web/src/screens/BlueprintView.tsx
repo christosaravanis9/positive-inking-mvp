@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useJourney } from "../journey/JourneyProvider";
 import { formatPlacementSummary } from "../journey/placementSummary";
-import { HIERARCHY_LABEL, REFERENCE_STATUS_LABEL, visualElementSentence } from "../journey/blueprintSummary";
+import { HIERARCHY_LABEL, REFERENCE_STATUS_LABEL, visualElementSentence, groupVisualElementsForHierarchySection } from "../journey/blueprintSummary";
 import { logTelemetryEvent } from "../instrumentation/telemetry";
 import {
   buildReferenceChecklist,
@@ -11,6 +11,7 @@ import {
   type ReferenceChecklistEntry,
   type ReadinessState,
   type ProjectState,
+  type VisualElement,
 } from "@positive-inking/engine";
 
 const READINESS_LABEL: Record<string, string> = {
@@ -46,6 +47,18 @@ function referenceProvenanceLine(entry: ReferenceChecklistEntry): string {
   return `${relationship} — ${attestation}`;
 }
 
+/** One element's line within Section 4's Personal reference / Other elements groups (§17.1's decision-map restructure) -- shared so both groups render identically. */
+function ElementLine({ element }: { element: VisualElement }) {
+  const { description, roleLabel, meaning } = visualElementSentence(element);
+  return (
+    <li>
+      <strong>{description}</strong>
+      {roleLabel && <span className="recommendation-tag">{roleLabel}</span>}
+      {meaning && <> — {meaning}</>}
+    </li>
+  );
+}
+
 /**
  * Same three signals computeReadiness itself was given (the server route
  * computes the state deterministically; this reuses the client-side
@@ -78,18 +91,25 @@ function formatBlueprintAsText(project: ReturnType<typeof useJourney>["state"]["
   section(blueprint.story ? "Your story" : "Why this image", blueprint.story ?? blueprint.why_this_image);
   section("Your Why", blueprint.why);
   section("What matters most", blueprint.what_matters_most);
+  const elementLine = (e: VisualElement) => {
+    const { description, roleLabel, meaning } = visualElementSentence(e);
+    const role = roleLabel ? ` (${roleLabel})` : "";
+    const meaningPart = meaning ? ` -- ${meaning}` : "";
+    return `- ${description}${role}${meaningPart}`;
+  };
+  const hierarchyGroups = groupVisualElementsForHierarchySection(project.visual_elements);
   section(
     "Visual hierarchy",
     [
-      blueprint.visual_direction,
-      "",
-      ...project.visual_elements.map((e) => {
-        const { description, roleLabel, meaning } = visualElementSentence(e);
-        const role = roleLabel ? ` (${roleLabel})` : "";
-        const meaningPart = meaning ? ` -- ${meaning}` : "";
-        return `- ${description}${role}${meaningPart}`;
-      }),
-    ].join("\n"),
+      `Core concept: ${blueprint.visual_direction}`,
+      hierarchyGroups.personal.length > 0 ? ["", "Personal reference:", ...hierarchyGroups.personal.map(elementLine)].join("\n") : "",
+      hierarchyGroups.other.length > 0 ? ["", "Other elements:", ...hierarchyGroups.other.map(elementLine)].join("\n") : "",
+      hierarchyGroups.stillUndecided.length > 0
+        ? ["", "Still undecided:", ...hierarchyGroups.stillUndecided.map((e) => `- ${e.description}`)].join("\n")
+        : "",
+    ]
+      .filter(Boolean)
+      .join("\n"),
   );
   section("Artistic direction", blueprint.artistic_direction);
   section("Placement and scale", [blueprint.placement, `Captured details: ${formatPlacementSummary(project)}`].filter(Boolean).join("\n\n"));
@@ -164,6 +184,7 @@ export function BlueprintView() {
   }
 
   const referenceChecklist = buildReferenceChecklist(project.visual_elements, project.consent_records);
+  const hierarchyGroups = groupVisualElementsForHierarchySection(project.visual_elements);
 
   return (
     <div className="screen">
@@ -191,20 +212,36 @@ export function BlueprintView() {
       )}
       <section>
         <h3>4. Visual hierarchy</h3>
-        <p>{blueprint.visual_direction}</p>
-        {project.visual_elements.length > 0 && (
-          <ul>
-            {project.visual_elements.map((e) => {
-              const { description, roleLabel, meaning } = visualElementSentence(e);
-              return (
-                <li key={e.id}>
-                  <strong>{description}</strong>
-                  {roleLabel && <span className="recommendation-tag">{roleLabel}</span>}
-                  {meaning && <> — {meaning}</>}
-                </li>
-              );
-            })}
-          </ul>
+        <p>
+          <strong>Core concept:</strong> {blueprint.visual_direction}
+        </p>
+        {hierarchyGroups.personal.length > 0 && (
+          <>
+            <p className="supporting">
+              <strong>Personal reference:</strong>
+            </p>
+            <ul>{hierarchyGroups.personal.map((e) => <ElementLine key={e.id} element={e} />)}</ul>
+          </>
+        )}
+        {hierarchyGroups.other.length > 0 && (
+          <>
+            <p className="supporting">
+              <strong>Other elements:</strong>
+            </p>
+            <ul>{hierarchyGroups.other.map((e) => <ElementLine key={e.id} element={e} />)}</ul>
+          </>
+        )}
+        {hierarchyGroups.stillUndecided.length > 0 && (
+          <>
+            <p className="supporting">
+              <strong>Still undecided:</strong>
+            </p>
+            <ul>
+              {hierarchyGroups.stillUndecided.map((e) => (
+                <li key={e.id}>{e.description}</li>
+              ))}
+            </ul>
+          </>
         )}
       </section>
       <section>

@@ -108,7 +108,13 @@ shared component or other screen's styling was touched.
   harmless there only because `requiresAttestation()` also skips it, not
   because it's the right answer. Left as-is pending your call on whether
   to adjust the options, make the field conditional on `material_type`,
-  or leave it.
+  or leave it. **Update, stronger framing:** further live feedback now
+  leans toward removing/skipping this field entirely for certain
+  scenarios (an object the client made themselves for a living family
+  member, per the finding above), not just gating it conditionally as
+  first investigated. Still not built — the three options on the table
+  are now: adjust the five options, make the field conditional on
+  `material_type`, or drop it entirely for scenarios like this one.
 - **§15.7 production launch blockers** (encrypted-at-rest storage,
   project-scoped access control, deletion/retention, training-use policy,
   legal review of the consent flow) are all still open — see README.md's
@@ -162,6 +168,55 @@ decision); nothing else newly introduced this session. See
 got to its current, tested state.
 
 ## Session log
+
+### 2026-09-02 — Investigated a reported style_reference "2+ minute hang": no code bug found
+Trigger: a live report of a successful `style_reference` model call
+(server log: `outcome=success elapsed_ms=5020 budget_ms=12000`, well
+under budget) followed by 2+ minutes with no visible screen progression.
+
+**Investigated, per instruction, before touching anything:**
+1. Traced the client path: `StyleReference.tsx`'s `submit()` goes through
+   the same `useAsyncAction` re-entrancy/staleness-guarded path as every
+   other model-backed screen (`guard.isStale()` checked after the await,
+   before the only state mutation, `setResolution(result)`) -- nothing
+   unprotected. Re-read `useAsyncAction.ts` itself: `pending` clears in a
+   `finally` keyed on the call's own token, independent of whether the
+   guard reports stale, so there is no path that leaves it stuck `true`
+   after a call this hook itself considers current.
+2. Confirmed today's Screen 7 restyling touched exactly three files
+   (`ElementsDiscovery.tsx`, `styles.css`, `docs/PROJECT_STATUS.md` --
+   `git show --stat` on that commit) and introduced no class name outside
+   an `ledger-`-prefixed set that exists nowhere else in `web/src`
+   (grepped to confirm). No shared state file, `JourneyProvider.tsx`,
+   `useAsyncAction.ts`, or `StyleReference.tsx` itself was touched --
+   there is no mechanism by which it could affect this screen.
+3. Live-reproduced the exact reported condition: intercepted
+   `/api/style-reference` in a real browser (Playwright) to return a
+   genuinely successful response instantly (isolating client behavior
+   from real model latency, which the server log already cleared), landed
+   on Screen 11's style-reference lead-in with seeded state, and
+   submitted a real request through the real `useAsyncAction` path. No
+   console or page errors. The screen correctly transitioned from the
+   "Working out what that points toward..." spinner to a new heading,
+   "Here's what that suggests," showing the resolution summary and a
+   "That's right, continue" button; clicking it correctly advanced to
+   the next screen (Artistic direction).
+
+**Root cause: not a code bug.** `StyleReference.tsx`'s own docstring
+states the intended design: "A resolution is always shown back once,
+compactly, and is correctable before it's applied to anything" -- Screen
+11 is a deliberate two-step confirm-before-apply flow, not
+auto-advancing. A successful response correctly produces a *new*
+screen (a confirmation summary), which then waits for an explicit user
+click before the *next* screen appears. The reported "hang" most likely
+happened at that confirmation step -- the screen did update, but not to
+what was being watched for ("artistic direction"), and nothing in this
+investigation found the confirmation screen failing to render or the
+confirm action failing to fire. No code was changed. If this recurs
+against a verified-current checkout, capturing what's actually on
+screen at the moment of the "hang" (a screenshot, or which heading is
+showing) would be the fastest way to tell a genuine regression from
+this same UX read.
 
 ### 2026-09-02 — Applied the "studio ledger" design direction to Screen 7 (live, not a preview)
 An earlier same-day exploration produced an isolated static-HTML preview of

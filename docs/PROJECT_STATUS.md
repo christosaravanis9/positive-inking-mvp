@@ -44,15 +44,20 @@ build are clean across all three workspaces.
 **Design:** a new "studio ledger" visual direction (warm parchment
 background, serif headline, ember-accented selection/marginalia, no card
 chrome) was explored as an isolated static preview, approved, and is now
-applied live to Screen 7 (`ElementsDiscovery.tsx`) only — see the latest
-session log entry. It is deliberately not rolled out to the other 12
-screens yet; doing so is a separate future decision, not assumed by this
-change. All new styling lives in scoped `.ledger-*` classes/CSS custom
-properties in `web/src/styles.css` and in Screen 7's own markup — no
-shared component or other screen's styling was touched. **ChatGPT Sites is
-now the frozen visual/UX reference** — no more bidirectional feature
-merging between the two; visual/UX direction flows from it into this
-project, not back and forth.
+applied live to Screen 7 (`ElementsDiscovery.tsx`) only — see the session
+log. It is deliberately not rolled out to the other 12 screens yet; doing
+so is a separate future decision, not assumed by this change. All new
+styling lives in scoped `.ledger-*` classes/CSS custom properties in
+`web/src/styles.css` and in Screen 7's own markup — no shared component or
+other screen's styling was touched. **ChatGPT Sites is now the frozen
+visual/UX reference** — no more bidirectional feature merging between the
+two; visual/UX direction flows from it into this project, not back and
+forth. **A real design-token foundation now exists**, migrated from the
+Positive Inking Sites UX migration spec with exact values (typography
+scale, 8-color palette, spacing rhythm) — see the latest session log entry
+— replacing the approximated palette/sizes the "studio ledger" direction
+first shipped with. It's a shared foundation defined once, ready to extend
+to other screens next; still applied to Screen 7 only for now.
 
 **Workflow/tooling:** a full local-dev-friction pass landed as its own
 chapter (see the latest session log entry) — this was tooling/DX work,
@@ -189,6 +194,80 @@ decision); nothing else newly introduced this session. See
 got to its current, tested state.
 
 ## Session log
+
+### 2026-09-02 — Migrated the Sites design-token system into Screen 7's CSS (exact values, foundational)
+Foundational visual work, not a full screen redesign — no component logic
+touched, only `web/src/styles.css`. Trigger: the "studio ledger" direction
+applied to Screen 7 earlier today used an *approximated* palette/sizing,
+judged by eye against a preview; this migrates the Positive Inking Sites
+UX migration spec's literal, audited values (typography scale, 8-color
+palette, spacing rhythm) in their place.
+
+**Built:** a full token system in `.ledger-screen` (Screen 7's scope):
+- Typography scale as CSS custom properties (`--text-h1-*`, `--text-intro-*`,
+  `--text-h2-*`, `--text-label-*`, `--text-choice-title-*`,
+  `--text-choice-desc-*`, `--text-side-label-*`, `--text-side-value-*`,
+  `--text-button-*`) — family/weight/size/line-height/tracking per the
+  spec, system fonts only (`Georgia, "Times New Roman", serif` /
+  `Arial, Helvetica, sans-serif`, no webfont load).
+- The 8-token color palette (`--ledger-paper`, `--ledger-paper-deep`,
+  `--ledger-ink`, `--ledger-muted`, `--ledger-line`, `--ledger-red`,
+  `--ledger-white`, `--ledger-accent`) at the spec's exact hex values,
+  replacing the earlier approximated `--ledger-ember`/`--ledger-paper`/etc.
+- Spacing-rhythm tokens (`--space-intro-*`, `--space-question-block-top`,
+  `--space-question-group-gap`, `--space-choice-grid-gap`,
+  `--space-nav-*`) at the spec's exact values.
+
+**Reconciliation, not duplication:** every rule in `.ledger-screen` that
+previously referenced the old approximated `--ledger-*` set (colors) or a
+hardcoded literal (typography/spacing) now consumes the new tokens instead
+— confirmed by grep that no old approximated color variable remains
+defined anywhere. Applied where an existing Screen 7 element's role
+genuinely matches a given scale entry (the headline → Screen title/H1
+scale including its literal `clamp(40px, 5.2vw, 68px)` — visibly larger
+than before, by design, per the exact spec number, not preserved at the
+old approximated size; the marginalia follow-up label → Question label/H3
+scale; the fidelity pills → Choice-title scale; the CTA → Standard-button
+scale; the footer nav → the spacing spec's bottom-navigation rhythm).
+Scale entries with no current Screen 7 counterpart (Screen intro copy,
+Screen H2, choice description, side-panel label/value) are defined but
+unconsumed — foundation for when a matching element exists here or on
+another screen, not applied speculatively.
+
+**A real collision caught and avoided, not just checked for:** the spec's
+own token names are bare (`--paper`, `--muted`, `--accent`, ...), but this
+app's global `:root` already defines `--muted` and `--accent` for a
+*different* concept at a *different* value — and, critically, the base
+`button` rule and `.option-chip.selected` set `background`/`border` from
+`var(--accent)`. Screen 7 wraps components deliberately left on that
+ordinary app-wide styling (the "add your own idea" input/button,
+`ReferenceAttachment`) per the earlier ledger work's own scope. CSS custom
+properties cascade to every descendant regardless of class, so a
+Screen-7-scoped bare `--accent` would have silently repainted those
+buttons with the spec's pale ghost-hover color (`#DED6CA`) instead of the
+app's real accent, making "Add"/"Add it anyway" nearly illegible —
+reproduced this directly before catching it, not just reasoned about it
+abstractly. Fix: the 8 color tokens keep a `--ledger-` prefix (exact spec
+*values*, namespaced *names*); typography-scale and spacing-rhythm tokens
+have no such collision (nothing else in the app uses `--text-h1-size`
+etc.) and keep the spec's own naming. Full reasoning is in a CSS comment
+directly above the token block.
+
+**Verified:** `npm run typecheck`, `npm test` (226 tests), and
+`npm run build` (including the production Vite build) all pass unchanged.
+`grep` across `web/src/styles.css` confirms every `--ledger-*` token is
+defined exactly once (no two competing reds/inks/etc.) — the only names
+with two definitions anywhere in the file are the pre-existing, intentional
+light/dark `prefers-color-scheme` pairs, not a duplicate/conflicting
+definition of the same concept. Live-rendered Screen 7 (real server, real
+Vite, fake Anthropic double, a real browser journey through Welcome →
+Viewpoint → Story → Screen 7, one candidate selected to show the
+marginalia/fidelity-pill state) at both desktop and 375px-mobile
+viewports — screenshots sent for review. No structural regression: still
+the same flowing hairline-separated list with no card chrome, hollow-ring
+selection, and marginalia-style follow-ups; the exact-token pass reads as
+a precision correction (crisper contrast, correct hex values) plus one
+deliberate, spec-driven size change (the headline), not a redesign.
 
 ### 2026-09-02 — Local dev workflow/tooling chapter: start/stop/doctor, auto port-conflict recovery, always-visible build identifier
 This is a workflow/tooling chapter, not a feature chapter — no

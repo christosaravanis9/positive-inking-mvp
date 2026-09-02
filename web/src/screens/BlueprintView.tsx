@@ -1,8 +1,17 @@
 import { useState } from "react";
 import { useJourney } from "../journey/JourneyProvider";
 import { formatPlacementSummary } from "../journey/placementSummary";
+import { HIERARCHY_LABEL, REFERENCE_STATUS_LABEL, visualElementSentence } from "../journey/blueprintSummary";
 import { logTelemetryEvent } from "../instrumentation/telemetry";
-import { buildReferenceChecklist, isReferenceEntrySatisfied, type ReferenceChecklistEntry } from "@positive-inking/engine";
+import {
+  buildReferenceChecklist,
+  isReferenceEntrySatisfied,
+  hasUnresolvedPrimaryImagery,
+  describeReadinessReason,
+  type ReferenceChecklistEntry,
+  type ReadinessState,
+  type ProjectState,
+} from "@positive-inking/engine";
 
 const READINESS_LABEL: Record<string, string> = {
   blueprint_ready: "Artist-ready",
@@ -37,6 +46,27 @@ function referenceProvenanceLine(entry: ReferenceChecklistEntry): string {
   return `${relationship} — ${attestation}`;
 }
 
+/**
+ * Same three signals computeReadiness itself was given (the server route
+ * computes the state deterministically; this reuses the client-side
+ * originals of those signals -- the reference checklist already built for
+ * section 8, hasUnresolvedPrimaryImagery, and the Association Engine's own
+ * contradictions_noticed -- to explain *why*, without inventing a new
+ * signal or reading the model-written Design considerations prose).
+ */
+function readinessReasons(project: ProjectState, readiness: ReadinessState): string[] {
+  const checklist = buildReferenceChecklist(project.visual_elements, project.consent_records);
+  const missingReferenceDescriptions = checklist
+    .filter((entry) => (entry.requirement === "required" || entry.requirement === "strongly_recommended") && !isReferenceEntrySatisfied(entry))
+    .map((entry) => entry.description);
+  return describeReadinessReason({
+    readiness,
+    missingReferenceDescriptions,
+    hasUnresolvedPrimaryImagery: hasUnresolvedPrimaryImagery(project.visual_elements),
+    hasOtherContradiction: project.contradictions.length > 0,
+  });
+}
+
 /** Builds the plain-text version used by Copy and Save (§4). */
 function formatBlueprintAsText(project: ReturnType<typeof useJourney>["state"]["project"], blueprint: NonNullable<ReturnType<typeof useJourney>["state"]["ui"]["blueprint"]>): string {
   const lines: string[] = ["Your Positive Inking Blueprint", ""];
@@ -53,7 +83,12 @@ function formatBlueprintAsText(project: ReturnType<typeof useJourney>["state"]["
     [
       blueprint.visual_direction,
       "",
-      ...project.visual_elements.map((e) => `- ${e.description} (${e.hierarchy}) -- ${e.personal_meaning}`),
+      ...project.visual_elements.map((e) => {
+        const { description, roleLabel, meaning } = visualElementSentence(e);
+        const role = roleLabel ? ` (${roleLabel})` : "";
+        const meaningPart = meaning ? ` -- ${meaning}` : "";
+        return `- ${description}${role}${meaningPart}`;
+      }),
     ].join("\n"),
   );
   section("Artistic direction", blueprint.artistic_direction);
@@ -68,7 +103,7 @@ function formatBlueprintAsText(project: ReturnType<typeof useJourney>["state"]["
           const flag = entry.copyright_flag
             ? ` [copyright: ${entry.flag_resolution === "switched_to_inspired_by" ? "used as inspiration only" : "noted as direct reference"}]`
             : "";
-          return `- ${entry.description}: ${entry.status.replace(/_/g, " ")}${satisfied ? "" : " (MISSING -- " + entry.requirement.replace(/_/g, " ") + ")"} — ${referenceProvenanceLine(entry)}${flag}`;
+          return `- ${entry.description}: ${REFERENCE_STATUS_LABEL[entry.status]}${satisfied ? "" : " (MISSING -- " + entry.requirement.replace(/_/g, " ") + ")"} — ${referenceProvenanceLine(entry)}${flag}`;
         })
         .join("\n"),
     );
@@ -81,7 +116,8 @@ function formatBlueprintAsText(project: ReturnType<typeof useJourney>["state"]["
   if (project.artist_notes.length > 0) {
     section("Further ideas the client raised (unspecified, for the artist to discuss)", project.artist_notes.map((n) => `- ${n}`).join("\n"));
   }
-  section("Readiness", READINESS_LABEL[blueprint.readiness] ?? blueprint.readiness);
+  const reasons = readinessReasons(project, blueprint.readiness);
+  section("Readiness", [READINESS_LABEL[blueprint.readiness] ?? blueprint.readiness, ...reasons].join("\n"));
 
   return lines.join("\n").trim();
 }
@@ -158,11 +194,16 @@ export function BlueprintView() {
         <p>{blueprint.visual_direction}</p>
         {project.visual_elements.length > 0 && (
           <ul>
-            {project.visual_elements.map((e) => (
-              <li key={e.id}>
-                <strong>{e.description}</strong> <span className="recommendation-tag">{e.hierarchy}</span> — {e.personal_meaning}
-              </li>
-            ))}
+            {project.visual_elements.map((e) => {
+              const { description, roleLabel, meaning } = visualElementSentence(e);
+              return (
+                <li key={e.id}>
+                  <strong>{description}</strong>
+                  {roleLabel && <span className="recommendation-tag">{roleLabel}</span>}
+                  {meaning && <> — {meaning}</>}
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
@@ -191,7 +232,7 @@ export function BlueprintView() {
               return (
                 <li key={entry.element_id}>
                   <strong>{entry.description}</strong> —{" "}
-                  <span className="recommendation-tag">{entry.status.replace(/_/g, " ")}</span>
+                  <span className="recommendation-tag">{REFERENCE_STATUS_LABEL[entry.status]}</span>
                   {!satisfied && (
                     <span className="recommendation-tag" style={{ borderColor: "var(--error-fg)", color: "var(--error-fg)" }}>
                       missing — {entry.requirement.replace(/_/g, " ")}
@@ -255,6 +296,11 @@ export function BlueprintView() {
       <section>
         <h3>12. Readiness</h3>
         <p>{READINESS_LABEL[blueprint.readiness] ?? blueprint.readiness}</p>
+        {readinessReasons(project, blueprint.readiness).map((reason, i) => (
+          <p key={i} className="supporting">
+            {reason}
+          </p>
+        ))}
       </section>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

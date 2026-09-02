@@ -28,7 +28,10 @@ against the real architecture (not just mocks), the Blueprint pipeline has
 a concreteness gate so unresolved candidates can no longer reach a
 Blueprint as confirmed primary elements, model-call timeouts are per-route
 instead of one universal number, and local development runs on two
-commands (`npm run dev`, `npm run validate:local` — see README). 193 unit
+commands (`npm run dev`, `npm run validate:local` — see README). A live,
+full end-to-end browser test journey (screenshots + the resulting
+Blueprint document reviewed directly, not `diagnose-model`) then surfaced
+and fixed two more real bugs — see the latest session log entry. 207 unit
 tests pass across engine/server/web; typecheck and build are clean across
 all three workspaces.
 
@@ -47,12 +50,51 @@ all three workspaces.
   worth doing to check 40s/20s actually hold before treating them as
   settled, rather than discovering under real traffic that they need
   raising again.
+- **Association candidate wording — proposed prompt change not yet
+  applied.** Investigated why memorial/tribute object candidates lean on
+  abstract phrasing (e.g. "already carries the weight of connection") in
+  `personal_meaning`. Finding: `server/src/schemas/association.ts`'s rule
+  8 (CONCRETENESS) constrains only the `description` field, with explicit
+  BAD/BETTER examples — there is no equivalent guidance for
+  `personal_meaning`, which is where the abstract phrasing actually lives.
+  Smallest proposed change (**not applied — needs your confirmation, since
+  it affects live model output for all users**): add one prompt sentence
+  asking `personal_meaning` to name the specific personal connection in
+  the client's own story terms rather than reaching for generic
+  emotionally-resonant phrasing, mirroring rule 8's own pattern.
+- **"Whose is it?" reference field — investigated, no change made.**
+  The dropdown (`web/src/components/ReferenceAttachment.tsx`,
+  `subject_relationship`) renders whenever a candidate's chosen fidelity
+  is `exact` or `closely_based_on` (`NEEDS_REFERENCE` in
+  `ElementsDiscovery.tsx`), regardless of `source_category` or
+  `material_type` — it fires identically for a photo of a living person
+  and for a client's own handmade object. Its five options (Me / Someone
+  else living / A child / Someone who has passed / Not sure) answer
+  "whose personal information (likeness, handwriting, signature) does
+  this reference material capture" — the question §15.2 attestation
+  actually needs — not "who does this object belong to or was it made
+  for." An object the client made themselves for a living family member
+  has no clean answer among the five, because the field isn't asking
+  about gift/dedication relationships at all; "Not sure" happens to be
+  harmless there only because `requiresAttestation()` also skips it, not
+  because it's the right answer. Left as-is pending your call on whether
+  to adjust the options, make the field conditional on `material_type`,
+  or leave it.
 - **§15.7 production launch blockers** (encrypted-at-rest storage,
   project-scoped access control, deletion/retention, training-use policy,
   legal review of the consent flow) are all still open — see README.md's
   "Production launch blockers" section for the full, unchanged list. None
   of this build's upload paths should be treated as production-ready
   until those are deliberately resolved.
+
+**Known, deliberately deferred issues (not lost, just not this chapter's scope):**
+- **Voice input timeout/cutoff behaviour** — a roughly 10s recording limit
+  and roughly 3s silence timeout were observed to cut off voice input
+  during a live test. Values are from user observation, not measured
+  instrumentation. Deliberately deferred; needs its own investigation.
+- **Statement of Inspiration typography and overall Blueprint visual
+  formatting/premium polish** — deliberately deferred to a later,
+  dedicated polish pass, not current work.
 
 **Known risks:** the timeout numbers above are provisional (see the open
 decision); nothing else newly introduced this session. See
@@ -62,6 +104,82 @@ decision); nothing else newly introduced this session. See
 got to its current, tested state.
 
 ## Session log
+
+### 2026-09-02 — Live end-to-end test fixes: Screen 7 layout, readiness reasons, Blueprint prose leaks
+Trigger: a real, full end-to-end browser test journey (screenshots and the
+resulting Blueprint document reviewed directly — not `diagnose-model`)
+surfaced three real bugs and two items worth investigating before touching.
+
+**Fixed:**
+1. **Screen 7 layout bug — expanded candidate card overlapped following
+   content.** Root cause was not absolute positioning as suspected: `.option-chip`'s
+   999px border-radius (correct for every other use of that class, a
+   short single-line pill toggle) computed as an ellipse once
+   `ElementsDiscovery.tsx` reused the same class for a tall, multi-line
+   expandable container (follow-up field, fidelity select, reference
+   attachment), so the curved corners bit into corner text once a
+   candidate expanded. Fix: a scoped `.option-chip.candidate-card`
+   modifier (`web/src/styles.css`) overriding the radius to 12px, applied
+   only at ElementsDiscovery's two usages — every real pill-shaped
+   `.option-chip` elsewhere is untouched. Verified visually (screenshots +
+   bounding-box overlap checks) across two different follow-up-field
+   candidates, individually and together, with realistic long typed text.
+2. **Blueprint Readiness section gave no reason.** Added
+   `describeReadinessReason()` (`engine/src/readiness.ts`) — a pure
+   function reusing the exact same signals already driving Design
+   considerations (the reference checklist, `hasUnresolvedPrimaryImagery`,
+   `project.contradictions`) rather than inventing new logic or parsing
+   the model's own prose. Wired into `BlueprintView.tsx`'s on-screen
+   render and plain-text export via a thin `readinessReasons()` helper.
+3. **Raw candidate/status strings leaking into Blueprint prose.** Live
+   example: Section 4 rendered "...saying Athena undecided — A concrete
+   thing from your shared world that already carries the weight of
+   connection" — the literal `hierarchy: "undecided"` enum value and a
+   raw `"to upload"` status were being concatenated straight into the
+   on-screen sentence (`BlueprintView.tsx`'s Section 4/8 JSX and its
+   plain-text export), the same class of bug as the earlier
+   `confirmed_project_summary` raw-enum leak, just in the client-facing
+   document instead of the model's input. Fix: moved the composition into
+   `web/src/journey/blueprintSummary.ts` (`visualElementSentence`,
+   `HIERARCHY_LABEL`, `REFERENCE_STATUS_LABEL`) — a hierarchy role is only
+   ever shown once it names an actual value (never "undecided"), status is
+   phrased as what happened ("Not yet uploaded", not "to upload"), and
+   `personal_meaning` is only appended when it adds information the
+   description doesn't already have. Status markers like "undecided"/
+   "to upload" still reach the client through Design considerations' real
+   sentences, exactly as the user asked — nothing there changed.
+
+**Investigated only, per instruction — no code changed:**
+4. **Association candidate wording too abstract.** Traced to
+   `server/src/schemas/association.ts`'s CONCRETENESS rule constraining
+   only `description`, not `personal_meaning` (where the abstract phrasing
+   lives). Smallest proposed change documented in this file's "Open
+   decisions" section above — deliberately not applied without
+   confirmation, since it changes live model output for every user.
+5. **"Whose is it?" reference field relevance.** Traced to
+   `ReferenceAttachment`'s `subject_relationship` dropdown rendering
+   whenever fidelity requires a reference, independent of
+   `source_category`/`material_type` — it answers a consent-attestation
+   question (whose likeness/handwriting/signature is this material) that
+   doesn't map onto an object the client made themselves for a living
+   family member. Full finding in "Open decisions" above; left as-is
+   pending a decision on adjusting the options, gating them on
+   `material_type`, or leaving them.
+
+**Verification:** typecheck and build clean across engine/server/web; full
+test suite passes (207 tests: 160 engine — including 8 new
+`describeReadinessReason` cases — 39 server, 16 web — including new
+`visualElementSentence`/`REFERENCE_STATUS_LABEL` regression coverage for
+the exact "handmade wall art" scenario above). Live-browser-verified: the
+Screen 7 CSS fix is unchanged and still in place; a seeded Blueprint state
+reproducing the exact reported scenario rendered Section 4/8 cleanly (no
+raw "undecided"/"to upload" tags) and a Readiness reason inline, screenshot
+reviewed directly.
+
+Two items were explicitly out of scope and only noted, not touched: voice
+input timeout/cutoff behaviour, and Statement of Inspiration typography /
+overall Blueprint visual formatting — both now recorded above under
+"Known, deliberately deferred issues" so they aren't lost.
 
 ### 2026-09-01 — Raised Discovery/Association timeouts from real diagnostic data
 A real `npm run diagnose-model` run against `claude-sonnet-4-5-20250929`

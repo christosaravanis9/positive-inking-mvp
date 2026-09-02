@@ -1,4 +1,4 @@
-import type { ProjectState, ReferenceChecklistEntry } from "@positive-inking/engine";
+import type { ProjectState, ReferenceChecklistEntry, VisualElement } from "@positive-inking/engine";
 import { describeDimensionValue } from "./artisticDimensionLabels";
 import { describeCreativeControl } from "./creativeControlLabels";
 import { formatPlacementSummary } from "./placementSummary";
@@ -49,4 +49,47 @@ export function buildConfirmedProjectSummary(project: ProjectState, outstanding:
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+/**
+ * "undecided" has no entry here on purpose. It's the hierarchy value for
+ * nearly every element pre-ranking, and showing it as an inline tag next to
+ * every element in the Blueprint document read as raw-enum noise stitched
+ * into the sentence -- the live-test incident that produced "...saying
+ * Athena undecided — A concrete thing...". An unranked element is a fact for
+ * Design considerations to state as a sentence (buildConfirmedProjectSummary
+ * above already tells the model each element's hierarchy so it can), not
+ * something to tag on every single element in the client-facing document.
+ */
+export const HIERARCHY_LABEL: Partial<Record<VisualElement["hierarchy"], string>> = {
+  primary: "Primary",
+  supporting: "Supporting",
+  accent: "Accent",
+  background: "Background",
+};
+
+/** Same reasoning as HIERARCHY_LABEL: a bare humanized status ("to upload") read as a raw tag stitched onto the reference description; these are the same facts phrased as what actually happened, not an enum name. */
+export const REFERENCE_STATUS_LABEL: Record<ReferenceChecklistEntry["status"], string> = {
+  available: "Uploaded",
+  to_upload: "Not yet uploaded",
+  to_create: "To be created for this design",
+  optional: "Optional — not provided",
+  not_needed: "Not needed",
+};
+
+/**
+ * Composes one Visual hierarchy element into prose pieces instead of
+ * concatenating raw stored strings: the hierarchy role is surfaced only once
+ * it names an actual value (never "undecided"), and personal_meaning is only
+ * appended when it says something the description doesn't already say --
+ * both BlueprintView callers (the on-screen JSX and the plain-text export)
+ * build the same sentence from this so they can never drift into showing raw
+ * status tags.
+ */
+export function visualElementSentence(e: VisualElement): { description: string; roleLabel: string | null; meaning: string | null } {
+  return {
+    description: e.description,
+    roleLabel: HIERARCHY_LABEL[e.hierarchy] ?? null,
+    meaning: e.personal_meaning.trim() && e.personal_meaning.trim() !== e.description.trim() ? e.personal_meaning : null,
+  };
 }

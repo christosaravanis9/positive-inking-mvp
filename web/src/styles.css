@@ -199,6 +199,23 @@ pre {
   border-style: dashed;
 }
 
+/**
+ * .option-chip's 999px radius makes a correct pill shape for every other
+ * use of this class (a short, single-line toggle button/label -- Viewpoint,
+ * RoughScale, CreativeControl, MeaningReflection's theme chips, etc.).
+ * ElementsDiscovery (Screen 7) reuses the class for a container that can
+ * expand to hold multiple lines plus nested controls (a follow-up text
+ * field, a fidelity <select>, a reference attachment) once selected --
+ * a border-radius sized for a short pill computes as an ellipse against a
+ * tall multi-line box, so its curved edges bite into the corner text
+ * instead of framing a rectangle. .candidate-card overrides the radius
+ * back down to an ordinary rounded-rectangle for exactly those two
+ * container usages, leaving every real pill-shaped .option-chip untouched.
+ */
+.option-chip.candidate-card {
+  border-radius: 12px;
+}
+
 textarea.compact {
   min-height: 80px;
 }

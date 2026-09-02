@@ -61,3 +61,49 @@ const REFERENCE_REQUIREMENT_TABLE: Record<ReferenceFeatureKind, ReferenceRequire
 export function referenceRequirementFor(kind: ReferenceFeatureKind): ReferenceRequirementLevel {
   return REFERENCE_REQUIREMENT_TABLE[kind];
 }
+
+export interface ReadinessReasonInputs {
+  readiness: ReadinessState;
+  /** Descriptions of the specific checklist entries that made anyRequiredReferenceMissing true -- the caller already has these building its own reference checklist section, so this never re-derives them. */
+  missingReferenceDescriptions: string[];
+  /** The two signals DesignConfirmation ORs together into hasUnresolvedContradiction before this ever reaches computeReadiness -- split back out here so a "needs_refinement" reason can name which one actually applies, rather than reaching for the generic case every time. */
+  hasUnresolvedPrimaryImagery: boolean;
+  hasOtherContradiction: boolean;
+}
+
+/**
+ * §13.4's five readiness states name a state, not why the project is in it.
+ * Every reason returned here comes from facts the caller already computed
+ * for its own purposes (the reference checklist, hasUnresolvedPrimaryImagery,
+ * the Association Engine's own contradictions_noticed) -- this only phrases
+ * them, it never re-derives or invents a new signal, and it never reads the
+ * model-written Design considerations prose (that section may say something
+ * related in its own words; this is a separate, deterministic explanation of
+ * the readiness *state* specifically, not a summary of that section).
+ */
+export function describeReadinessReason(inputs: ReadinessReasonInputs): string[] {
+  switch (inputs.readiness) {
+    case "artist_consultation_recommended":
+      return [
+        "The interpretation behind this Blueprint is still low-confidence — worth confirming the details with an artist before treating it as final.",
+      ];
+    case "references_needed":
+      return inputs.missingReferenceDescriptions.length > 0
+        ? [`Still needed before this design is final: ${inputs.missingReferenceDescriptions.join("; ")}.`]
+        : ["A required reference is still outstanding."];
+    case "needs_refinement": {
+      const reasons: string[] = [];
+      if (inputs.hasUnresolvedPrimaryImagery) {
+        reasons.push("One or more primary visual elements are still an open decision for the client, not yet a concrete idea.");
+      }
+      if (inputs.hasOtherContradiction) {
+        reasons.push("A noted contradiction in the design is still unresolved.");
+      }
+      return reasons.length > 0 ? reasons : ["Some details are still unresolved and need refining before this design is final."];
+    }
+    case "blueprint_ready":
+    case "concept_visual_ready":
+    default:
+      return [];
+  }
+}

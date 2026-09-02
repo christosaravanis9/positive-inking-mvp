@@ -503,7 +503,7 @@ export function ElementsDiscovery() {
           {visibleCandidateIndices.map((i) => {
             const candidate = state.ui.associationCandidates[i]!;
             return (
-              <div key={i} className={`option-chip${selected.has(i) ? " selected" : ""}`}>
+              <div key={i} className={`option-chip candidate-card${selected.has(i) ? " selected" : ""}`}>
                 <label style={{ cursor: "pointer", display: "block" }}>
                   <input type="checkbox" checked={selected.has(i)} onChange={() => toggle(i)} style={{ marginRight: 8 }} />
                   <strong>{candidate.description}</strong> — {candidate.personal_meaning}
@@ -605,7 +605,7 @@ export function ElementsDiscovery() {
         {addedIdeas.length > 0 && (
           <div className="option-grid" style={{ flexDirection: "column", alignItems: "stretch" }}>
             {addedIdeas.map((idea, i) => (
-              <div key={i} className="option-chip selected">
+              <div key={i} className="option-chip candidate-card selected">
                 {idea.text}
                 {idea.replacesElementId && <span className="recommendation-tag">replaces existing element</span>}
                 <select

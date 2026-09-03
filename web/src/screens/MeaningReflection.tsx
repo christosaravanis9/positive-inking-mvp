@@ -42,6 +42,7 @@ export function MeaningReflection() {
       <button onClick={continueToIntention} disabled={selected.length === 0}>
         Continue
       </button>
+      {selected.length === 0 && <p className="supporting">Select at least one theme above to continue.</p>}
     </div>
   );
 }

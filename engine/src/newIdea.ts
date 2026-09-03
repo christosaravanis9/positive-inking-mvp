@@ -29,9 +29,27 @@ export function targetMinutesForJourney(journeyMode: JourneyMode, elementCount: 
  * `elapsedOverTargetRatio` is elapsed time divided by the target band for
  * the project type; demotion also triggers once that exceeds 1.5 (more
  * than 50% over target), independent of iteration count.
+ *
+ * `hasRealVisualElement` guards the core invariant this loop must never
+ * violate: a client always has SOME path to get at least one real visual
+ * element and proceed past Screen 7, no matter how long the journey has
+ * taken or how many iterations have occurred. Both demotion triggers
+ * (iteration count, elapsed-time ratio) are monotonically increasing and
+ * never reset within a journey -- without this guard, a client who starts
+ * out with zero candidates selected and zero confirmed elements could
+ * cross either threshold and then have EVERY subsequent "Add idea"
+ * permanently demoted to artist_notes, with no way back and no path
+ * forward at all. The anti-thrash protection this function implements
+ * exists to bound back-and-forth AFTER something real already exists, not
+ * to block the first one -- so demotion is only ever allowed once
+ * `hasRealVisualElement` is true.
  */
-export function classifyIdeaIteration(iterationNumber: number, elapsedOverTargetRatio: number): IdeaIterationBehavior {
-  if (iterationNumber >= 6 || elapsedOverTargetRatio > 1.5) return "demoted_to_notes";
+export function classifyIdeaIteration(
+  iterationNumber: number,
+  elapsedOverTargetRatio: number,
+  hasRealVisualElement: boolean,
+): IdeaIterationBehavior {
+  if ((iterationNumber >= 6 || elapsedOverTargetRatio > 1.5) && hasRealVisualElement) return "demoted_to_notes";
   if (iterationNumber >= 4) return "full_with_scope_reflection";
   return "full";
 }

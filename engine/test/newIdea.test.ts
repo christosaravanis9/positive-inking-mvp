@@ -29,23 +29,45 @@ describe("targetMinutesForJourney (§5 band mapping)", () => {
 
 describe("classifyIdeaIteration (§14)", () => {
   it("iterations 1-3 are full behaviour", () => {
-    expect(classifyIdeaIteration(1, 0)).toBe("full");
-    expect(classifyIdeaIteration(3, 0)).toBe("full");
+    expect(classifyIdeaIteration(1, 0, true)).toBe("full");
+    expect(classifyIdeaIteration(3, 0, true)).toBe("full");
   });
 
-  it("iterations 4-5 add a scope reflection", () => {
-    expect(classifyIdeaIteration(4, 0)).toBe("full_with_scope_reflection");
-    expect(classifyIdeaIteration(5, 0)).toBe("full_with_scope_reflection");
+  it("iterations 4-5 add a scope reflection, regardless of hasRealVisualElement", () => {
+    expect(classifyIdeaIteration(4, 0, true)).toBe("full_with_scope_reflection");
+    expect(classifyIdeaIteration(5, 0, true)).toBe("full_with_scope_reflection");
+    expect(classifyIdeaIteration(4, 0, false)).toBe("full_with_scope_reflection");
   });
 
-  it("iteration 6+ demotes to artist notes", () => {
-    expect(classifyIdeaIteration(6, 0)).toBe("demoted_to_notes");
-    expect(classifyIdeaIteration(10, 0)).toBe("demoted_to_notes");
+  it("iteration 6+ demotes to artist notes when a real visual element already exists", () => {
+    expect(classifyIdeaIteration(6, 0, true)).toBe("demoted_to_notes");
+    expect(classifyIdeaIteration(10, 0, true)).toBe("demoted_to_notes");
   });
 
-  it("demotes early when elapsed time exceeds target band by more than 50%, regardless of iteration count", () => {
-    expect(classifyIdeaIteration(1, 1.6)).toBe("demoted_to_notes");
-    expect(classifyIdeaIteration(1, 1.5)).toBe("full");
+  it("demotes early when elapsed time exceeds target band by more than 50%, regardless of iteration count, when a real visual element already exists", () => {
+    expect(classifyIdeaIteration(1, 1.6, true)).toBe("demoted_to_notes");
+    expect(classifyIdeaIteration(1, 1.5, true)).toBe("full");
+  });
+
+  describe("core invariant: never demote when zero real visual elements exist yet (live-test regression)", () => {
+    it("iteration 6+ never demotes with no real visual element yet -- falls back to the ordinary iteration>=4 scope reflection instead, never a hard block", () => {
+      expect(classifyIdeaIteration(6, 0, false)).toBe("full_with_scope_reflection");
+      expect(classifyIdeaIteration(10, 0, false)).toBe("full_with_scope_reflection");
+    });
+
+    it("elapsed time past 1.5x target never demotes with no real visual element yet -- falls back to full instead, below the separate iteration>=4 threshold", () => {
+      expect(classifyIdeaIteration(1, 1.6, false)).toBe("full");
+      expect(classifyIdeaIteration(1, 5, false)).toBe("full");
+    });
+
+    it("both triggers firing at once still never demotes with no real visual element yet", () => {
+      expect(classifyIdeaIteration(10, 5, false)).toBe("full_with_scope_reflection");
+    });
+
+    it("the moment a real visual element exists, both triggers resume demoting normally -- the anti-thrash protection is not weakened once something real is on the table", () => {
+      expect(classifyIdeaIteration(6, 0, true)).toBe("demoted_to_notes");
+      expect(classifyIdeaIteration(1, 1.6, true)).toBe("demoted_to_notes");
+    });
   });
 });
 

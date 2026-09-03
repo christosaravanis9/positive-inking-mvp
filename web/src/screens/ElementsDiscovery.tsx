@@ -323,7 +323,13 @@ export function ElementsDiscovery() {
   function addIdea() {
     if (newIdeaText.trim().length === 0) return;
     const text = newIdeaText.trim();
-    const behavior: IdeaIterationBehavior = classifyIdeaIteration(currentIterationNumber(), elapsedOverTargetRatio());
+    // Core invariant (live-test regression): a client must always have some path to a
+    // real visual element, however long the journey has run or how many iterations have
+    // passed -- both demotion triggers below are monotonic and never reset, so without
+    // this guard a client starting from zero real elements could cross one and then have
+    // every subsequent "Add idea" permanently demoted, with no way forward at all.
+    const hasRealVisualElement = state.project.visual_elements.length + addedIdeas.length > 0;
+    const behavior: IdeaIterationBehavior = classifyIdeaIteration(currentIterationNumber(), elapsedOverTargetRatio(), hasRealVisualElement);
 
     if (behavior === "demoted_to_notes") {
       demoteIdea(text);

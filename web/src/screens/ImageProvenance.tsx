@@ -166,6 +166,7 @@ export function ImageProvenance() {
         <button onClick={finalizeElaboration} disabled={selectedThemes.length === 0}>
           Continue
         </button>
+        {selectedThemes.length === 0 && <p className="supporting">Select at least one theme above to continue.</p>}
       </div>
     );
   }

@@ -124,21 +124,6 @@ to compare terminal output by hand.
 **In progress:** nothing actively mid-change right now.
 
 **Open decisions waiting on you:**
-- **Two more silent-dead-end Continue buttons found, not fixed — scope
-  decision needed.** Investigating the Screen 7 report below turned up the
-  same pattern (a disabled primary action with no visible stated reason)
-  in two more places: `MeaningReflection.tsx:42`
-  (`disabled={selected.length === 0}`, no "select at least one theme"
-  message) and `ImageProvenance.tsx:166` (`finalizeElaboration`, the
-  provenance re-entry theme-confirmation step, same shape). Only Screen
-  7's instance was fixed this round, per the report's own "list, don't fix
-  them all" instruction — say if you want the same treatment applied here.
-  Also flagged, not fixed: `ElementsDiscovery.tsx`'s new-idea demotion is
-  driven by a monotonically-increasing elapsed-time ratio, so once a
-  journey crosses that threshold every later "Add idea" demotes to notes
-  for the rest of the journey — if no Association candidates exist at that
-  point, a client could be left with no path to add a real visual element
-  at all.
 - **Meaning-depth gate prompt wording — real-model verification still
   needed from you.** The new Discovery prompt item (§ MEANING DEPTH) asks
   the model to classify a story as thin only when the stated reason is
@@ -255,6 +240,68 @@ decision); nothing else newly introduced this session. See
 got to its current, tested state.
 
 ## Session log
+
+### 2026-09-03 — Fixed the monotonic new-idea demotion dead end; two more silent-dead-end Continue buttons fixed the same way
+
+The follow-up to the Screen 7 investigation's flagged-but-not-fixed item:
+`classifyIdeaIteration()`'s two demotion triggers (iteration count >= 6,
+elapsed-time ratio > 1.5) are both monotonically increasing and never
+reset within a journey. A client who reached either threshold with zero
+real visual elements and zero candidates selected had **no path left to
+ever add a real element** — every subsequent "Add idea" would demote to
+`artist_notes` forever, an unrecoverable dead end reachable from ordinary
+slow, thoughtful use, not just an extreme edge case.
+
+**Chosen fix, reported before implementing:** the smaller of the two
+options offered — never demote while the client currently has zero real
+visual elements, rather than building a "promote a note back to a real
+element" recovery path. `classifyIdeaIteration()`
+(`engine/src/newIdea.ts`) now takes a third parameter,
+`hasRealVisualElement: boolean`; both demotion triggers are gated on it
+being true, and iteration count / elapsed ratio behave exactly as before
+once it is. `web/src/screens/ElementsDiscovery.tsx`'s one call site now
+passes `state.project.visual_elements.length + addedIdeas.length > 0`.
+The anti-thrash protection this function implements is unchanged for
+every client who already has one real element on the table — it now only
+ever stands down for the specific case of getting the *first* one.
+
+**Also fixed, same pattern as the Screen 7 report:**
+- `MeaningReflection.tsx` — Continue (`disabled={selected.length === 0}`)
+  now shows "Select at least one theme above to continue." whenever
+  disabled.
+- `ImageProvenance.tsx`'s `finalizeElaboration` (the provenance re-entry
+  theme-confirmation step) — same disabled condition, same message added.
+
+**Verified:**
+- `npm run typecheck`, `npm test` (338 tests: engine 165, server 43, web
+  130 — up from 327 before this change), `npm run build`, all pass.
+- `engine/test/newIdea.test.ts` gained a dedicated "core invariant" describe
+  block: iteration >= 6 and elapsed ratio > 1.5 each independently, and
+  both together, never return `"demoted_to_notes"` while
+  `hasRealVisualElement` is false (falling back to the ordinary
+  `"full"`/`"full_with_scope_reflection"` behaviour instead); and, the
+  moment a real element exists, both triggers demote exactly as before —
+  proving the anti-thrash protection was not weakened for the normal case.
+- `web/src/screens/ElementsDiscovery.test.tsx` gained the same coverage at
+  the UI level: a journey seeded 10 minutes past creation (past the 1.5x
+  threshold for a 4-minute-target journey) with zero candidates and zero
+  visual elements can still "Add idea" into a real, pending element with
+  Continue enabling — the exact scenario that would have caught the
+  original bug — plus a companion test confirming demotion still fires
+  normally once one real element already exists.
+- New `MeaningReflection.test.tsx` and `ImageProvenance.test.tsx` cover the
+  two new disabled-reason messages appearing and disappearing correctly.
+- Live browser reproduction (real server + real Vite + fake Anthropic
+  double, journey state seeded via the app's own `createInitialJourneyState`
+  with `created_at` set 10 minutes in the past) confirmed the fix
+  end-to-end: adding an idea in the over-threshold, zero-element state no
+  longer shows "Added to your artist notes" — the idea appears as a real
+  pending element and Continue enables. Screenshots captured before/after.
+
+**Closed the open decision** that flagged this bug and the two other
+silent-dead-end screens for scope — removed from "Open decisions waiting
+on you" in the current-status section above, since all three are now
+fixed.
 
 ### 2026-09-03 — Closed the model-migration timeout open decision: real Sonnet 5 latency measured, budgets left unchanged
 

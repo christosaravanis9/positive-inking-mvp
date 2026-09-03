@@ -56,14 +56,18 @@ export const MODEL_ROUTES: readonly ModelRoute[] = [
  * full run data and the explicit caveat that this is one sample, not a
  * confirmed stable ceiling yet.
  *
- * IMPORTANT (2026-09-03 migration): the default model
+ * UPDATE (2026-09-03 migration): the default model
  * (server/src/env.ts's anthropicModel) has since moved to claude-sonnet-5.
- * Every number below was measured against that now-retired dated Sonnet
- * 4.5 release and has NOT been re-measured against claude-sonnet-5, which
- * may have different latency characteristics. These budgets are
- * unchanged pending a real `npm run diagnose-model` run against the new
- * model -- see docs/timeout-matrix.md and docs/PROJECT_STATUS.md's open
- * decisions.
+ * The numbers above were originally measured against that now-retired
+ * dated Sonnet 4.5 release; a real `npm run diagnose-model` run against
+ * claude-sonnet-5 has since confirmed comfortable margin on every route
+ * (Discovery 9553ms, Association 17403ms, Blueprint 18456ms elapsed --
+ * roughly double the old model's throughput, ~87-105 tok/sec vs.
+ * ~40-55). Budgets were deliberately left unchanged: every route has
+ * 10+ seconds of headroom, so tightening would only add spurious-timeout
+ * risk for no benefit. See docs/timeout-matrix.md's "Model migration"
+ * section for the full comparison table and the one-sample-per-stage
+ * caveat.
  */
 export const MODEL_ROUTE_TIMEOUT_DEFAULTS_MS: Record<ModelRoute, number> = {
   provenance: 10000,

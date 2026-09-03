@@ -218,27 +218,44 @@ automatically, with no separate edit required.
   screen/user input untouched" and "stale responses still cannot mutate
   state" checks.
 
-## Model migration (2026-09-03): budgets are STALE, pending re-measurement
+## Model migration (2026-09-03): re-measured against claude-sonnet-5, budgets unchanged
 
 The default model (`server/src/env.ts`'s `anthropicModel`, `ANTHROPIC_MODEL`
 in `.env.example`) was migrated from a dated Sonnet 4.5 release (retiring
 2026-09-29) to `claude-sonnet-5`, ahead of the retirement deadline. Every
-budget in this document and in `engine/src/modelTimeouts.ts` was measured
-against the old, now-retired model, per the "Revised from real diagnostic
-data" section above -- none of it has been re-measured against
-`claude-sonnet-5`, which may have different latency characteristics in
-either direction.
+budget in this document and in `engine/src/modelTimeouts.ts` was originally
+measured against the old, now-retired model, per the "Revised from real
+diagnostic data" section above. That measurement is now stale history —
+a real `npm run diagnose-model` run against `claude-sonnet-5` (with a real
+`ANTHROPIC_API_KEY`, one sample per stage) has since replaced it:
 
-**No budget was changed as part of this migration** -- changing timeout
-numbers without a real measurement to justify them would be exactly the
-kind of guess this document's own methodology exists to avoid (see
-"Revised from real diagnostic data" above: even the last real change was
-treated as "one sample, not a confirmed final ceiling").
+| Stage | Sonnet 5 elapsed | Budget | Margin | Throughput | For comparison, old Sonnet 4.5 elapsed |
+|---|---|---|---|---|---|
+| Discovery | 9553ms | 20000ms | 10.4s | 104.9 tok/sec (2704 in / 1002 out) | 12937ms |
+| Association | 17403ms | 40000ms | 22.6s | 92.7 tok/sec (2834 in / 1613 out) | 32310ms |
+| Blueprint | 18456ms | 30000ms | 11.5s | 86.2 tok/sec (2111 in / 1590 out) | 18718ms |
 
-**Open decision, waiting on a real `ANTHROPIC_API_KEY`:** run
-`npm run diagnose-model` against `claude-sonnet-5` (this sandbox has no
-API key configured, so it cannot be run here) and compare the new elapsed
-times against the budgets above. If any stage comes back over budget, or
-with materially less margin than before, raise that stage's ceiling using
-the same reasoning this document already uses elsewhere -- do not guess
-new numbers without that data.
+Sonnet 5's throughput on these three routes is roughly double the ~40-55
+tok/sec the old model showed on the same kind of structured-output calls
+(~87-105 tok/sec now) — that throughput jump is what accounts for
+Association's elapsed time nearly halving (32310ms → 17403ms), since
+Association is the most output-token-heavy route (1613 out tokens here)
+and therefore the most sensitive to a per-token speed change.
+
+**No budget was changed, and this is a deliberate decision, not an
+oversight.** Every stage now has comfortable headroom against its
+existing ceiling (10.4s / 22.6s / 11.5s margin respectively) — tightening
+any of them would add spurious-timeout risk for no real benefit, since a
+call that currently finishes with 10+ seconds to spare gains nothing from
+a lower ceiling and only makes an occasional slower real-world call more
+likely to time out unnecessarily. Loosening them would be equally
+unjustified: nothing in this data shows the current budgets causing any
+problem.
+
+**Caveat, same as every prior measurement in this document:** this is
+still one sample per stage, not an average. It's enough to confirm the
+existing budgets are safe with real margin against the new model — it is
+not enough to establish a precise, stable ceiling. If real-world Sonnet 5
+traffic later shows a stage running close to or over its budget, that's a
+signal to gather more samples and revisit, the same way Association's
+30000ms → 40000ms change above was originally justified.

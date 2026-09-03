@@ -124,20 +124,6 @@ to compare terminal output by hand.
 **In progress:** nothing actively mid-change right now.
 
 **Open decisions waiting on you:**
-- **Model migrated to `claude-sonnet-5` — latency re-measurement required,
-  budgets unchanged.** The default model moved off the dated Sonnet 4.5
-  release retiring 2026-09-29. `engine/src/modelTimeouts.ts`'s per-route
-  timeout budgets were measured against that old model
-  (`docs/timeout-matrix.md`) and were deliberately left unchanged — Sonnet
-  5's latency profile may differ in either direction, and guessing new
-  numbers without data would contradict how these budgets were derived in
-  the first place. **This sandbox has no `ANTHROPIC_API_KEY` configured**,
-  so real latency against `claude-sonnet-5` could not be measured here.
-  **Run `npm run diagnose-model` with a real key against `claude-sonnet-5`
-  and compare the results to the existing budgets** before treating them
-  as still correct — see `docs/timeout-matrix.md`'s new "Model migration"
-  section and the matching session-log entry for exactly what was and
-  wasn't checked.
 - **Two more silent-dead-end Continue buttons found, not fixed — scope
   decision needed.** Investigating the Screen 7 report below turned up the
   same pattern (a disabled primary action with no visible stated reason)
@@ -173,22 +159,6 @@ to compare terminal output by hand.
   doesn't come back thin, or the "stopped drinking" story does, the next
   step is sharpening the MEANING DEPTH prompt item's own true/false
   examples, not the UI.
-- **Confirm Association's (and Discovery's) new timeout ceilings against
-  more real data — now also stale because of the model migration below.**
-  A real `npm run diagnose-model` run against the model configured as
-  default at the time (a dated Sonnet 4.5 release, since retired and
-  migrated off — see the "Model migration" entry in this section and in
-  the session log) measured Association at 32310ms (over its
-  then-30000ms budget) and Discovery at 12937ms (under its then-16000ms
-  budget, but only ~3s of margin). Based on that one run, Association's
-  production budget was raised 30000ms → 40000ms and Discovery's
-  16000ms → 20000ms (`engine/src/modelTimeouts.ts`,
-  `docs/timeout-matrix.md`). **This was already one sample per stage, not
-  a confirmed stable ceiling, and it now predates the migration to
-  `claude-sonnet-5` entirely** — a `diagnose-model` run against the new
-  model is needed before treating these numbers as settled, rather than
-  discovering under real traffic that they need
-  raising again.
 - **Association candidate wording — prompt change applied, real-model
   verification still needed from you.** Investigated why memorial/tribute
   object candidates lean on abstract phrasing (e.g. "already carries the
@@ -285,6 +255,56 @@ decision); nothing else newly introduced this session. See
 got to its current, tested state.
 
 ## Session log
+
+### 2026-09-03 — Closed the model-migration timeout open decision: real Sonnet 5 latency measured, budgets left unchanged
+
+Follow-up to the model migration below. You ran `npm run diagnose-model`
+for real against `claude-sonnet-5` with a real `ANTHROPIC_API_KEY` (one
+sample per stage) and reported the numbers back:
+
+| Stage | Sonnet 5 elapsed | Budget | Margin | Throughput |
+|---|---|---|---|---|
+| Discovery | 9553ms | 20000ms | 10.4s | 104.9 tok/sec (2704 in / 1002 out) |
+| Association | 17403ms | 40000ms | 22.6s | 92.7 tok/sec (2834 in / 1613 out) |
+| Blueprint | 18456ms | 30000ms | 11.5s | 86.2 tok/sec (2111 in / 1590 out) |
+
+Recorded these in `docs/timeout-matrix.md`'s "Model migration" section
+alongside the old Sonnet 4.5 figures they replace (Discovery 12937ms,
+Association 32310ms, Blueprint 18718ms at ~40-55 tok/sec) as clearly
+labelled historical context, per this doc's own convention of preserving
+prior measurements rather than overwriting them. Updated
+`engine/src/modelTimeouts.ts`'s comment to match, so the code and the
+docs no longer disagree about whether re-measurement had happened.
+
+**No timeout budget was changed.** Every route now has 10+ seconds of
+margin against its existing ceiling under Sonnet 5 (up from as little as
+~11s under the old model for Blueprint, and dramatically more for
+Association, whose elapsed time nearly halved). Tightening any budget
+would only add spurious-timeout risk for a real-world call that happens
+to run slower than this one sample, for no actual benefit — nothing here
+shows the current numbers causing any problem. This is recorded as a
+deliberate decision, not an oversight: the reasoning is the same
+diminishing-returns logic this document already applies elsewhere (see
+"Revised from real diagnostic data" in `docs/timeout-matrix.md`).
+
+**Closed the open decision** that asked for exactly this measurement (both
+the original 2026-09-01 timeout-ceiling entry and the migration's own
+"budgets are STALE" note) — removed from "Open decisions waiting on you"
+in the current-status section above, since the work they were waiting on
+is now done.
+
+**Caveat carried forward, not resolved:** this is one sample per stage,
+not an average — the same caveat every prior measurement in this document
+carries. It confirms the existing budgets are safe with real headroom
+against Sonnet 5; it does not establish a precise, stable ceiling. If
+real production traffic later shows a stage running close to its budget,
+that's the trigger to gather more samples and revisit, not this one run.
+
+**Verified:** `npm run typecheck`, `npm test` (all suites, unchanged pass
+count — no test asserts a specific elapsed-time number or throughput
+figure), `npm run build`, all pass. No functional code was changed —
+`MODEL_ROUTE_TIMEOUT_DEFAULTS_MS`'s values are untouched; only prose (two
+docs files and one code comment) was updated.
 
 ### 2026-09-03 — Model migration: default model moved to claude-sonnet-5 ahead of the dated Sonnet 4.5 retirement
 

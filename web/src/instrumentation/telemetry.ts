@@ -37,7 +37,11 @@ export type TelemetryEventName =
   /** §4 -- Blueprint copied to the clipboard. */
   | "blueprint_copied"
   /** Sites migration spec §7 -- the Blueprint's print/save-as-PDF path (window.print()) was opened. */
-  | "blueprint_print_opened";
+  | "blueprint_print_opened"
+  /** Meaning-depth gate: Discovery judged the story thin and the inline depth prompt was shown. */
+  | "depth_exercise_shown"
+  /** Meaning-depth gate: the person answered the depth prompt (folded into raw_story, Discovery re-run once) rather than skipping it. */
+  | "depth_exercise_used";
 
 export interface TelemetryEvent {
   name: TelemetryEventName;

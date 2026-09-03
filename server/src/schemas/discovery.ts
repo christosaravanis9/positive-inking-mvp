@@ -33,18 +33,44 @@ Where none exist, say so plainly; this is a legitimate story shape, not a gap.
 visual confidence with low meaning confidence is a complete state, not a
 deficiency, and must not trigger clarification.
 
-7. CLARIFICATION — Ask only when the story lacks enough personal information to
-create meaningful associations, and only when visual confidence is also low.
-Maximum one semantic clarification.
+7. MEANING DEPTH — Judge whether the story itself contains a real person,
+memory, belief, or specific reason, even if abstract -- this is a different
+judgement from item 5's personal-material extraction (a story can name no
+person or object and still be substantive, if the stated reason is specific
+to this person rather than generic). A story is thin only when the stated
+reason is generic enough to swap into any other story unchanged ("something
+meaningful to me", "I just like it") -- not when it's abstract but specific
+("marking the point I stopped drinking" is concrete and specific, even with
+no named person or object; this must set meaning_is_thin false). When thin,
+set meaning_is_thin true and write depth_prompt: one short, warm, direct
+question that invites a real memory, rather than a bigger version of the
+same abstract answer. Register: short, common words a person with no
+special vocabulary or education would use and understand immediately --
+never literary, never clinical, never a form-field restatement of "please
+elaborate" or "can you say more." The question should make the reader
+pause and actually search a memory, not just answer a prompt field. Model
+example, at the exact register to aim for on every story, not only this
+one: "Is there one moment this is really about?" Also write
+depth_prompt_suggestions: 3-5 short words or phrases (one to three words
+each), concrete sparks drawn from the story's own details or plausible
+related associations a person could react to with one tap -- never abstract
+theme words. When the story is not thin, set meaning_is_thin false,
+depth_prompt null, and depth_prompt_suggestions to an empty array.
 
-8. LANGUAGE AND TONE — Grounded language proportional to the user's tone. Do not
+8. CLARIFICATION — Ask only when the story lacks enough personal information to
+create meaningful associations, and only when visual confidence is also low.
+Maximum one semantic clarification. This is separate from item 7 above: a
+thin-but-visually-actionable story (e.g. "I want a rose, roses are pretty")
+must set meaning_is_thin true without also setting clarification_required.
+
+9. LANGUAGE AND TONE — Grounded language proportional to the user's tone. Do not
 invent poetic titles or describe ordinary family meaning as monumental, mythic,
 sacred, heroic or transformative unless the user has done so. Do not diagnose.
 
-9. REFLECTION — Explain what a selection changes about the evolving direction.
+10. REFLECTION — Explain what a selection changes about the evolving direction.
 Do not repeat the answer and ask the user to verify their own selection.
 
-10. OUTPUT — Valid structured data per the Action A schema, via the
+11. OUTPUT — Valid structured data per the Action A schema, via the
 record_discovery tool. Never invent meaning the user did not state or imply.`;
 
 const stringArray = { type: "array", items: { type: "string" } } as const;
@@ -74,6 +100,9 @@ export const discoveryToolInputSchema = {
     suggested_answers: stringArray,
     confidence: { type: "number", minimum: 0, maximum: 1 },
     visual_confidence: { type: "number", minimum: 0, maximum: 1 },
+    meaning_is_thin: { type: "boolean" },
+    depth_prompt: { type: ["string", "null"] },
+    depth_prompt_suggestions: stringArray,
   },
   required: [
     "primary_viewpoint",
@@ -96,6 +125,9 @@ export const discoveryToolInputSchema = {
     "suggested_answers",
     "confidence",
     "visual_confidence",
+    "meaning_is_thin",
+    "depth_prompt",
+    "depth_prompt_suggestions",
   ],
 } as const;
 
@@ -122,6 +154,18 @@ export const discoveryResultSchema = z.object({
   suggested_answers: z.array(z.string()),
   confidence: z.number().min(0).max(1),
   visual_confidence: z.number().min(0).max(1),
+  /**
+   * A separate judgement from `confidence` (the model's confidence in its own reading) --
+   * whether the story ITSELF contains a real person, memory, belief or specific reason, not
+   * whether the model could summarize what's there. Deliberately independent of the existing
+   * clarification_required/confidence gate (item 8 of the prompt): a thin-but-visually-
+   * actionable story sets this true without setting clarification_required, and the two
+   * screens that read them (Story.tsx for this, Clarification.tsx for that) never both fire
+   * for the same submission.
+   */
+  meaning_is_thin: z.boolean(),
+  depth_prompt: z.string().nullable(),
+  depth_prompt_suggestions: z.array(z.string()),
 });
 
 export type DiscoveryModelOutput = z.infer<typeof discoveryResultSchema>;

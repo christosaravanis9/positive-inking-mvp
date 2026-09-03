@@ -23,6 +23,9 @@ export interface DiscoveryData {
   suggested_answers: string[];
   confidence: number;
   visual_confidence: number;
+  meaning_is_thin: boolean;
+  depth_prompt: string | null;
+  depth_prompt_suggestions: string[];
 }
 
 export interface ProvenanceData {

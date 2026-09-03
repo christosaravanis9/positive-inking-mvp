@@ -44,9 +44,13 @@ longer read "None noted" moments before the generated Blueprint's
 Readiness flags an unresolved contradiction, and its "Still needed" row
 is unchanged. The Blueprint document itself now follows the Sites
 migration spec's twelve-section information architecture end to end — see
-"The Sites migration is complete" below. 284 unit tests pass across
-engine/server/web; typecheck and build are clean across all three
-workspaces.
+"The Sites migration is complete" below. **A meaning-depth gate now sits
+on Screen 3 (Story)**: the same Discovery call also judges whether the
+story is substantively thin (a generic, swappable reason) versus
+concrete-but-abstract (a specific reason with no named person/object) --
+see the latest session log entry for the full design and its one open
+real-model verification gap. 293 unit tests pass across engine/server/web;
+typecheck and build are clean across all three workspaces.
 
 **Design:** a new "studio ledger" visual direction (warm parchment
 background, serif headline, ember-accented selection/marginalia, no card
@@ -106,6 +110,26 @@ to compare terminal output by hand.
 **In progress:** nothing actively mid-change right now.
 
 **Open decisions waiting on you:**
+- **Meaning-depth gate prompt wording — real-model verification still
+  needed from you.** The new Discovery prompt item (§ MEANING DEPTH) asks
+  the model to classify a story as thin only when the stated reason is
+  generic/swappable, not when it's abstract-but-specific -- calibrated
+  against exactly the two example stories you gave ("I want a rose, roses
+  are pretty" vs. "marking the point I stopped drinking"). **This sandbox
+  has no `ANTHROPIC_API_KEY` configured**, the same limitation noted for
+  the Association prompt change below, so this could only be verified
+  mechanically: a fake-model double, driven by an explicit `__TEST_THIN__`
+  marker (the same convention `__TEST_DELAY_N__`/`__TEST_FAIL__` already
+  use), proved the app correctly branches, shows the register-matched
+  prompt, never blocks Continue, and re-runs Discovery at most once --
+  it did not and could not prove the real model draws the true/false line
+  where the prompt asks it to for either of your two example stories.
+  **Run `npm run diagnose-model` (or the app itself) with a real key
+  against both stories to confirm `meaning_is_thin` lands correctly on
+  each before treating the prompt wording as settled** — if the rose story
+  doesn't come back thin, or the "stopped drinking" story does, the next
+  step is sharpening the MEANING DEPTH prompt item's own true/false
+  examples, not the UI.
 - **Confirm Association's (and Discovery's) new timeout ceilings against
   more real data.** A real `npm run diagnose-model` run against
   `claude-sonnet-4-5-20250929` measured Association at 32310ms (over its
@@ -226,6 +250,94 @@ decision); nothing else newly introduced this session. See
 got to its current, tested state.
 
 ## Session log
+
+### 2026-09-03 — Added a meaning-depth gate to Screen 3 (Story), after a proposal-first investigation
+New feature, not part of the Sites migration. Investigated and proposed
+before building, per instruction: where the gate could sit without
+disrupting the existing async/staleness invariants, whether "substantively
+thin" could be judged as part of the existing Discovery call rather than a
+second one, and which of several candidate exercises (5 Whys, word
+association, memory anchor, contrast prompt) fit this product. Proposal
+was reviewed and approved with specific choices before any code was
+written: schema extension on the existing Discovery call, a single
+memory-anchor-style question with tappable chips, an interstitial on
+Story.tsx (not a new screen), single round only, register calibrated to
+plain, direct language that still provokes real thought.
+
+**Key finding from the investigation:** a near-identical mechanism already
+exists for a different purpose. The existing Clarification screen only
+fires when visual confidence is *also* low, and Discovery's own prompt
+already states "high visual confidence with low meaning confidence is a
+complete state, not a deficiency, and must not trigger clarification." A
+story like "I want a rose, roses are pretty" is exactly this case --
+visually actionable, meaning-thin -- and the existing system deliberately
+lets it through untouched. The new gate fills that specific, previously
+open gap; it doesn't duplicate Clarification, and the two are mutually
+exclusive by construction of the model's own rules (confirmed by a new
+schema test).
+
+**Detection — one call, not two, as preferred:** `discoveryResultSchema`/
+`discoveryToolInputSchema` (`server/src/schemas/discovery.ts`) gained
+`meaning_is_thin: boolean`, `depth_prompt: string | null`,
+`depth_prompt_suggestions: string[]`. A new prompt item (MEANING DEPTH)
+draws the true/false line explicitly: thin only when the stated reason is
+generic enough to swap into any other story unchanged ("something
+meaningful to me"), never when it's abstract but specific to this person
+("marking the point I stopped drinking" -- no named person or object, but
+concrete and specific, must classify false). The register instruction is
+written as a standing rule, not a one-off example: short, common words,
+never literary or clinical, never a "please elaborate" restatement, aimed
+at making the reader actually search a memory -- with "Is there one moment
+this is really about?" given as the target register for every story, not
+only the example case.
+
+**Placement — Story.tsx, not a new screen:** implemented entirely as local
+component state (`pendingResult`/`depthAnswer`). A thin result isn't
+applied to project/ui state immediately; the depth prompt renders inline
+in its place, with "Share it" (folds the reply into raw_story, re-runs
+Discovery once -- the same append-and-rerun pattern Clarification.tsx
+already uses) and "Continue" (applies the already-fetched result exactly
+as-is, at zero extra network cost, never disabled). Deliberately not built
+into MeaningReflection.tsx, even though its existing `isLowConfidence`
+framing looked like a natural fit: a Discovery re-run there could change
+`discoveryThemeOptions` under a user already mid-selecting themes. Keeping
+it on Story means MeaningReflection only ever renders one final, settled
+result -- it required zero changes. This placement also meant **zero
+changes to `engine/screenFlow.ts` or `deriveProgress.ts`** -- the screen ID
+never changes, so the existing `clarificationRequired` state machine can't
+interact with it.
+
+**A real bug caught while writing the component test, not assumed
+correct:** `pendingResult` was never cleared after applying the result via
+either skip or the answered path, which would have left the inline prompt
+rendered indefinitely instead of reflecting the settled state. Fixed
+(`setPendingResult(null)` in both `skipDepthExercise` and
+`answerDepthExercise`); the test that caught it
+(`web/src/screens/Story.test.tsx`) is now a permanent regression guard.
+
+**Verified:** `npm run typecheck`, `npm test` (293 tests -- 9 new in
+`server/test/discoveryRoute.test.ts` covering schema pass-through, a
+missing-field rejection, and the independence-from-clarification_required
+case; 5 new in `web/src/screens/Story.test.tsx` covering both branches,
+the never-disabled skip button, the max-one-round guarantee, and chip-tap
+behavior), and `npm run build` all pass. Live-rendered both of the
+example stories through a real server/Vite/fake-Anthropic stack: "I want a
+rose, roses are pretty" showed the register-matched interstitial with
+tappable chips and reached MeaningReflection normally after skip; "marking
+the point I stopped drinking" skipped the prompt entirely; the answered
+path was also verified (chip tap → editable → "Share it" → exactly two
+Discovery calls confirmed via server logs → advanced normally).
+Screenshots reviewed directly.
+
+**Real-model verification still needed from you — see "Open decisions"
+above.** This sandbox has no `ANTHROPIC_API_KEY`, so the two example
+stories were driven through the fake model double via an explicit
+`__TEST_THIN__` marker (mirroring the existing `__TEST_DELAY_N__`/
+`__TEST_FAIL__` convention) to force each branch deterministically. This
+proves the app's plumbing -- detection wiring, single-call cost, the
+skip-never-blocks guarantee, the single-round limit -- is correct. It does
+not and cannot prove the real model draws the true/false line where the
+new prompt item asks it to for either story.
 
 ### 2026-09-03 — Restructured the Blueprint to the Sites migration spec's twelve-section architecture — migration COMPLETE
 Fifth and final piece of the Sites migration (after tokens, Readiness, the

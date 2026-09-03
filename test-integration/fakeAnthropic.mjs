@@ -21,6 +21,16 @@ const port = Number(process.argv[2] || 0);
 
 function discoveryInput(rawStoryText) {
   const cleanText = rawStoryText.replace(/__TEST_[A-Z_0-9]+__/g, "").trim();
+  // __TEST_THIN__/__TEST_NOT_THIN__ control the new meaning-depth judgement
+  // the same way __TEST_DELAY_N__/__TEST_FAIL__ already control latency/
+  // failure -- a marker embedded in the story text itself, stripped from
+  // every displayed field by the regex above. This fake double cannot
+  // reproduce the real model's actual judgement of a story's meaning depth
+  // (there is no ANTHROPIC_API_KEY in this sandbox to check that against);
+  // it only proves the app correctly branches on whichever value the
+  // Discovery response carries -- see docs/PROJECT_STATUS.md's open
+  // decisions for the real-model verification this still needs.
+  const meaningIsThin = rawStoryText.includes("__TEST_THIN__");
   return {
     primary_viewpoint: "past",
     secondary_viewpoints: [],
@@ -49,6 +59,9 @@ function discoveryInput(rawStoryText) {
     suggested_answers: [],
     confidence: 0.8,
     visual_confidence: 0.8,
+    meaning_is_thin: meaningIsThin,
+    depth_prompt: meaningIsThin ? "Is there one moment this is really about?" : null,
+    depth_prompt_suggestions: meaningIsThin ? ["a person", "a place", "a change", "a promise", "a loss"] : [],
   };
 }
 

@@ -33,12 +33,21 @@ export function Clarification() {
     if (!declined && responseText.trim().length === 0) return;
 
     void run(async (guard) => {
+      // Two different texts, deliberately kept separate -- see the identical split in
+      // Story.tsx's answerDepthExercise for the live-test regression this class of bug
+      // caused there (the scaffold text leaking into the "What we've understood" panel's
+      // Story field, which reads raw_story directly, as do Working Notes and the
+      // Association Engine's own summary input). raw_story must stay natural language the
+      // person could have written themselves; the "Clarifying detail (in response to:
+      // ...)" scaffold exists only to give Discovery the question context, never for
+      // client-facing display.
+      const cleanCombined = `${originalStory}\n\n${responseText}`;
+      const modelInput = `${originalStory}\n\nClarifying detail (in response to: "${state.ui.clarificationQuestion}"): ${responseText}`;
       // §16.1: persisted before the network call, so a failure never loses it.
-      const combined = `${originalStory}\n\nClarifying detail (in response to: "${state.ui.clarificationQuestion}"): ${responseText}`;
-      patchProject({ raw_story: combined });
+      patchProject({ raw_story: cleanCombined });
 
       // Re-run Discovery with the clarification folded in, per §9.4 "Re-run Discovery analysis afterward."
-      const result = await requestDiscovery(combined, state.project.user_viewpoint ?? undefined);
+      const result = await requestDiscovery(modelInput, state.project.user_viewpoint ?? undefined);
       if (guard.isStale()) return;
 
       // §9.2's Discovery schema has no field marking whether a free-text answer actually

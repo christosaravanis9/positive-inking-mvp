@@ -528,7 +528,16 @@ export function ElementsDiscovery() {
       </div>
       <h2 className="ledger-headline">Let us find what could represent it.</h2>
       <AsyncError onRetry={fetchAssociations} />
-      {fetching && <p className="progress-note">Finding personal and visual directions...</p>}
+      {fetching && (
+        <p className="progress-note ledger-loading">
+          Finding personal and visual directions...
+          <span className="ledger-loading-dots" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+          </span>
+        </p>
+      )}
       {hasCandidates && (
         <div className="ledger-list">
           {visibleCandidateIndices.map((i) => {

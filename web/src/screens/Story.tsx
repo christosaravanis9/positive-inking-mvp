@@ -98,11 +98,20 @@ export function Story() {
   function answerDepthExercise() {
     if (!pendingResult || depthAnswer.trim().length === 0) return;
     void run(async (guard) => {
-      const combined = `${text}\n\nWhat it's really about (in response to: "${pendingResult.depth_prompt}"): ${depthAnswer}`;
-      patchProject({ raw_story: combined, story_transcript: combined });
+      // Two different texts, deliberately kept separate: raw_story/story_transcript are
+      // client-facing (the "What we've understood" panel, Working Notes, the Association
+      // Engine's own summary input all read raw_story directly) and must stay natural
+      // language the person could have written themselves -- never the internal
+      // "in response to: ..." scaffold, which exists only to give Discovery the question
+      // context it needs to interpret the answer correctly. Live-test regression: that
+      // scaffold text was previously stored in raw_story itself and leaked verbatim into
+      // the understood panel's Story field.
+      const cleanCombined = `${text}\n\n${depthAnswer}`;
+      const modelInput = `${text}\n\nWhat it's really about (in response to: "${pendingResult.depth_prompt}"): ${depthAnswer}`;
+      patchProject({ raw_story: cleanCombined, story_transcript: cleanCombined });
       logTelemetryEvent("depth_exercise_used", state.project.project_id, {});
 
-      const result = await requestDiscovery(combined, state.project.user_viewpoint ?? undefined);
+      const result = await requestDiscovery(modelInput, state.project.user_viewpoint ?? undefined);
       if (guard.isStale()) return;
       // Max one round: whatever comes back now is applied directly, even if
       // still thin -- mirrors Clarification's own "maximum one" discipline.

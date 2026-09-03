@@ -5,6 +5,7 @@ import { createInitialJourneyState } from "../journey/state";
 import { savePersistedState } from "../journey/persistence";
 import type { DiscoveryData } from "../api/types";
 import { Story } from "./Story";
+import { UnderstandingPanel } from "../components/UnderstandingPanel";
 
 /**
  * Meaning-depth gate (approved proposal): Story.tsx holds a thin Discovery result in local
@@ -167,5 +168,42 @@ describe("Story -- meaning-depth gate", () => {
 
     fireEvent.click(screen.getByText("a person"));
     expect((screen.getByPlaceholderText("Or say it in your own words") as HTMLInputElement).value).toBe("a person");
+  });
+
+  /**
+   * Live-test regression: after a "Share it" round, the "What we've understood" panel's
+   * Story field showed the raw internal re-prompt/composition text ("...What it's really
+   * about (in response to: "Is there one moment...") used only to feed the re-run Discovery
+   * call, not a clean summary of what the person actually said. Root cause: raw_story itself
+   * was being set to that scaffolded text (Story.tsx's answerDepthExercise patched raw_story
+   * with the same string sent to requestDiscovery). Same category of bug as the raw-enum
+   * leaks fixed earlier -- internal composition text must never double as client-facing
+   * display text. Rendered alongside UnderstandingPanel, exactly as Journey.tsx composes them
+   * for real, so this asserts on what a viewer would actually see.
+   */
+  it("the understood panel's Story field shows clean natural text after a depth-exercise 'Share it' round, never the internal re-prompt scaffold", async () => {
+    vi.mocked(requestDiscovery).mockResolvedValue(thinResult());
+    seedStoryState();
+    render(
+      <JourneyProvider>
+        <Story />
+        <UnderstandingPanel variant="rail" />
+      </JourneyProvider>,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText("Start wherever the story begins…"), { target: { value: "I want a rose, roses are pretty" } });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await waitFor(() => screen.getByText("Is there one moment this is really about?"));
+
+    fireEvent.change(screen.getByPlaceholderText("Or say it in your own words"), { target: { value: "It reminds me of my grandmother's garden." } });
+    fireEvent.click(screen.getByRole("button", { name: "Share it" }));
+    await waitFor(() => expect(requestDiscovery).toHaveBeenCalledTimes(2));
+
+    const storyValue = screen.getByText("Story").nextElementSibling!.textContent!;
+    expect(storyValue).toContain("I want a rose, roses are pretty");
+    expect(storyValue).toContain("It reminds me of my grandmother's garden.");
+    // The exact internal scaffold text must never reach the panel.
+    expect(storyValue).not.toContain("What it's really about");
+    expect(storyValue).not.toContain('in response to: "Is there one moment this is really about?"');
   });
 });

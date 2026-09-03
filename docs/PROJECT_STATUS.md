@@ -49,7 +49,11 @@ on Screen 3 (Story)**: the same Discovery call also judges whether the
 story is substantively thin (a generic, swappable reason) versus
 concrete-but-abstract (a specific reason with no named person/object) --
 see the latest session log entry for the full design and its one open
-real-model verification gap. 293 unit tests pass across engine/server/web;
+real-model verification gap. A live-test pass the same night found and
+fixed a real raw-internal-text leak in the depth-exercise's "Share it"
+path (the same class of bug fixed multiple times this session) and added
+a visible loading animation to Screen 7's Association wait -- see the
+latest session log entry. 294 unit tests pass across engine/server/web;
 typecheck and build are clean across all three workspaces.
 
 **Design:** a new "studio ledger" visual direction (warm parchment
@@ -250,6 +254,81 @@ decision); nothing else newly introduced this session. See
 got to its current, tested state.
 
 ## Session log
+
+### 2026-09-03 — Three live-test findings from the same night: a real raw-text leak fixed, Screen 7's wait made visible, one false-alarm investigated and cleared
+Follow-up to the meaning-depth gate work earlier the same session. Three
+items reported from live testing: two real, fixed; one investigated and
+confirmed not to be a bug.
+
+**1. Fixed — raw internal re-prompt text leaking into the "What we've
+understood" panel's Story field.** After a depth-exercise "Share it"
+round, the panel showed `I want a rose, roses are pretty What it's really
+about (in response to: "Is there one moment this is rea...` -- the exact
+internal scaffold text `Story.tsx`'s `answerDepthExercise` sends to
+Discovery to give it question context, which was also being written
+straight into `raw_story` itself. `raw_story`/`story_transcript` are read
+directly by the understood panel, Working Notes, and the Association
+Engine's own summary input -- none of them want the scaffold, all of them
+got it. Root cause and fix: `raw_story` and the text sent to
+`requestDiscovery()` were the same string; now built as two deliberately
+separate strings -- `cleanCombined` (natural language: the original story
+plus the reply, nothing else) stored in `raw_story`, and `modelInput`
+(with the "in response to" scaffold) passed only to the model call. Same
+fix applied to the identical pre-existing pattern in `Clarification.tsx`
+(`submit()`), found while fixing this one -- it had the same two-purposed
+string, just never reported because that path is used less. Same category
+of bug as the raw-enum leaks fixed earlier this session: internal
+composition/plumbing text must never double as client-facing display
+text.
+
+**2. Fixed — Screen 7's loading state had no visible activity.** Real
+Association latency is 20-40s+ (`docs/timeout-matrix.md`); the existing
+"Finding personal and visual directions..." text alone gave no sign
+anything was happening, reading as stalled. Added three small pulsing
+dots (`.ledger-loading-dots`, new CSS in `styles.css`) next to the
+existing text, using the "studio ledger" token colors (`--ledger-red`),
+with a `prefers-reduced-motion` fallback. This is the small, immediate
+fix explicitly scoped separately from the larger, still-queued
+placement-preference "productive waiting" MVP -- not a replacement for
+it.
+
+**3. Investigated, not fixed — "Composition settled" reported as a
+possible hang.** Traced to `CompositionBackground.tsx`'s
+`!flow.nextToAsk` fallback branch (`<p>Composition settled. Moving
+on...</p>`) -- structurally identical to `ArtisticDirection.tsx`'s own
+`!result.nextToAsk` branch (`Artistic direction settled. Moving on...`),
+which an earlier investigation the same night already found to be a
+discoverability false alarm, not a hang. Reasoned through the mechanism
+before reproducing: `answer()` dispatches `patchProject` and `patchUI`
+(the latter setting `compositionFlowDone: true`) synchronously in the same
+handler; React 18's `createRoot` (confirmed in `main.tsx`) batches both
+into one render, so by the time `flow.nextToAsk` is null,
+`compositionFlowDone` is already true in that same render -- `Journey.tsx`
+picks the next screen before this fallback JSX is ever painted. **Live-
+reproduced to confirm, not just reasoned about**: a full journey
+walkthrough through the composition flow, polling the rendered heading
+every 80ms and logging every transition plus how long each screen was
+visible. "Composition settled" was never observed on screen across the
+full walkthrough (headings seen: "How should this come together?" for
+111ms, "Should the tattoo itself include a background?" for 137ms,
+straight through to Style reference). **Conclusion: not a genuine hang --
+the same category of false alarm as the artistic-direction case, and
+structurally can't be one, given React 18's automatic batching.** No code
+changed for this item. If a real stall is ever caught with a screenshot at
+the actual moment it happens, that would be a genuine new finding worth
+reopening -- this investigation only rules out the code path named
+"Composition settled" itself.
+
+**Verified:** `npm run typecheck`, `npm test` (294 tests -- 1 new
+regression test in `Story.test.tsx` rendering `Story` and
+`UnderstandingPanel` together exactly as `Journey.tsx` composes them,
+asserting the panel's Story field contains the natural combined text and
+never the internal scaffold), and `npm run build` all pass. Live-verified
+all three: the exact "rose" + depth-exercise scenario from the report,
+confirming the panel's Story field is now clean; Screen 7's loading state
+with the Association call artificially delayed, confirming the pulsing
+dots render and are visible; and the composition-flow poll for item 3.
+Screenshots reviewed directly.
 
 ### 2026-09-03 — Added a meaning-depth gate to Screen 3 (Story), after a proposal-first investigation
 New feature, not part of the Sites migration. Investigated and proposed

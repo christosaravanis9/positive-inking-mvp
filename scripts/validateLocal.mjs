@@ -105,7 +105,7 @@ async function runEnvironmentSection() {
   const apiKeyPresent = Boolean(envVars?.ANTHROPIC_API_KEY?.trim());
   record("ANTHROPIC_API_KEY present", apiKeyPresent ? "PASS" : "BLOCKED", apiKeyPresent ? "value not printed" : "not set -- live API diagnostics will be skipped");
 
-  const model = envVars?.ANTHROPIC_MODEL?.trim() || "claude-sonnet-4-5-20250929 (default)";
+  const model = envVars?.ANTHROPIC_MODEL?.trim() || "claude-sonnet-5 (default)";
   record("Configured model", "PASS", model);
 
   let timeoutMatrixDetail = "engine build required to read defaults";

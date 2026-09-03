@@ -49,11 +49,21 @@ export const MODEL_ROUTES: readonly ModelRoute[] = [
  *
  * discovery (16000 -> 20000) and association (30000 -> 40000) were raised
  * from their original values after a real `npm run diagnose-model` run
- * against claude-sonnet-4-5-20250929 measured association at 32310ms
- * (already over its 30000ms budget) and discovery at 12937ms (under
- * budget, but only ~3s of margin against 16000ms) -- see
- * docs/timeout-matrix.md for the full run data and the explicit caveat
- * that this is one sample, not a confirmed stable ceiling yet.
+ * against the model then configured as default (a dated Sonnet 4.5
+ * release, since retired) measured association at 32310ms (already over
+ * its 30000ms budget) and discovery at 12937ms (under budget, but only
+ * ~3s of margin against 16000ms) -- see docs/timeout-matrix.md for the
+ * full run data and the explicit caveat that this is one sample, not a
+ * confirmed stable ceiling yet.
+ *
+ * IMPORTANT (2026-09-03 migration): the default model
+ * (server/src/env.ts's anthropicModel) has since moved to claude-sonnet-5.
+ * Every number below was measured against that now-retired dated Sonnet
+ * 4.5 release and has NOT been re-measured against claude-sonnet-5, which
+ * may have different latency characteristics. These budgets are
+ * unchanged pending a real `npm run diagnose-model` run against the new
+ * model -- see docs/timeout-matrix.md and docs/PROJECT_STATUS.md's open
+ * decisions.
  */
 export const MODEL_ROUTE_TIMEOUT_DEFAULTS_MS: Record<ModelRoute, number> = {
   provenance: 10000,

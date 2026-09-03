@@ -36,7 +36,7 @@ function readModelTimeouts(): Record<ModelRoute, number> {
 export const env = {
   port: Number(process.env.PORT ?? 8787),
   anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? "",
-  anthropicModel: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-5-20250929",
+  anthropicModel: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5",
   modelTimeouts: readModelTimeouts(),
   // Overridable so integration tests can point this at a local double instead
   // of the real Anthropic endpoint -- never used to redirect real traffic.

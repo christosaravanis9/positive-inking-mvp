@@ -188,9 +188,12 @@ test` and `npm run validate:local` both return to the shell under a hard
 - The two-command local workflow (`npm run dev`, `npm run validate:local`)
   is in place and proven on a clean start.
 - **Open, requires your decision:** Association's real-world latency
-  against the actually-configured model (`claude-sonnet-4-5-20250929` per
-  `server/.env`, unless changed) still needs measuring with a real API
-  key — `npm run validate:local`'s live-diagnostics section (or
+  against the actually-configured model (`claude-sonnet-5` per
+  `server/.env`, unless changed — this was a dated Sonnet 4.5 release at
+  the time this entry was written, since retired and migrated off; see
+  `docs/PROJECT_STATUS.md`'s "Model migration" session-log entry) still
+  needs measuring with a real API key —
+  `npm run validate:local`'s live-diagnostics section (or
   standalone `npm run diagnose-model`) is what answers that. Once you have
   a real number, the fix (raise the ceiling further / a faster model for
   interactive stages / trim the Association schema / streaming / split the

@@ -151,9 +151,11 @@ observed cause rather than the assumed one.
 
 ## Revised from real diagnostic data (one run so far)
 
-`npm run diagnose-model` was run for real against `claude-sonnet-4-5-20250929`.
-Measured elapsed time per stage, against the budgets that were in effect
-at the time:
+`npm run diagnose-model` was run for real against the model configured as
+default at the time (a dated Sonnet 4.5 release, retired 2026-09-29 and
+since migrated off -- see the "Model migration" entry below). Measured
+elapsed time per stage, against the budgets that were in effect at the
+time:
 
 | Stage | Elapsed | Budget at the time | Result |
 |---|---|---|---|
@@ -215,3 +217,28 @@ automatically, with no separate edit required.
   because it's exactly requirement 8's "a timeout leaves current
   screen/user input untouched" and "stale responses still cannot mutate
   state" checks.
+
+## Model migration (2026-09-03): budgets are STALE, pending re-measurement
+
+The default model (`server/src/env.ts`'s `anthropicModel`, `ANTHROPIC_MODEL`
+in `.env.example`) was migrated from a dated Sonnet 4.5 release (retiring
+2026-09-29) to `claude-sonnet-5`, ahead of the retirement deadline. Every
+budget in this document and in `engine/src/modelTimeouts.ts` was measured
+against the old, now-retired model, per the "Revised from real diagnostic
+data" section above -- none of it has been re-measured against
+`claude-sonnet-5`, which may have different latency characteristics in
+either direction.
+
+**No budget was changed as part of this migration** -- changing timeout
+numbers without a real measurement to justify them would be exactly the
+kind of guess this document's own methodology exists to avoid (see
+"Revised from real diagnostic data" above: even the last real change was
+treated as "one sample, not a confirmed final ceiling").
+
+**Open decision, waiting on a real `ANTHROPIC_API_KEY`:** run
+`npm run diagnose-model` against `claude-sonnet-5` (this sandbox has no
+API key configured, so it cannot be run here) and compare the new elapsed
+times against the budgets above. If any stage comes back over budget, or
+with materially less margin than before, raise that stage's ceiling using
+the same reasoning this document already uses elsewhere -- do not guess
+new numbers without that data.

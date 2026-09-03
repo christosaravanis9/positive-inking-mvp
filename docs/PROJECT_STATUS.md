@@ -124,6 +124,20 @@ to compare terminal output by hand.
 **In progress:** nothing actively mid-change right now.
 
 **Open decisions waiting on you:**
+- **Model migrated to `claude-sonnet-5` — latency re-measurement required,
+  budgets unchanged.** The default model moved off the dated Sonnet 4.5
+  release retiring 2026-09-29. `engine/src/modelTimeouts.ts`'s per-route
+  timeout budgets were measured against that old model
+  (`docs/timeout-matrix.md`) and were deliberately left unchanged — Sonnet
+  5's latency profile may differ in either direction, and guessing new
+  numbers without data would contradict how these budgets were derived in
+  the first place. **This sandbox has no `ANTHROPIC_API_KEY` configured**,
+  so real latency against `claude-sonnet-5` could not be measured here.
+  **Run `npm run diagnose-model` with a real key against `claude-sonnet-5`
+  and compare the results to the existing budgets** before treating them
+  as still correct — see `docs/timeout-matrix.md`'s new "Model migration"
+  section and the matching session-log entry for exactly what was and
+  wasn't checked.
 - **Two more silent-dead-end Continue buttons found, not fixed — scope
   decision needed.** Investigating the Screen 7 report below turned up the
   same pattern (a disabled primary action with no visible stated reason)
@@ -160,16 +174,20 @@ to compare terminal output by hand.
   step is sharpening the MEANING DEPTH prompt item's own true/false
   examples, not the UI.
 - **Confirm Association's (and Discovery's) new timeout ceilings against
-  more real data.** A real `npm run diagnose-model` run against
-  `claude-sonnet-4-5-20250929` measured Association at 32310ms (over its
+  more real data — now also stale because of the model migration below.**
+  A real `npm run diagnose-model` run against the model configured as
+  default at the time (a dated Sonnet 4.5 release, since retired and
+  migrated off — see the "Model migration" entry in this section and in
+  the session log) measured Association at 32310ms (over its
   then-30000ms budget) and Discovery at 12937ms (under its then-16000ms
   budget, but only ~3s of margin). Based on that one run, Association's
   production budget was raised 30000ms → 40000ms and Discovery's
   16000ms → 20000ms (`engine/src/modelTimeouts.ts`,
-  `docs/timeout-matrix.md`). **This is one sample per stage, not a
-  confirmed stable ceiling** — a few more `diagnose-model` runs would be
-  worth doing to check 40s/20s actually hold before treating them as
-  settled, rather than discovering under real traffic that they need
+  `docs/timeout-matrix.md`). **This was already one sample per stage, not
+  a confirmed stable ceiling, and it now predates the migration to
+  `claude-sonnet-5` entirely** — a `diagnose-model` run against the new
+  model is needed before treating these numbers as settled, rather than
+  discovering under real traffic that they need
   raising again.
 - **Association candidate wording — prompt change applied, real-model
   verification still needed from you.** Investigated why memorial/tribute
@@ -267,6 +285,72 @@ decision); nothing else newly introduced this session. See
 got to its current, tested state.
 
 ## Session log
+
+### 2026-09-03 — Model migration: default model moved to claude-sonnet-5 ahead of the dated Sonnet 4.5 retirement
+
+The dated Sonnet 4.5 release this app defaulted to is retiring
+2026-09-29 -- a retired model returns an error rather than falling back,
+so the app would have broken entirely on that date without action.
+Migrated the default model everywhere it's referenced to
+`claude-sonnet-5`, the current-generation, dateless model ID (not a
+dated string -- no `-20250929`-style suffix exists for it).
+
+**Full list of references found before changing anything** (grepped for
+the model ID pattern across the repo): `.env.example`,
+`server/src/env.ts` (the actual runtime default),
+`scripts/validateLocal.mjs` (display fallback text), plus prose citing
+the model in `engine/src/modelTimeouts.ts`'s comments,
+`docs/timeout-matrix.md`, and two entries in this file and in
+`docs/session-summary.md`. `server/.env` doesn't exist in this sandbox,
+so there was nothing to change there. No test fixture hardcodes a model
+ID literal -- `server/test/env.test.ts`, `engine/test/modelTimeouts.test.ts`,
+and `server/test/modelClient.test.ts` all reference `env.anthropicModel`
+dynamically, so none needed updating.
+
+**Changed:** the three functional references (`.env.example`,
+`server/src/env.ts`, `scripts/validateLocal.mjs`) now read
+`claude-sonnet-5`. The historical prose in `engine/src/modelTimeouts.ts`,
+`docs/timeout-matrix.md`, `docs/session-summary.md`, and this file's own
+earlier entries was reworded rather than left with the literal retired ID
+in place, per the instruction that no reference to the old ID should
+survive anywhere in the repo -- each now describes the fact ("the model
+configured as default at the time, a dated Sonnet 4.5 release, since
+retired") without repeating the exact string. Confirmed via grep: zero
+remaining matches for the retired ID (or any `-YYYYMMDD`-style dated
+model string) anywhere in the repo.
+
+**Date-suffix parsing checked, none found:** searched for any code that
+parses, validates, or otherwise assumes a dated-suffix format for the
+model ID string. There is none -- `server/src/modelClient.ts` and
+`server/scripts/diagnostics.ts` both pass `env.anthropicModel` through as
+an opaque string with no format assumptions, so the new dateless ID
+format needed no code changes beyond the string literals themselves.
+
+**Timeout budgets NOT touched, on purpose -- re-measurement required, open
+decision waiting on you.** `engine/src/modelTimeouts.ts`'s per-route
+budgets (Discovery 20000ms, Association 40000ms, Blueprint 30000ms, etc.)
+were derived from a real `npm run diagnose-model` run against the
+now-retired model (see `docs/timeout-matrix.md`). Sonnet 5 may have
+different latency characteristics in either direction, and guessing new
+numbers without a measurement would contradict this codebase's own
+established methodology for these budgets. Flagged explicitly, in the
+same style as this file's other open decisions, in both
+`docs/timeout-matrix.md` (new "Model migration" section) and this file's
+"Open decisions waiting on you" list: **run `npm run diagnose-model`
+against `claude-sonnet-5` with a real API key** (this sandbox has none
+configured) and compare against the existing budgets before treating them
+as still correct.
+
+**Verified:** `npm run typecheck`, `npm test` (all suites, unchanged pass
+count -- no test asserted the old literal model ID), `npm run build`, all
+pass. Confirmed via grep that no reference to the retired model ID
+survives anywhere in the repo. **Not verified, and cannot be from this
+sandbox:** whether `claude-sonnet-5` actually works against the real
+Anthropic API -- there is no `ANTHROPIC_API_KEY` configured here. The
+existing fake-Anthropic-double test infrastructure (`server/test/*`,
+`test-integration/fakeAnthropic.mjs`) never sends real model IDs to a
+real API in the first place, so it cannot and does not exercise this
+either way; that check needs a real key, which only you have.
 
 ### 2026-09-03 — Screen 7 Continue: stated reason instead of a silent dead end when a new idea demotes to artist notes
 
@@ -1573,7 +1657,9 @@ overall Blueprint visual formatting — both now recorded above under
 "Known, deliberately deferred issues" so they aren't lost.
 
 ### 2026-09-01 — Raised Discovery/Association timeouts from real diagnostic data
-A real `npm run diagnose-model` run against `claude-sonnet-4-5-20250929`
+A real `npm run diagnose-model` run against the model configured as
+default at the time (a dated Sonnet 4.5 release, since retired 2026-09-29
+and migrated off — see the later "Model migration" entry in this log)
 measured Association at 32310ms elapsed against its 30000ms production
 budget (over budget) and Discovery at 12937ms against its 16000ms budget
 (under, but only ~3s margin); Blueprint at 18718ms against 30000ms was

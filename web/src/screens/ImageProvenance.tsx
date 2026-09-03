@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useJourney } from "../journey/JourneyProvider";
 import { useAsyncAction } from "../journey/useAsyncAction";
 import { requestProvenance } from "../api/provenance";
 import { requestDiscovery } from "../api/discovery";
 import { AsyncError } from "../components/AsyncError";
 import { OptionChips } from "../components/OptionChips";
-import { VoiceInputButton } from "../components/VoiceInput";
+import { VoiceInputButton, type VoiceInputHandle } from "../components/VoiceInput";
 import { logTelemetryEvent } from "../instrumentation/telemetry";
 import type { DiscoveryData } from "../api/types";
 import type { ProvenanceResult } from "@positive-inking/engine";
@@ -32,6 +32,8 @@ export function ImageProvenance() {
   const [themesToConfirm, setThemesToConfirm] = useState<string[] | null>(null);
   const [selectedThemes, setSelectedThemes] = useState<string[]>([]);
   const [discoveryResult, setDiscoveryResult] = useState<DiscoveryData | null>(null);
+  const voiceRef = useRef<VoiceInputHandle>(null);
+  const elaborationVoiceRef = useRef<VoiceInputHandle>(null);
 
   function alwaysLiked() {
     // §8: "I've just always liked it" is a complete answer. No model call, ends provenance questioning permanently -- nothing to re-enter.
@@ -48,6 +50,7 @@ export function ImageProvenance() {
 
   function submit() {
     if (text.trim().length === 0) return;
+    voiceRef.current?.stop();
     void runProvenance(async (guard) => {
       const result = await requestProvenance(text);
       if (guard.isStale()) return;
@@ -83,6 +86,7 @@ export function ImageProvenance() {
 
   function submitElaboration() {
     if (elaborationText.trim().length === 0) return;
+    elaborationVoiceRef.current?.stop();
     void runElaboration(async (guard) => {
       const discovery = await requestDiscovery(elaborationText, state.project.user_viewpoint ?? undefined);
       if (guard.isStale()) return;
@@ -141,7 +145,7 @@ export function ImageProvenance() {
       <div className="screen">
         <h2>Tell me more about {reentrySubject}</h2>
         <textarea value={elaborationText} onChange={(e) => setElaborationText(e.target.value)} />
-        <VoiceInputButton onTranscript={(t) => setElaborationText((prev) => (prev.trim() ? `${prev.trim()} ${t}` : t))} />
+        <VoiceInputButton ref={elaborationVoiceRef} value={elaborationText} onChange={setElaborationText} />
         <AsyncError onRetry={submitElaboration} />
         {elaborationPending && <p className="progress-note">Making sense of what you added...</p>}
         <button onClick={submitElaboration} disabled={elaborationText.trim().length === 0 || elaborationPending}>
@@ -173,7 +177,7 @@ export function ImageProvenance() {
         connected to anyone?
       </p>
       <textarea value={text} onChange={(e) => setText(e.target.value)} />
-      <VoiceInputButton onTranscript={(t) => setText((prev) => (prev.trim() ? `${prev.trim()} ${t}` : t))} />
+      <VoiceInputButton ref={voiceRef} value={text} onChange={setText} />
       <AsyncError onRetry={submit} />
       {provenancePending && <p className="progress-note">Recording where this comes from...</p>}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

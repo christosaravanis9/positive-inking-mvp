@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useJourney } from "../journey/JourneyProvider";
 import { useAsyncAction } from "../journey/useAsyncAction";
 import { requestDiscovery } from "../api/discovery";
 import { AsyncError } from "../components/AsyncError";
-import { VoiceInputButton } from "../components/VoiceInput";
+import { VoiceInputButton, type VoiceInputHandle } from "../components/VoiceInput";
 import { OptionChips } from "../components/OptionChips";
 import { logTelemetryEvent } from "../instrumentation/telemetry";
 import type { DiscoveryData } from "../api/types";
@@ -37,6 +37,7 @@ export function Story() {
   const [usedVoice, setUsedVoice] = useState(false);
   const [pendingResult, setPendingResult] = useState<DiscoveryData | null>(null);
   const [depthAnswer, setDepthAnswer] = useState("");
+  const voiceRef = useRef<VoiceInputHandle>(null);
 
   function applyDiscoveryResult(result: DiscoveryData) {
     patchProject({
@@ -71,6 +72,7 @@ export function Story() {
 
   function submit() {
     if (text.trim().length === 0) return;
+    voiceRef.current?.stop();
     void run(async (guard) => {
       // §16.1: raw_story is written before any network request, so a failed or
       // hung call can never lose it (AC 55). Discovery-derived fields are
@@ -168,8 +170,10 @@ export function Story() {
         {trimmedLength < 20 ? "A few honest sentences are enough." : "That gives us enough to interpret the meaning."}
       </p>
       <VoiceInputButton
-        onTranscript={(t) => {
-          setText((prev) => (prev.trim() ? `${prev.trim()} ${t}` : t));
+        ref={voiceRef}
+        value={text}
+        onChange={(t) => {
+          setText(t);
           setUsedVoice(true);
         }}
       />

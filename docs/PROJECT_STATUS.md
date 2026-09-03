@@ -52,9 +52,14 @@ see the latest session log entry for the full design and its one open
 real-model verification gap. A live-test pass the same night found and
 fixed a real raw-internal-text leak in the depth-exercise's "Share it"
 path (the same class of bug fixed multiple times this session) and added
-a visible loading animation to Screen 7's Association wait -- see the
-latest session log entry. 294 unit tests pass across engine/server/web;
-typecheck and build are clean across all three workspaces.
+a visible loading animation to Screen 7's Association wait. **Voice input
+has been rebuilt** on the browser-native Web Speech API to match a
+known-good reference implementation, closing out both long-deferred
+voice issues (the ~10s cutoff and the "sometimes doesn't activate at
+all" failure) -- see the latest session log entry for the full design
+and the one deliberately-not-ported bug from the reference. 317 unit
+tests pass across engine/server/web; typecheck and build are clean
+across all three workspaces.
 
 **Design:** a new "studio ledger" visual direction (warm parchment
 background, serif headline, ember-accented selection/marginalia, no card
@@ -218,15 +223,6 @@ to compare terminal output by hand.
   a genuine new regression worth re-opening.
 
 **Known, deliberately deferred issues (not lost, just not this chapter's scope):**
-- **Voice input timeout/cutoff behaviour** — a roughly 10s recording limit
-  and roughly 3s silence timeout were observed to cut off voice input
-  during a live test. Values are from user observation, not measured
-  instrumentation. Deliberately deferred; needs its own investigation.
-- **Voice input, second failure mode** — sometimes doesn't respond to
-  activation at all (separate from the cutoff issue above). Degrades
-  visibly to "Voice input isn't responding — you can still type," which
-  is working as intended as a fallback, but the underlying voice issues
-  (both this and the cutoff above) remain unresolved.
 - **Statement of Inspiration visual formatting** (quote-style typography)
   **and overall Blueprint premium polish** — deliberately deferred to a
   later, dedicated polish pass, not current work. (Distinct from Statement
@@ -254,6 +250,99 @@ decision); nothing else newly introduced this session. See
 got to its current, tested state.
 
 ## Session log
+
+### 2026-09-03 — Rebuilt voice input on the browser-native Web Speech API, closing both long-deferred voice issues
+Closes out `docs/PROJECT_STATUS.md`'s own long-standing deferred items:
+recording cutting off after ~10s, transcription only appearing after
+stopping, and voice input sometimes not activating at all. Rebuilt
+`web/src/components/VoiceInput.tsx` to match a known-good reference
+implementation's exact Web Speech API configuration
+(`continuous = true`, `interimResults = true`, `lang = "en-GB"`, nothing
+else set) -- explicitly not a home-grown reinterpretation.
+
+**Root cause of the ~10s cutoff, confirmed by reading the old code before
+deleting it:** the prior component ran an 8-second `setTimeout` "stuck
+detector" that called `recognition.stop()` unconditionally once elapsed,
+regardless of whether the person was still actively speaking -- it was
+never reset on incoming results. Removed entirely, per instruction: no
+app-level silence or duration timer of any kind now exists; only the
+browser's own `onend` ever stops a session.
+
+**Root cause of "only appears after stopping":** the prior component set
+`continuous = false, interimResults = false` and only ever read
+`event.results` filtered to `isFinal`, so nothing reached the field until
+the whole session ended. Rebuilt as a controlled component (`value`/
+`onChange` instead of the old one-shot `onTranscript` callback) that
+recomposes the full field value on every `onresult` event from three
+layers -- `startingText` (whatever was in the field, captured once at
+session start), `completedText` (this session's own running final-result
+text), `interimText` (rebuilt from scratch every event, never committed) --
+pushed to `onChange` immediately, no debounce. All 4 existing call sites
+(`Story.tsx`, `ImageDescription.tsx`, `ImageProvenance.tsx` ×2) updated
+from the old append-in-the-callback pattern to passing `value`/`onChange`
+straight through.
+
+**The reference implementation's own bug was identified and deliberately
+NOT ported, per instruction:** it only flips its "isListening" flag
+true inside the asynchronous `onstart` callback, so a rapid second tap
+before `onstart` fires reads the still-false flag and can start a second
+concurrent recognition instance -- the likely cause of the reported
+"sometimes doesn't activate at all" failure (two instances fighting each
+other, or the button reading a stale state). Fixed with a synchronous
+`idle|starting|listening|stopping` guard (a ref, checked and updated
+*before* any async callback can run) that a rapid second tap cannot get
+past.
+
+**Other behavior matched exactly, not approximated:** tap-to-toggle (not
+press-and-hold), `aria-pressed` on the button; `stop()` for a normal
+user-initiated stop (lets any in-flight final result finish returning)
+versus `abort()` reserved for component unmount only; a brand new
+`SpeechRecognition` instance created every session, never reused; on
+browser auto-stop (`onend`) the existing text is preserved, no
+auto-restart, and a `"Dictation stopped. You can edit the transcript
+before continuing."` message shown -- the person taps again to resume,
+and `startingText`'s own capture-at-session-start already carries
+whatever was there forward. A new `VoiceInputHandle` (`useImperativeHandle`
++ `forwardRef`) exposes an imperative `stop()` so the four screens can
+call it right before their own submit -- flushing any in-flight final
+result before the story/description text is read for the model call.
+
+**Feature detection and error messages, exactly as specified:** runtime
+`window.SpeechRecognition ?? window.webkitSpeechRecognition`, never a
+browser allowlist; when absent, the button still renders (disabled) with
+`"Live dictation is not supported by this browser. You can still type
+your story below."` rather than rendering nothing, which read identically
+to "the button did nothing" -- indistinguishable from the very bug this
+rebuild fixes. Errors mapped: `not-allowed`/`service-not-allowed` (mic
+permission denied), `no-speech` (tap to try again), `aborted`
+("Dictation stopped."), anything else ("Dictation paused unexpectedly.
+Your existing transcript has been preserved."), and a synchronous throw
+from `start()` itself (the exact Safari failure mode the prior version
+was written to catch) mapped to "Microphone could not start." The
+editable textarea remains the fallback in every one of these cases --
+nothing about voice input ever blocks typing.
+
+**Verified:** `npm run typecheck`, `npm test` (317 tests -- 23 new in a
+new `VoiceInput.test.tsx`, covering the exact three reported failure
+modes as named regression tests: the live-interim-text algorithm
+including a case proving `startingText` is captured once and not
+re-captured mid-session, the absence of any app-level timer across a
+simulated 30-second wait, the synchronous re-entrancy guard against a
+rapid double-tap, `onend`'s no-auto-restart behavior, every mapped error
+code, the unsupported-browser render, and the imperative `stop()` handle
+both while listening and as a safe no-op while idle), and `npm run build`
+all pass. Live-verified in a real headless Chromium (not just mocked):
+confirmed `SpeechRecognition` is genuinely exposed by the browser itself,
+the button renders correctly idle, and -- since this sandbox has no
+network path to the real speech-recognition backend -- exercised the
+real error-resilience path end to end: a rapid double-tap smoke test
+produced no crash and no stuck state, and after the real (network-less)
+session failed, the button cleanly resolved to "Talk about it" with the
+expected fallback message rather than hanging on "Starting…" indefinitely.
+Screenshots reviewed directly. Full audio-transcription-accuracy testing
+was not possible in this sandbox (no real microphone/network path to a
+speech backend) -- the algorithm itself is the part under this rebuild's
+control and is what the 23 new tests lock in.
 
 ### 2026-09-03 — Three live-test findings from the same night: a real raw-text leak fixed, Screen 7's wait made visible, one false-alarm investigated and cleared
 Follow-up to the meaning-depth gate work earlier the same session. Three

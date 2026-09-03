@@ -42,8 +42,11 @@ reproduced. Screen 13 ("Ready to build your Blueprint") uses the same
 Visual direction component for its "Open decisions" row, so it can no
 longer read "None noted" moments before the generated Blueprint's
 Readiness flags an unresolved contradiction, and its "Still needed" row
-is unchanged. 266 unit tests pass across engine/server/web; typecheck and
-build are clean across all three workspaces.
+is unchanged. The Blueprint document itself now follows the Sites
+migration spec's twelve-section information architecture end to end — see
+"The Sites migration is complete" below. 284 unit tests pass across
+engine/server/web; typecheck and build are clean across all three
+workspaces.
 
 **Design:** a new "studio ledger" visual direction (warm parchment
 background, serif headline, ember-accented selection/marginalia, no card
@@ -62,21 +65,31 @@ scale, 8-color palette, spacing rhythm) — replacing the approximated
 palette/sizes the "studio ledger" direction first shipped with. It's a
 shared foundation defined once, ready to extend to other screens next.
 
-**The Sites migration is four pieces in now: tokens, Readiness, the
-"What we've understood" side panel, and question-flow copy/structure**
-(see the latest session log entry for the copy migration). The panel is
-genuinely persistent across all of Screens 1–13 (not Screen-7-only) — it
-reuses the exact same token values via a shared `.sites-tokens` CSS class
-rather than duplicating them. Question-flow copy adds a shared
-eyebrow/heading/instruction structure (new `.screen-eyebrow`/
-`.screen-heading` classes, deliberately smaller than Screen 7's own
-"studio ledger" H1 since that visual direction stays Screen-7-only) plus
-a title+description choice-card pattern (`.option-chip-card`) to the
-screens that had bare option labels — applied to 12 of the app's screens
-covered by Sites spec §3, explicitly excluding Screen 7 and the Blueprint
-screen per scope. **The Blueprint restructure (spec §12.10-adjacent
-sections, not yet itemized here) is queued as the final piece, task 5 —
-not started.**
+**The Sites UX migration is now COMPLETE — all five pieces landed:**
+tokens, Readiness, the "What we've understood" side panel, question-flow
+copy/structure, and the Blueprint restructure (see the latest session log
+entry for the last one). The design-token system (typography scale,
+8-color palette, spacing rhythm) is the shared foundation the rest builds
+on. The Blueprint's Readiness section is the five independently-statused
+components (Meaning / Visual direction / References / Artist discussion /
+Final artwork), with three of Sites' own documented semantic defects
+corrected, not reproduced. The "What we've understood" panel is genuinely
+persistent across all of Screens 1–13 (not Screen-7-only) — it reuses the
+exact same token values via a shared `.sites-tokens` CSS class rather than
+duplicating them. Question-flow copy applies a shared eyebrow/heading/
+instruction structure (`.screen-eyebrow`/`.screen-heading`, deliberately
+smaller than Screen 7's own "studio ledger" H1 since that visual direction
+stays Screen-7-only) plus a title+description choice-card pattern
+(`.option-chip-card`) across 12 of the app's screens. The Blueprint
+document now follows the spec's twelve-section information architecture
+end to end (`01 — Your story` through `12 — Readiness`), wrapped in the
+same `.sites-tokens` typography scale, with two genuinely new deterministic
+sections (05 Composition, 06 Concept-specific decisions) built with the
+same label-function discipline as the rest of the app, and a native
+print/save-as-PDF path this app had none of before. Screen 7's own "studio
+ledger" visual chrome (warm parchment background, ember accents, card-free
+candidate list) remains deliberately Screen-7-only throughout — rolling it
+out further is still a separate, un-made decision.
 
 **Workflow/tooling:** a full local-dev-friction pass landed as its own
 chapter (see the latest session log entry) — this was tooling/DX work,
@@ -213,6 +226,143 @@ decision); nothing else newly introduced this session. See
 got to its current, tested state.
 
 ## Session log
+
+### 2026-09-03 — Restructured the Blueprint to the Sites migration spec's twelve-section architecture — migration COMPLETE
+Fifth and final piece of the Sites migration (after tokens, Readiness, the
+"What we've understood" panel, and question-flow copy). Read spec §7
+("Blueprint output structure") in full first. Section 12 (Readiness) was
+already done (a prior session's componentized-readiness work) and was left
+untouched except for its position (confirmed last) and heading style.
+
+**Section structure reconciled to spec's 12-section IA**, using only this
+app's own already-collected fields — never inventing data Sites has but
+this app doesn't:
+- `01 — Your story` / `02 — Your intention` (now combines the previously
+  separate "Your Why"/"What matters most" under one heading, with
+  confirmed_themes as uppercase bordered chips per spec §7's own
+  description) / `03 — The design you're imagining` (the model's
+  visual_direction paragraph, pulled out of the old combined "Visual
+  hierarchy" section into its own) / `04 — Confirmed visual subjects`
+  (the existing personal/other/still-undecided decision map, unchanged
+  content) / `07 — Artistic treatment` (the model's own combined
+  composition+treatment paragraph) / `08 — Placement and body flow`
+  (unchanged) / `11 — Artist Brief` (unchanged) / `12 — Readiness`
+  (unchanged, repositioned last).
+- `09 — Essential safeguards` (the "Avoid" section) moved from after the
+  Artist Brief to before References, matching spec's own ordering — a real
+  repositioning, not just a renumbering.
+- `10 — References and open decisions` folds the existing reference
+  checklist and the model's design_considerations (open decisions) under
+  one heading, matching spec's own two-part structure for this section.
+- `05 — Composition and arrangement` and `06 — Concept-specific
+  decisions` are genuinely new: this app's Blueprint Writer schema has one
+  combined free-text field for composition+treatment, not Sites' three
+  separate deterministic templates, so there was nothing to port verbatim
+  for these two. What ported instead is the DISCIPLINE — two new pure
+  functions (`describeComposition`/`conceptSpecificDecisions`,
+  `web/src/journey/blueprintSummary.ts`) build small deterministic fact
+  sections from data this app already collects (composition_type/
+  composition_background/design_density; the eight confirmed artistic-
+  dimension answers), reusing the exact same label-function pattern as
+  `visualElementSentence` — never raw-concatenating a stored token.
+  `DIMENSION_QUESTIONS` moved from being ArtisticDirection.tsx-local to
+  exported from `artisticDimensionLabels.ts` so Section 06 asks the exact
+  same question text Screen 11 itself used.
+- "Further ideas the client raised" (artist_notes, §14's new-idea loop)
+  has no spec §7 slot at all — kept as its own unnumbered section rather
+  than force-fit into References, which stays about referenced material
+  and confirmed open decisions.
+
+**Two real bugs found and fixed during live verification** (not assumed —
+caught on an actual rendered Blueprint):
+1. **Raw enum leak in the new Section 06.** `evaluateArtisticDimensions()`
+   can resolve `edge_treatment` to its own engine-level default, the
+   literal string `"not_specified_left_to_artist"`
+   (`ARTISTIC_DIMENSION_DEFAULTS`, `engine/src/artisticDimensions.ts`) —
+   which matches none of `DIMENSION_OPTIONS.edge_treatment`'s three
+   selectable values, so `labelForDimensionValue` fell through to the raw
+   string. Nothing had ever rendered `edge_treatment` to a user before
+   Section 06 existed, so this was a real, previously-invisible leak of
+   exactly the class this codebase has fixed before — live-rendered as
+   "How should edges feel? not_specified_left_to_artist". Fixed with a
+   small `DEFAULT_VALUE_LABEL` map in `artisticDimensionLabels.ts` for
+   values that only ever arrive as an engine default, never a click (kept
+   separate from `DIMENSION_OPTIONS` itself, which renders directly as
+   Screen 11's own buttons — adding a default there would make it look
+   like a fourth, user-selectable choice).
+2. **Duplicated "no background" phrasing in the new Section 05.** Every
+   `COMPOSITION_POOLS` option flagged `noBackground: true`
+   (`engine/src/composition.ts`) already states "no background" in its own
+   label ("Isolated, no background", ...) — `describeComposition`
+   additionally appending the separate `composition_background` label
+   produced the redundant, oddly comma-spliced "Isolated, no background,
+   No background." live-rendered on the real Blueprint. Fixed by skipping
+   the background label whenever composition_type's own text already
+   contains the phrase "no background" (matched narrowly on that exact
+   phrase, not just the word "background", so a genuinely different
+   subtle/immersive answer — the two fields are asked separately, so they
+   could in principle disagree — is never silently swallowed).
+
+**Both Sites-build "current quirks" spec §7 names were investigated, not
+assumed present, and neither reproduces in this app's real architecture** —
+verified, not just asserted, and locked in as regression tests:
+1. The verbatim-design-vision-duplicated-on-fallback quirk depends on a
+   "design vision" field Sites has and this app does not (confirmed absent
+   during the earlier "What we've understood" panel task) — there is no
+   blockquote+fallback-interpretation pairing here that could ever
+   duplicate.
+2. The "Develop a {scale} tattoo..." → "a expandable" grammar quirk
+   depends on an app-side template that prefixes a stored value with the
+   article "a"/"an" — confirmed by grep across the whole codebase that no
+   such `` `a ${...}` ``/`` `an ${...}` `` pattern exists anywhere. This
+   app's Artist Brief is entirely model-written free prose
+   (`blueprint.artist_brief`), rendered verbatim, never assembled from a
+   template.
+
+**Visual consistency:** the Blueprint is wrapped in `.sites-tokens`
+(task 1's shared token scope) alongside `.screen`, reusing the same H2/
+label typography scale the rest of the migrated journey uses rather than
+one-off sizes — the exact "unconsumed foundation" the token system's own
+session log flagged when it first shipped. The document header uses the
+same `.screen-eyebrow`/`.screen-heading` pattern (task 4) as every other
+screen, dark-mode-safe, no `--ledger-*` warm-palette color anywhere — the
+"studio ledger" direction stays Screen-7-only, exactly as before. New
+`.blueprint-section`/`.blueprint-section-number`/`.blueprint-section-
+heading`/`.theme-chip` classes in `styles.css`.
+
+**Print/PDF export — this app had none before this task**, only the
+existing plain-text Copy/Save. Spec §7's own "Blueprint and print
+presentation" subsection was read and applied as a genuinely new, additive
+capability (not a change to an existing mechanism's "core logic", since
+none existed): a "Print or save Blueprint" button calling the browser's
+native `window.print()` (whose dialog offers Save as PDF, so no PDF
+library dependency was added), plus `@media print` rules hiding app
+chrome/action buttons and applying A4 margins with per-section
+`break-inside: avoid`.
+
+**Verified:** `npm run typecheck`, `npm test` (284 tests — 18 new: 12 in
+`blueprintSummary.test.ts` for `describeComposition`/
+`conceptSpecificDecisions` including both bug-regression cases above, plus
+10 new component tests in `BlueprintView.test.tsx` covering section order,
+the two new deterministic sections, the Section 9 repositioning, the
+folded References section, the print button's existence, and both quirk
+non-reproductions as standing regression guards), and `npm run build` all
+pass. Live-rendered a full "Athena wire"-style journey (real server, real
+Vite, fake Anthropic double) through to a built Blueprint: screenshotted
+the full document (all 12 sections in correct order, no raw-value leaks
+after the two fixes above), print-media emulation (chrome/actions
+correctly hidden, A4 layout), and a 390px mobile viewport — all reviewed
+directly. Also verified the plain-text Copy export
+(`formatBlueprintAsText`) via a real clipboard read in the browser: every
+new section marker (`05 — Composition and arrangement` through
+`12 — Readiness`) present and correctly formatted, confirming the on-screen
+and Copy/Save paths never drifted apart during the restructure.
+
+**This closes the Sites UX migration chapter** that began with the Sites
+cross-examination — tokens, Readiness, the understood panel, question-flow
+copy, and now the Blueprint restructure are all live together, and the
+"studio ledger" direction from earlier in the same broader arc remains a
+deliberate, separate, not-yet-made decision to extend beyond Screen 7.
 
 ### 2026-09-03 — Migrated the Sites question-flow copy/structure pattern (spec §3) into 12 existing screens
 Fourth piece of the Sites migration (after tokens, Readiness, and the

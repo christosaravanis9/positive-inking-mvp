@@ -53,13 +53,18 @@ function elementFixture(overrides: Partial<VisualElement>): VisualElement {
   };
 }
 
-function seedBlueprintState(overrides: { visualElements?: VisualElement[]; contradictions?: ContradictionRecord[] }): JourneyState {
+function seedBlueprintState(overrides: {
+  visualElements?: VisualElement[];
+  contradictions?: ContradictionRecord[];
+  project?: Partial<JourneyState["project"]>;
+}): JourneyState {
   const state = createInitialJourneyState();
   state.project = {
     ...state.project,
     ...createEmptyProjectState(state.project.project_id, state.project.created_at),
     visual_elements: overrides.visualElements ?? [elementFixture({})],
     contradictions: overrides.contradictions ?? [],
+    ...overrides.project,
   };
   state.ui = {
     ...state.ui,
@@ -109,7 +114,7 @@ describe("BlueprintView -- Visual hierarchy rendering (regression: raw '(undecid
       </JourneyProvider>,
     );
 
-    const section = screen.getByRole("heading", { name: "4. Visual hierarchy" }).closest("section")!;
+    const section = screen.getByRole("heading", { name: "Confirmed visual subjects" }).closest("section")!;
     // The fixture's description contains a comma-free, distinctive substring safe to count.
     expect(occurrences(section.textContent!, "craft wire and plaster fabric")).toBe(1);
     expect(occurrences(section.textContent!, "A concrete thing from your shared world")).toBe(1);
@@ -123,7 +128,7 @@ describe("BlueprintView -- Visual hierarchy rendering (regression: raw '(undecid
       </JourneyProvider>,
     );
 
-    const section = screen.getByRole("heading", { name: "4. Visual hierarchy" }).closest("section")!;
+    const section = screen.getByRole("heading", { name: "Confirmed visual subjects" }).closest("section")!;
     expect(section.textContent).not.toMatch(/\(undecided\)/i);
     const stillUndecidedItem = screen.getByText("Still undecided:").closest("section")!.querySelector("ul li")!;
     expect(stillUndecidedItem.textContent).not.toMatch(/\bundecided\b/i);
@@ -150,7 +155,7 @@ describe("BlueprintView -- Visual hierarchy rendering (regression: raw '(undecid
       </JourneyProvider>,
     );
 
-    const section = screen.getByRole("heading", { name: "4. Visual hierarchy" }).closest("section")!;
+    const section = screen.getByRole("heading", { name: "Confirmed visual subjects" }).closest("section")!;
     expect(section.textContent).toContain("Primary");
     expect(screen.queryByText("Still undecided:")).toBeNull();
     screen.getByText("Personal reference:"); // now resolved, so it's back in its category bucket
@@ -166,7 +171,7 @@ describe("BlueprintView -- Visual hierarchy rendering (regression: raw '(undecid
       </JourneyProvider>,
     );
 
-    const section = screen.getByRole("heading", { name: "4. Visual hierarchy" }).closest("section")!;
+    const section = screen.getByRole("heading", { name: "Confirmed visual subjects" }).closest("section")!;
     expect(screen.queryByText("Personal reference:")).toBeNull();
     screen.getByText("Other elements:"); // throws if not found -- the element must be listed somewhere
     expect(section.textContent).toContain("A new mark made for this project");
@@ -182,7 +187,7 @@ describe("BlueprintView -- componentized Readiness (Sites migration spec §12/§
       </JourneyProvider>,
     );
 
-    const section = screen.getByRole("heading", { name: "12. Readiness" }).closest("section")!;
+    const section = screen.getByRole("heading", { name: "Readiness" }).closest("section")!;
     for (const label of ["Meaning", "Visual direction", "References", "Artist discussion", "Final artwork"]) {
       expect(section.textContent).toContain(label);
     }
@@ -196,7 +201,7 @@ describe("BlueprintView -- componentized Readiness (Sites migration spec §12/§
       </JourneyProvider>,
     );
 
-    const section = screen.getByRole("heading", { name: "12. Readiness" }).closest("section")!;
+    const section = screen.getByRole("heading", { name: "Readiness" }).closest("section")!;
     expect(section.textContent).toContain("Not yet captured");
   });
 
@@ -212,7 +217,7 @@ describe("BlueprintView -- componentized Readiness (Sites migration spec §12/§
       </JourneyProvider>,
     );
 
-    const section = screen.getByRole("heading", { name: "12. Readiness" }).closest("section")!;
+    const section = screen.getByRole("heading", { name: "Readiness" }).closest("section")!;
     expect(section.textContent).toContain("None required for this concept");
     expect(section.textContent).not.toContain("Available to provide");
   });
@@ -234,7 +239,7 @@ describe("BlueprintView -- componentized Readiness (Sites migration spec §12/§
       </JourneyProvider>,
     );
 
-    const section = screen.getByRole("heading", { name: "12. Readiness" }).closest("section")!;
+    const section = screen.getByRole("heading", { name: "Readiness" }).closest("section")!;
     expect(section.textContent).toContain("Still needed");
     expect(section.textContent).toContain("A photo of your grandmother's hands");
   });
@@ -247,7 +252,7 @@ describe("BlueprintView -- componentized Readiness (Sites migration spec §12/§
       </JourneyProvider>,
     );
 
-    const section = screen.getByRole("heading", { name: "12. Readiness" }).closest("section")!;
+    const section = screen.getByRole("heading", { name: "Readiness" }).closest("section")!;
     expect(section.textContent).toContain("Not yet begun");
     expect(section.textContent).not.toMatch(/ready to begin/i);
   });
@@ -262,10 +267,10 @@ describe("BlueprintView -- Readiness reason rendering (regression: bare label wi
       </JourneyProvider>,
     );
 
-    const section = screen.getByRole("heading", { name: "12. Readiness" }).closest("section")!;
+    const section = screen.getByRole("heading", { name: "Readiness" }).closest("section")!;
     expect(section.textContent).toContain("Needs refinement");
     // The bug report's exact symptom: the label with truly nothing after it.
-    expect(section.textContent!.trim()).not.toBe("12. ReadinessNeeds refinement");
+    expect(section.textContent!.trim()).not.toBe("12ReadinessNeeds refinement");
     expect(section.querySelectorAll("dd").length).toBeGreaterThan(0);
     expect(section.textContent).toContain("An exact artefact is specified with no uploaded reference.");
   });
@@ -280,10 +285,192 @@ describe("BlueprintView -- Readiness reason rendering (regression: bare label wi
       </JourneyProvider>,
     );
 
-    const section = screen.getByRole("heading", { name: "12. Readiness" }).closest("section")!;
+    const section = screen.getByRole("heading", { name: "Readiness" }).closest("section")!;
     expect(section.textContent).toContain("An exact artefact is specified with no uploaded reference.");
     expect(section.textContent).toContain("Upload a reference photo");
     expect(section.textContent).toContain("switch to an interpretive rendering");
     expect(section.textContent).not.toContain("A noted contradiction in the design is still unresolved.");
+  });
+});
+
+/**
+ * Blueprint restructure to the Sites migration spec's §7 twelve-section information
+ * architecture -- the final Sites-migration piece. Section 12 (Readiness) itself is
+ * unchanged (task 2, above); this covers the new section order/numbering, the two new
+ * deterministic sections (05 Composition, 06 Concept-specific decisions), and the two
+ * "current quirks" spec §7 names for the Sites build, verified against this app's own
+ * (different) architecture rather than assumed to reproduce here.
+ */
+describe("BlueprintView -- twelve-section restructure (Sites migration spec §7)", () => {
+  it("renders every section heading in spec order, Readiness last", () => {
+    seedBlueprintState({
+      project: {
+        composition_type: "Isolated, no background",
+        composition_background: "none",
+        design_density: "minimal",
+        colour_strategy: "selective",
+        realism_level: "illustrative",
+      },
+    });
+    render(
+      <JourneyProvider>
+        <BlueprintView />
+      </JourneyProvider>,
+    );
+
+    const headings = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
+    const expectedOrder = [
+      "Your story",
+      "Your intention",
+      "The design you're imagining",
+      "Confirmed visual subjects",
+      "Composition and arrangement",
+      "Concept-specific decisions",
+      "Artistic treatment",
+      "Placement and body flow",
+      "Essential safeguards",
+      "References and open decisions",
+      "Artist Brief",
+      "Readiness",
+    ];
+    // Every expected heading is present, in this relative order (other real, non-spec
+    // sections -- e.g. "Further ideas the client raised" -- may also appear, so this
+    // checks a subsequence, not an exact match).
+    const positions = expectedOrder.map((title) => headings.indexOf(title));
+    expect(positions.every((p) => p !== -1)).toBe(true);
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
+    expect(headings.at(-1)).toBe("Readiness");
+  });
+
+  it("section 05 (Composition and arrangement) shows a deterministic fact line with no raw stored token", () => {
+    seedBlueprintState({ project: { composition_type: "Framed scene", composition_background: "immersive", design_density: "full" } });
+    render(
+      <JourneyProvider>
+        <BlueprintView />
+      </JourneyProvider>,
+    );
+
+    const section = screen.getByRole("heading", { name: "Composition and arrangement" }).closest("section")!;
+    expect(section.textContent).toContain("Immersive background");
+    expect(section.textContent).toContain("Full density");
+    expect(section.textContent).not.toMatch(/\bimmersive\b|\bfull\b(?!\s+density)/);
+  });
+
+  it("section 06 (Concept-specific decisions) lists each confirmed dimension's question and labelled answer", () => {
+    seedBlueprintState({ project: { colour_strategy: "black_and_grey", realism_level: "graphic", fidelity_treatment: "Exactly as written, including any shake, blot or unevenness" } });
+    render(
+      <JourneyProvider>
+        <BlueprintView />
+      </JourneyProvider>,
+    );
+
+    const section = screen.getByRole("heading", { name: "Concept-specific decisions" }).closest("section")!;
+    expect(section.textContent).toContain("How should colour work?");
+    expect(section.textContent).toContain("Black and grey");
+    expect(section.textContent).not.toMatch(/black_and_grey/);
+    expect(section.textContent).toContain("Exactly as written, including any shake, blot or unevenness");
+  });
+
+  it("omits section 06 entirely when no dimension is confirmed and no fidelity treatment exists", () => {
+    seedBlueprintState({});
+    render(
+      <JourneyProvider>
+        <BlueprintView />
+      </JourneyProvider>,
+    );
+
+    expect(screen.queryByRole("heading", { name: "Concept-specific decisions" })).toBeNull();
+  });
+
+  it("section 09 (Essential safeguards) renders before section 10 (References and open decisions) -- repositioned from its old place after the Artist Brief", () => {
+    seedBlueprintState({});
+    render(
+      <JourneyProvider>
+        <BlueprintView />
+      </JourneyProvider>,
+    );
+
+    const headings = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
+    expect(headings.indexOf("Essential safeguards")).toBeLessThan(headings.indexOf("References and open decisions"));
+    expect(headings.indexOf("Essential safeguards")).toBeLessThan(headings.indexOf("Artist Brief"));
+  });
+
+  it("section 09 uses the spec's own fallback line when avoidances were never asked, rather than an empty section", () => {
+    seedBlueprintState({});
+    render(
+      <JourneyProvider>
+        <BlueprintView />
+      </JourneyProvider>,
+    );
+
+    const section = screen.getByRole("heading", { name: "Essential safeguards" }).closest("section")!;
+    expect(section.textContent).toContain("No additional exclusions were confirmed.");
+  });
+
+  it("section 10 folds the reference checklist and design_considerations' open decisions together", () => {
+    seedBlueprintState({
+      visualElements: [elementFixture({ source_category: "personal_person", fidelity: "closely_based_on", reference_status: "to_upload" })],
+    });
+    render(
+      <JourneyProvider>
+        <BlueprintView />
+      </JourneyProvider>,
+    );
+
+    const section = screen.getByRole("heading", { name: "References and open decisions" }).closest("section")!;
+    expect(section.textContent).toContain("Open decisions:");
+    expect(section.textContent).toContain('The exact script style for "Athena" is not yet confirmed');
+  });
+
+  it("offers a native print/save path (spec §7's 'Print or save Blueprint' footer action) -- this app had none before this task", () => {
+    seedBlueprintState({});
+    render(
+      <JourneyProvider>
+        <BlueprintView />
+      </JourneyProvider>,
+    );
+
+    screen.getByRole("button", { name: "Print or save Blueprint" }); // throws if not found
+  });
+
+  /**
+   * Sites migration spec §7's own two named "current quirks" -- verified against THIS
+   * codebase's real architecture rather than assumed to reproduce. Neither's underlying
+   * mechanism exists here: this app has no "design vision" verbatim-blockquote field at all
+   * (confirmed absent from ProjectState during the earlier "What we've understood" panel task),
+   * so there is no blockquote+fallback-interpretation pairing that could ever duplicate; and the
+   * Artist Brief here is entirely model-written free prose (blueprint.artist_brief), never
+   * assembled from an app-side "Develop a {scale} tattoo..." template, so there's no
+   * article-agreement grammar to get wrong. These tests document that finding as a live
+   * regression guard, not just a one-time investigation note.
+   */
+  describe("the two Sites-build 'current quirks' -- verified not to reproduce in this app's real architecture", () => {
+    it("quirk 1 (verbatim design-vision text duplicated in two places on fallback): this app has no such field, so visual_direction's text is never rendered a second time anywhere else in the document", () => {
+      seedBlueprintState({});
+      render(
+        <JourneyProvider>
+          <BlueprintView />
+        </JourneyProvider>,
+      );
+
+      const fullText = document.body.textContent!;
+      const visualDirectionText = "A single emblem built around the handmade wall art motif.";
+      expect(fullText.split(visualDirectionText).length - 1).toBe(1);
+    });
+
+    it("quirk 2 ('Develop a {scale} tattoo...' producing 'a expandable'): the Artist Brief is entirely model-authored prose here, never assembled by this app from a scale-prefixed template -- it is rendered verbatim, unmodified", () => {
+      seedBlueprintState({});
+      render(
+        <JourneyProvider>
+          <BlueprintView />
+        </JourneyProvider>,
+      );
+
+      const section = screen.getByRole("heading", { name: "Artist Brief" }).closest("section")!;
+      expect(section.textContent).toContain("Render the handmade wall art motif as an embossed/protruding script reading Athena.");
+      // No app-side template ever prefixes it with "Develop a {scale}..." -- confirmed by grep
+      // across the whole codebase finding zero `a ${...}`/`an ${...}` article-concatenation
+      // patterns anywhere (the mechanism the Sites quirk depends on does not exist here).
+    });
   });
 });

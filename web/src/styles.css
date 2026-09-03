@@ -430,6 +430,103 @@ input[type="text"] {
 }
 
 /**
+ * The Blueprint document (Sites migration spec §7: "Blueprint output structure" /
+ * "Blueprint and print presentation"). Wrapped in .sites-tokens (task 1's shared design-token
+ * scope, alongside .screen) for the same typography scale the rest of the migrated journey
+ * uses -- .screen-eyebrow/.screen-heading (task 4's global, dark-mode-safe pattern) style the
+ * document header; each of the twelve numbered sections below reuses .sites-tokens' own H2/
+ * label scale rather than a one-off size, matching spec §1.1's "Screen H2" and label tokens --
+ * the exact match noted as unconsumed foundation when that token system first shipped. No
+ * --ledger-* color is used anywhere here: those are namespaced to avoid colliding with the
+ * app's generic --muted/--accent (see the "studio ledger" comment below), and the Blueprint,
+ * like every other screen outside Screen 7, stays on the app's ordinary --fg/--muted/--accent/
+ * --border colors, not the warm-parchment palette.
+ */
+.blueprint-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+  padding-bottom: 20px;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: 4px;
+}
+
+.blueprint-section {
+  padding: 22px 0;
+  border-top: 1px solid var(--border);
+  break-inside: avoid;
+}
+
+.blueprint-section:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.blueprint-section-number {
+  display: block;
+  font-family: var(--text-label-family);
+  font-weight: var(--text-label-weight);
+  font-size: var(--text-label-size);
+  letter-spacing: var(--text-label-tracking);
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+
+.blueprint-section-heading {
+  font-family: var(--text-h2-family);
+  font-weight: var(--text-h2-weight);
+  font-size: var(--text-h2-size);
+  line-height: var(--text-h2-leading);
+  margin: 0 0 8px;
+}
+
+.theme-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.theme-chip {
+  display: inline-block;
+  font-family: var(--text-side-label-family, inherit);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 8px;
+  color: var(--muted);
+}
+
+/**
+ * Print support (spec §7 "Blueprint and print presentation"). This app had no print/PDF path
+ * before this task -- BlueprintView's new "Print or save Blueprint" button calls the browser's
+ * own window.print(), whose dialog offers Save as PDF, so no PDF library is needed. These rules
+ * only apply inside that native print flow; nothing here changes on-screen rendering.
+ */
+@media print {
+  .app-shell > :not(.journey-stage),
+  .journey-stage > :not(.screen),
+  .blueprint-actions,
+  .inspector {
+    display: none !important;
+  }
+  .blueprint-sheet {
+    max-width: none;
+  }
+  .blueprint-section {
+    break-inside: avoid;
+    padding: 14px 0;
+  }
+  @page {
+    size: A4;
+    margin: 14mm 15mm;
+  }
+}
+
+/**
  * "Studio ledger" design direction -- approved live on Screen 7
  * (ElementsDiscovery) only, per an isolated standalone preview reviewed
  * separately. Every rule here is scoped under .ledger-screen (applied

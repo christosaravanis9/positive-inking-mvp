@@ -35,7 +35,9 @@ export type TelemetryEventName =
   /** §4 -- Blueprint saved to a file. */
   | "blueprint_saved"
   /** §4 -- Blueprint copied to the clipboard. */
-  | "blueprint_copied";
+  | "blueprint_copied"
+  /** Sites migration spec §7 -- the Blueprint's print/save-as-PDF path (window.print()) was opened. */
+  | "blueprint_print_opened";
 
 export interface TelemetryEvent {
   name: TelemetryEventName;

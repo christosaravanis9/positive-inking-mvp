@@ -3,6 +3,7 @@ import { useJourney } from "../journey/JourneyProvider";
 import { useAsyncAction } from "../journey/useAsyncAction";
 import { requestDiscovery } from "../api/discovery";
 import { AsyncError } from "../components/AsyncError";
+import { ModelWaitIndicator } from "../components/ModelWaitIndicator";
 import { VoiceInputButton, type VoiceInputHandle } from "../components/VoiceInput";
 import { OptionChips } from "../components/OptionChips";
 import { logTelemetryEvent } from "../instrumentation/telemetry";
@@ -144,7 +145,7 @@ export function Story() {
           placeholder="Or say it in your own words"
         />
         <AsyncError onRetry={answerDepthExercise} />
-        {pending && <p className="progress-note">Following up on your story...</p>}
+        {pending && <ModelWaitIndicator label="Following up on your story..." />}
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={answerDepthExercise} disabled={depthAnswer.trim().length === 0 || pending}>
             Share it
@@ -178,7 +179,7 @@ export function Story() {
         }}
       />
       <AsyncError onRetry={submit} />
-      {pending && <p className="progress-note">Understanding your story...</p>}
+      {pending && <ModelWaitIndicator label="Understanding your story..." />}
       <button onClick={submit} disabled={text.trim().length === 0 || pending}>
         {pending ? "Finding the meaning…" : "Continue"}
       </button>

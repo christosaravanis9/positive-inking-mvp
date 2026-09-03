@@ -724,39 +724,43 @@ input[type="text"] {
 }
 
 /**
- * Screen 7's Association wait (§9). Real latency is 20-40s+ (docs/timeout-matrix.md),
- * and the loading text alone read as stalled/broken with no visible activity -- this is
- * a small, immediate fix (a visible pulse alongside the existing text), not the separately
- * queued "productive waiting" MVP for placement preference.
+ * ModelWaitIndicator (web/src/components/ModelWaitIndicator.tsx) -- the one shared loading
+ * treatment for every model-call wait state in the journey, including Screen 7's own
+ * Association wait (real latency 20-40s+, docs/timeout-matrix.md) where this pulsing-dots
+ * animation first shipped. Uses the app's global --accent token, not --ledger-red, so it
+ * renders correctly on every screen this appears on, not only ledger-scoped ones. This is
+ * presentation only -- not the separately queued "productive waiting" MVP for placement
+ * preference.
  */
-.ledger-loading {
+.model-wait {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
-.ledger-loading-dots {
+.model-wait-dots {
   display: inline-flex;
   gap: 4px;
 }
 
-.ledger-loading-dots span {
+.model-wait-dots span {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--ledger-red);
-  animation: ledger-pulse 1.2s ease-in-out infinite;
+  background: var(--accent);
+  animation: model-wait-pulse 1.2s ease-in-out infinite;
 }
 
-.ledger-loading-dots span:nth-child(2) {
+.model-wait-dots span:nth-child(2) {
   animation-delay: 0.2s;
 }
 
-.ledger-loading-dots span:nth-child(3) {
+.model-wait-dots span:nth-child(3) {
   animation-delay: 0.4s;
 }
 
-@keyframes ledger-pulse {
+@keyframes model-wait-pulse {
   0%,
   80%,
   100% {
@@ -770,10 +774,16 @@ input[type="text"] {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ledger-loading-dots span {
+  .model-wait-dots span {
     animation: none;
     opacity: 0.6;
   }
+}
+
+/* Quiet/secondary, not alarming -- a fact for the curious, not a warning. */
+.model-wait-elapsed {
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
 }
 @media (max-width: 640px) {
   .ledger-headline {

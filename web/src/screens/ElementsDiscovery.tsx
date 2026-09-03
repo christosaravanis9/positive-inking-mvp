@@ -3,6 +3,7 @@ import { useJourney } from "../journey/JourneyProvider";
 import { useAsyncAction } from "../journey/useAsyncAction";
 import { requestAssociations } from "../api/association";
 import { AsyncError } from "../components/AsyncError";
+import { ModelWaitIndicator } from "../components/ModelWaitIndicator";
 import { ReferenceAttachment, emptyReferenceDraft, type ReferenceDraft } from "../components/ReferenceAttachment";
 import { logTelemetryEvent } from "../instrumentation/telemetry";
 import type { VisualElement, ElementFidelity, ConsentRecord, ReferenceStatus } from "@positive-inking/engine";
@@ -528,16 +529,7 @@ export function ElementsDiscovery() {
       </div>
       <h2 className="ledger-headline">Let us find what could represent it.</h2>
       <AsyncError onRetry={fetchAssociations} />
-      {fetching && (
-        <p className="progress-note ledger-loading">
-          Finding personal and visual directions...
-          <span className="ledger-loading-dots" aria-hidden="true">
-            <span></span>
-            <span></span>
-            <span></span>
-          </span>
-        </p>
-      )}
+      {fetching && <ModelWaitIndicator label="Finding personal and visual directions..." />}
       {hasCandidates && (
         <div className="ledger-list">
           {visibleCandidateIndices.map((i) => {

@@ -57,9 +57,14 @@ has been rebuilt** on the browser-native Web Speech API to match a
 known-good reference implementation, closing out both long-deferred
 voice issues (the ~10s cutoff and the "sometimes doesn't activate at
 all" failure) -- see the latest session log entry for the full design
-and the one deliberately-not-ported bug from the reference. 317 unit
-tests pass across engine/server/web; typecheck and build are clean
-across all three workspaces.
+and the one deliberately-not-ported bug from the reference. **Every
+model-call wait state in the journey now uses one shared
+`ModelWaitIndicator` component** (animated dots + a count-up "Still
+working — Ns" past 5s, never a countdown) instead of static text --
+addresses the deferred timer/countdown item, see the latest session log
+entry for the full list of 9 locations changed. 324 unit tests pass
+across engine/server/web; typecheck and build are clean across all
+three workspaces.
 
 **Design:** a new "studio ledger" visual direction (warm parchment
 background, serif headline, ember-accented selection/marginalia, no card
@@ -237,9 +242,6 @@ to compare terminal output by hand.
   pick from, not just the one shown) *and* a free-text input to type a
   correction/refinement directly, rather than only being able to accept
   or reject the single suggestion. Still not built.
-- **Timer/countdown UI during model-call waits** — may overlap with the
-  already-specced placement-preference "productive waiting" MVP; should
-  probably be coordinated with it rather than built separately.
 - **Overall journey progress/timeline indicator** across all screens.
 
 **Known risks:** the timeout numbers above are provisional (see the open
@@ -250,6 +252,73 @@ decision); nothing else newly introduced this session. See
 got to its current, tested state.
 
 ## Session log
+
+### 2026-09-03 — One shared ModelWaitIndicator applied to every model-call wait in the journey
+Addresses the deferred "timer/countdown UI during model-call waits" item
+and the inconsistency it named: some waits were static text, Screen 7
+alone had pulsing dots (added earlier the same session), none showed
+elapsed time. Built one component, `web/src/components/
+ModelWaitIndicator.tsx`, and applied it everywhere -- presentation only,
+no async logic, model calls, or timeout budgets touched.
+
+**Component:** takes a `label` prop (each screen's own existing copy,
+unchanged) and renders it next to an always-visible pulsing-dots
+animation -- the same animation Screen 7 already had, but now built on
+the app's global `--accent` token rather than `--ledger-red` (which only
+exists inside Screen 7's own `.sites-tokens` scope), so it renders
+correctly whether or not the screen is ledger-scoped; confirmed live on
+both. `prefers-reduced-motion` respected, carried over unchanged from the
+original. A count-up elapsed-seconds line ("Still working — Ns") appears
+only once the wait passes 5 seconds, computed from wall-clock elapsed
+time each tick (not a naive per-tick increment, so it can't drift) --
+never a countdown, since no route in this app can promise how long a
+call will take (`docs/timeout-matrix.md`'s budgets run up to 40s), and a
+countdown reaching zero while still waiting would read as broken. The
+`setInterval` is unconditionally cleared on unmount -- this codebase has
+been bitten by a leftover timer before (the voice-input rebuild's own
+8-second "stuck detector").
+
+**Applied to all 9 model-call wait locations found in the journey** (in
+`web/src/screens/`, one shared component instance each):
+1. `Story.tsx` -- main submit ("Understanding your story...")
+2. `Story.tsx` -- depth-exercise "Share it" ("Following up on your story...")
+3. `Clarification.tsx` -- ("Following up on your story...")
+4. `ImageProvenance.tsx` -- main submit ("Recording where this comes from...")
+5. `ImageProvenance.tsx` -- elaboration submit ("Making sense of what you added...")
+6. `Avoidances.tsx` -- ("Thinking about what could go wrong for this concept...")
+7. `ElementsDiscovery.tsx` (Screen 7, Association) -- ("Finding personal and visual directions...") -- replaces the bespoke inline dots markup added earlier the same session with the new shared component; the old `.ledger-loading`/`.ledger-loading-dots` CSS was removed, not left as dead code
+8. `StyleReference.tsx` -- ("Working out what that points toward...")
+9. `DesignConfirmation.tsx` (Blueprint generation) -- ("Building your Blueprint...")
+
+**Explicitly not touched, and why:** `ArtisticDirection.tsx` has no
+model-call wait state at all -- confirmed by grep, it has zero
+`useAsyncAction`/`pending`/`fetching` usage anywhere in the file, because
+its dimension questions come from `evaluateArtisticDimensions()`, a
+deterministic engine function, exactly the honesty distinction already
+established earlier this session (its own instruction copy avoids the
+word "generated" for the same reason). No fake wait state was invented
+there just because it was named in the request -- the codebase's real
+shape took precedence. `MeaningReflection.tsx`'s "Interpretation
+generated from your story." and `Avoidances.tsx`'s "Suggestions generated
+for this specific concept." are both post-completion status lines, not
+wait states, and were left alone; so was `CompositionBackground.tsx`/
+`ArtisticDirection.tsx`'s own "...settled. Moving on..." transitional
+text (already investigated and confirmed unreachable in normal operation
+earlier this session).
+
+**Verified:** `npm run typecheck`, `npm test` (324 tests -- 7 new in a
+new `ModelWaitIndicator.test.tsx` covering the counter's absence before
+5s, its appearance at 5s, counting up correctly across multiple ticks,
+the label staying exactly as passed in once the counter appears, and the
+interval being cleared on unmount with no further state updates
+afterward), and `npm run build` all pass. Live-verified against a real
+(artificially delayed, via the existing `__TEST_DELAY_N__` fake-model
+convention) model call crossing the 5s threshold: screenshotted Screen 7
+before 5s (dots only) and after (dots + "Still working — 5s"), confirmed
+the indicator disappears cleanly the moment the call resolves with no
+lingering dots or counter, and screenshotted the same component on a
+plain non-ledger screen (Story) to confirm the `--accent`-based color
+renders identically there.
 
 ### 2026-09-03 — Rebuilt voice input on the browser-native Web Speech API, closing both long-deferred voice issues
 Closes out `docs/PROJECT_STATUS.md`'s own long-standing deferred items:

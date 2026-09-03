@@ -3,6 +3,7 @@ import { useJourney } from "../journey/JourneyProvider";
 import { useAsyncAction } from "../journey/useAsyncAction";
 import { requestStyleReferenceResolution } from "../api/styleReference";
 import { AsyncError } from "../components/AsyncError";
+import { ModelWaitIndicator } from "../components/ModelWaitIndicator";
 import { describeDimensionValue, PROJECT_FIELD_BY_DIMENSION } from "../journey/artisticDimensionLabels";
 import { logTelemetryEvent } from "../instrumentation/telemetry";
 import type { StyleReferenceData } from "../api/types";
@@ -94,7 +95,7 @@ export function StyleReference() {
     return (
       <div className="screen">
         <h2>Is there a particular style, medium, or tradition in mind?</h2>
-        <p className="progress-note">Working out what that points toward...</p>
+        <ModelWaitIndicator label="Working out what that points toward..." />
       </div>
     );
   }

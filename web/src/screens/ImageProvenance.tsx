@@ -4,6 +4,7 @@ import { useAsyncAction } from "../journey/useAsyncAction";
 import { requestProvenance } from "../api/provenance";
 import { requestDiscovery } from "../api/discovery";
 import { AsyncError } from "../components/AsyncError";
+import { ModelWaitIndicator } from "../components/ModelWaitIndicator";
 import { OptionChips } from "../components/OptionChips";
 import { VoiceInputButton, type VoiceInputHandle } from "../components/VoiceInput";
 import { logTelemetryEvent } from "../instrumentation/telemetry";
@@ -147,7 +148,7 @@ export function ImageProvenance() {
         <textarea value={elaborationText} onChange={(e) => setElaborationText(e.target.value)} />
         <VoiceInputButton ref={elaborationVoiceRef} value={elaborationText} onChange={setElaborationText} />
         <AsyncError onRetry={submitElaboration} />
-        {elaborationPending && <p className="progress-note">Making sense of what you added...</p>}
+        {elaborationPending && <ModelWaitIndicator label="Making sense of what you added..." />}
         <button onClick={submitElaboration} disabled={elaborationText.trim().length === 0 || elaborationPending}>
           {elaborationPending ? "Working..." : "Continue"}
         </button>
@@ -179,7 +180,7 @@ export function ImageProvenance() {
       <textarea value={text} onChange={(e) => setText(e.target.value)} />
       <VoiceInputButton ref={voiceRef} value={text} onChange={setText} />
       <AsyncError onRetry={submit} />
-      {provenancePending && <p className="progress-note">Recording where this comes from...</p>}
+      {provenancePending && <ModelWaitIndicator label="Recording where this comes from..." />}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button onClick={submit} disabled={text.trim().length === 0 || provenancePending}>
           {provenancePending ? "Working..." : "Continue"}

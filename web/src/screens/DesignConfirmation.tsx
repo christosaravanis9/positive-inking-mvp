@@ -2,6 +2,7 @@ import { useJourney } from "../journey/JourneyProvider";
 import { useAsyncAction } from "../journey/useAsyncAction";
 import { requestBlueprint } from "../api/blueprint";
 import { AsyncError } from "../components/AsyncError";
+import { ModelWaitIndicator } from "../components/ModelWaitIndicator";
 import { formatPlacementSummary } from "../journey/placementSummary";
 import { labelForDimensionValue } from "../journey/artisticDimensionLabels";
 import { describeCreativeControl } from "../journey/creativeControlLabels";
@@ -108,7 +109,7 @@ export function DesignConfirmation() {
         </div>
       )}
       <AsyncError onRetry={build} />
-      {pending && <p className="progress-note">Building your Blueprint...</p>}
+      {pending && <ModelWaitIndicator label="Building your Blueprint..." />}
       <div style={{ display: "flex", gap: 8 }}>
         <button onClick={build} disabled={pending}>
           {pending ? "Working..." : "Build my Blueprint"}

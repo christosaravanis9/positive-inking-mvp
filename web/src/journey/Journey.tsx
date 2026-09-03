@@ -27,6 +27,7 @@ import { EngineInspector } from "../inspector/EngineInspector";
 import { TelemetryInspector } from "../inspector/TelemetryInspector";
 import { StartFreshJourneyButton } from "../dev/StartFreshJourneyButton";
 import { BuildIdentifier } from "../dev/BuildIdentifier";
+import { UnderstandingPanel } from "../components/UnderstandingPanel";
 
 const SCREEN_COMPONENTS: Record<ScreenId, () => JSX.Element | null> = {
   welcome: Welcome,
@@ -51,6 +52,16 @@ const SCREEN_COMPONENTS: Record<ScreenId, () => JSX.Element | null> = {
   working_notes: WorkingNotesView,
 };
 
+/**
+ * Screens with their own distinct layout in the Sites migration spec --
+ * Welcome has its own three-column hero (spec §1.3 "Welcome layout"), the
+ * Blueprint is a centred print-style sheet (spec §7's "Blueprint and print
+ * presentation", no side panel mentioned), and Working Notes is this app's
+ * own manual-fallback escape hatch, not one of the ten numbered intake
+ * steps the "What we've understood" panel accompanies (spec §2).
+ */
+const HIDE_UNDERSTANDING_PANEL: ReadonlySet<ScreenId> = new Set(["welcome", "blueprint", "working_notes"]);
+
 export function Journey() {
   const { state } = useJourney();
   const [globalError, setGlobalError] = useState<GlobalErrorDetail | null>(null);
@@ -63,19 +74,24 @@ export function Journey() {
 
   const screen = getNextScreen(deriveProgress(state));
   const ScreenComponent = SCREEN_COMPONENTS[screen];
+  const showUnderstandingPanel = !HIDE_UNDERSTANDING_PANEL.has(screen);
 
   return (
-    <div className="app-shell">
-      {globalError && (
-        <div className="error-banner">
-          Unhandled {globalError.source}: {globalError.message}
-        </div>
-      )}
-      <ScreenComponent key={screen} />
-      {import.meta.env.DEV && <StartFreshJourneyButton />}
-      {import.meta.env.DEV && <EngineInspector />}
-      {import.meta.env.DEV && <TelemetryInspector />}
-      {import.meta.env.DEV && <BuildIdentifier />}
+    <div className={`app-shell${showUnderstandingPanel ? " journey-with-panel" : ""}`}>
+      <div className="journey-stage">
+        {showUnderstandingPanel && <UnderstandingPanel variant="details" />}
+        {globalError && (
+          <div className="error-banner">
+            Unhandled {globalError.source}: {globalError.message}
+          </div>
+        )}
+        <ScreenComponent key={screen} />
+        {import.meta.env.DEV && <StartFreshJourneyButton />}
+        {import.meta.env.DEV && <EngineInspector />}
+        {import.meta.env.DEV && <TelemetryInspector />}
+        {import.meta.env.DEV && <BuildIdentifier />}
+      </div>
+      {showUnderstandingPanel && <UnderstandingPanel variant="rail" />}
     </div>
   );
 }

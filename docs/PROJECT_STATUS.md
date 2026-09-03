@@ -42,7 +42,7 @@ reproduced. Screen 13 ("Ready to build your Blueprint") uses the same
 Visual direction component for its "Open decisions" row, so it can no
 longer read "None noted" moments before the generated Blueprint's
 Readiness flags an unresolved contradiction, and its "Still needed" row
-is unchanged. 238 unit tests pass across engine/server/web; typecheck and
+is unchanged. 266 unit tests pass across engine/server/web; typecheck and
 build are clean across all three workspaces.
 
 **Design:** a new "studio ledger" visual direction (warm parchment
@@ -58,10 +58,17 @@ visual/UX reference** — no more bidirectional feature merging between the
 two; visual/UX direction flows from it into this project, not back and
 forth. **A real design-token foundation now exists**, migrated from the
 Positive Inking Sites UX migration spec with exact values (typography
-scale, 8-color palette, spacing rhythm) — see the latest session log entry
-— replacing the approximated palette/sizes the "studio ledger" direction
-first shipped with. It's a shared foundation defined once, ready to extend
-to other screens next; still applied to Screen 7 only for now.
+scale, 8-color palette, spacing rhythm) — replacing the approximated
+palette/sizes the "studio ledger" direction first shipped with. It's a
+shared foundation defined once, ready to extend to other screens next.
+
+**The Sites migration is three pieces in now: tokens, Readiness, and the
+"What we've understood" side panel** (see the latest session log entry for
+the panel). Unlike the token system, the panel is genuinely persistent
+across all of Screens 1–13 (not Screen-7-only) — it reuses the exact same
+token values via a shared `.sites-tokens` CSS class rather than
+duplicating them. The panel/placement/treatment items are still queued as
+tasks 4 and 5, not started.
 
 **Workflow/tooling:** a full local-dev-friction pass landed as its own
 chapter (see the latest session log entry) — this was tooling/DX work,
@@ -198,6 +205,70 @@ decision); nothing else newly introduced this session. See
 got to its current, tested state.
 
 ## Session log
+
+### 2026-09-03 — Built the "What we've understood" side panel (Sites migration spec §2), persistent across Screens 1-13
+Third piece of the Sites migration (after tokens and Readiness). `docs/
+sites-ux-migration-spec.md` now actually exists in the repo -- copied in
+during this task from the uploaded copy read for the previous two, since
+it had been referenced by that path twice without ever being committed.
+
+**Field mapping (spec §2.2's 8-field table, this app's real state):**
+Viewpoint (`project.user_viewpoint`), Story (`raw_story`, 105-char
+truncation), Meaning (`confirmed_themes`), Visual material
+(`visual_elements` descriptions), Composition (`composition_type` +
+"(no background)" when applicable, matching Screen 13's own existing
+convention), Treatment (`realism_level`/`linework_weight`/
+`shading_method`/`colour_strategy` via the existing `labelForDimensionValue`
+helper -- contrast omitted, exactly per spec), Placement (`side`/
+`body_area`/`size_class`). "Emerging vision" (Sites' free-text "design
+taking shape in your mind" field) has no equivalent anywhere in this
+app's real data model -- no screen asks that question or stores that
+text -- so per spec §2.3's own instruction ("add fields only as an
+explicit product change; do not describe those additions as behavior
+inherited from Sites"), that row is omitted rather than invented.
+
+**Timing is real, not simulated, but not always literally "live":**
+Viewpoint, Composition, and Treatment update the instant their source
+screen's own existing `patchProject` call fires, because those screens
+already patch global state on every individual click. Story, Meaning,
+and Visual material only become visible at their source screen's
+Continue, because *those* screens already buffer the answer in local
+component state until then (Story's textarea, MeaningReflection's theme
+chips, Screen 7's candidate checkboxes) -- changing that buffering to
+make the panel more "live" would mean editing those screens' own state
+management, which the task explicitly ruled out ("Do NOT modify the core
+logic of any screen... this only reads existing state, it doesn't change
+how that state is produced"). Every row is still driven entirely by real,
+already-existing `patchProject`/`patchUI` calls -- nothing new was added
+to any screen to produce this data, only new code that reads it.
+
+**Layout:** a persistent 330px right rail on desktop (spec §1.3's
+two-column workspace), collapsing to a `<details>` titled "What we've
+understood" above the screen content below 900px (spec's own
+breakpoint), reusing the exact token values from the design-token
+migration via a new shared `.sites-tokens` CSS class -- split out of
+`.ledger-screen`, which still carries it (alongside the panel's own
+`.understood-rail`/`.understood-mobile`), so neither redefines the
+values nor inherits from the other. Applied via a `.journey-with-panel`
+modifier class on `.app-shell`, only for Screens 1-13 (Welcome, the
+Blueprint, and Working Notes each have their own distinct layout in the
+spec too, or aren't part of the ten numbered intake steps) -- every
+other screen's existing single-column layout is untouched.
+
+**Verified:** `npm run typecheck`, `npm test` (266 tests -- 22 new for
+the row-derivation logic covering empty/mid/full states and every
+field's exact timing and truncation rule, 6 new component-render tests),
+and `npm run build` all pass, with zero changes to any existing test.
+Live-rendered a full real journey start to finish (Welcome through
+Screen 13, every screen's real buttons/inputs, real server, real Vite,
+fake Anthropic double) and screenshotted the panel at four points
+proving it accumulates real state correctly -- including the specific
+"don't show a field before its source data exists" case (Visual material
+absent while still on Screen 7, present the instant its own Continue
+fires) -- plus mobile collapsed and expanded, confirming the footer
+reassurance note is correctly absent from the mobile `<details>` (spec
+§2.1). The full click-through of every screen in the journey completing
+without error is itself the regression check this task asked for.
 
 ### 2026-09-03 — Replaced the single-sentence Readiness reason with the Sites migration spec's five-component model
 Trigger: `docs/sites-ux-migration-spec.md` doesn't actually exist in this

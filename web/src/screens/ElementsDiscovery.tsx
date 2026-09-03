@@ -519,7 +519,7 @@ export function ElementsDiscovery() {
   }
 
   return (
-    <div className="screen ledger-screen">
+    <div className="screen ledger-screen sites-tokens">
       <div className="ledger-header-row">
         <span className="ledger-step-label">07 / 13 &nbsp;·&nbsp; Finding the image</span>
       </div>

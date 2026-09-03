@@ -217,6 +217,12 @@ export function ElementsDiscovery() {
   // several elements is meant.
   const existingSoleElement = state.project.visual_elements.length === 1 ? state.project.visual_elements[0]! : null;
 
+  // Bug fix (live testing): a demoted idea (artist_notes only) satisfies none of these three,
+  // so without a stated reason Continue goes dark with no way for the user to tell what's
+  // needed. Requiring a real element before advancing is correct (artist notes are
+  // deliberately not design elements) -- what was missing is saying so.
+  const continueDisabled = selected.size === 0 && addedIdeas.length === 0 && state.project.visual_elements.length === 0;
+
   function fetchAssociations() {
     void runFetchAssociations(async (guard) => {
       const confirmedText =
@@ -684,13 +690,16 @@ export function ElementsDiscovery() {
       </div>
 
       <div className="ledger-footer">
-        <button
-          className="ledger-cta"
-          onClick={confirm}
-          disabled={selected.size === 0 && addedIdeas.length === 0 && state.project.visual_elements.length === 0}
-        >
+        <button className="ledger-cta" onClick={confirm} disabled={continueDisabled}>
           Continue
         </button>
+        {continueDisabled && (
+          <p className="supporting">
+            {hasCandidates
+              ? "Select at least one starting point above, or add a new idea that becomes a design element, to continue."
+              : "Add at least one idea that becomes a design element to continue — notes for the artist alone aren't enough to move forward."}
+          </p>
+        )}
       </div>
     </div>
   );

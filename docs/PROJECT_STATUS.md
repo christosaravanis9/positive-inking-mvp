@@ -124,6 +124,21 @@ to compare terminal output by hand.
 **In progress:** nothing actively mid-change right now.
 
 **Open decisions waiting on you:**
+- **Two more silent-dead-end Continue buttons found, not fixed — scope
+  decision needed.** Investigating the Screen 7 report below turned up the
+  same pattern (a disabled primary action with no visible stated reason)
+  in two more places: `MeaningReflection.tsx:42`
+  (`disabled={selected.length === 0}`, no "select at least one theme"
+  message) and `ImageProvenance.tsx:166` (`finalizeElaboration`, the
+  provenance re-entry theme-confirmation step, same shape). Only Screen
+  7's instance was fixed this round, per the report's own "list, don't fix
+  them all" instruction — say if you want the same treatment applied here.
+  Also flagged, not fixed: `ElementsDiscovery.tsx`'s new-idea demotion is
+  driven by a monotonically-increasing elapsed-time ratio, so once a
+  journey crosses that threshold every later "Add idea" demotes to notes
+  for the rest of the journey — if no Association candidates exist at that
+  point, a client could be left with no path to add a real visual element
+  at all.
 - **Meaning-depth gate prompt wording — real-model verification still
   needed from you.** The new Discovery prompt item (§ MEANING DEPTH) asks
   the model to classify a story as thin only when the stated reason is
@@ -252,6 +267,70 @@ decision); nothing else newly introduced this session. See
 got to its current, tested state.
 
 ## Session log
+
+### 2026-09-03 — Screen 7 Continue: stated reason instead of a silent dead end when a new idea demotes to artist notes
+
+Live-test report: no candidate selected, typed a new idea, clicked "Add".
+The idea was captured as an artist note (§14's iteration-bound demotion),
+the screen explained *that*, but Continue stayed disabled with no
+explanation of *what to do next* -- a genuine dead end.
+
+**Investigation finding, reported before any fix:** Continue's disable
+condition (`ElementsDiscovery.tsx`) only checks selected candidates,
+locally-added ideas, and existing visual elements --
+`selected.size === 0 && addedIdeas.length === 0 &&
+state.project.visual_elements.length === 0`. A demoted idea writes only to
+`state.project.artist_notes` (`demoteIdea()`), which none of those three
+check, so it can never satisfy the condition. Determined this is a
+**messaging oversight, not a condition-logic bug**: requiring a real
+visual element before advancing to composition/placement is correct --
+artist notes are deliberately not design elements, consistent with the
+Blueprint's own "further ideas the client raised" separation. Fix adds
+the missing visible reason; the disable condition itself is unchanged.
+
+**Fix:** `continueDisabled` is now a named derived value, and whenever
+it's true a `<p className="supporting">` under the Continue button states
+what to do -- worded conditionally on whether Association candidates
+exist:
+- Candidates present: "Select at least one starting point above, or add
+  a new idea that becomes a design element, to continue."
+- No candidates offered: "Add at least one idea that becomes a design
+  element to continue — notes for the artist alone aren't enough to move
+  forward."
+
+**Other screens surveyed for the same silent-dead-end pattern** (grepped
+every `disabled={` in `web/src/screens`, per the request's "list, don't
+fix" scope): `DesignConfirmation.tsx`, `StyleReference.tsx`,
+`ImageProvenance.tsx`'s text-entry Continue buttons, `ImageDescription.tsx`,
+`Placement.tsx`, `RoughScale.tsx`, `Story.tsx`, `Clarification.tsx`,
+`Avoidances.tsx` are all fine -- either self-evident (disabled tied to an
+empty, visibly-adjacent input) or already explained (`RoughScale.tsx`'s
+`.error-banner` shows a reason + resolutions). **Two further instances of
+the same gap found, not fixed here -- open decision for scope:**
+- `MeaningReflection.tsx:42` -- `disabled={selected.length === 0}`, no
+  visible "select at least one theme" message.
+- `ImageProvenance.tsx:166` (`finalizeElaboration`, the re-entry
+  theme-confirmation step) -- same shape, same gap.
+
+**Related edge case flagged, not addressed:** `elapsedOverTargetRatio()`
+is monotonic (wall-clock elapsed / target minutes), so once a journey
+crosses the 1.5x threshold every subsequent "Add idea" demotes to notes
+for the rest of that journey. If no Association candidates exist at that
+point, a client could have no path left to add a real visual element at
+all. Open decision, not fixed in this task.
+
+**Verified:** `npm run typecheck`, `npm test` (all suites pass, +3 new
+tests in `web/src/screens/ElementsDiscovery.test.tsx` covering: candidates
+present + demoted idea shows the candidates-aware reason; no candidates +
+demoted idea shows the no-candidates reason; a real (non-demoted) idea
+enables Continue with no message shown), `npm run build`. Live browser
+reproduction (real server + real Vite + fake Anthropic double, journey
+state seeded via the app's own `createInitialJourneyState` with
+`idea_iteration_count` pre-set to the demotion threshold) reproduced the
+exact reported scenario end to end -- confirmed the bug (idea demoted,
+Continue disabled) then confirmed the fix (reason visible before and after
+the demoted add, and it disappears once a candidate is selected and
+Continue enables). Screenshots captured before/after.
 
 ### 2026-09-03 — One shared ModelWaitIndicator applied to every model-call wait in the journey
 Addresses the deferred "timer/countdown UI during model-call waits" item

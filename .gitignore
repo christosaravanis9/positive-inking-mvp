@@ -9,3 +9,5 @@ coverage/
 *.log
 .vite/
 *.tsbuildinfo
+.dev-stack.json
+.last-known-good-commit.json

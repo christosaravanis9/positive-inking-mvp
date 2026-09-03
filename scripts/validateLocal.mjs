@@ -8,6 +8,8 @@ import {
   checkPortFree,
   startStack,
   waitForHttp,
+  gitInfo,
+  writeLastKnownGood,
 } from "./lib/devStack.mjs";
 
 /**
@@ -369,6 +371,7 @@ function printReport(model) {
 
   console.log(`\nOVERALL: ${overall}${overallReason}`);
   console.log(`\nFull log: ${LOG_PATH}`);
+  return overall;
 }
 
 async function main() {
@@ -380,8 +383,13 @@ async function main() {
   const { model } = runLiveDiagnosticsSection(apiKeyPresent);
   runBrowserJourneySection(engineOk);
 
-  printReport(model);
+  const overall = printReport(model);
   logStream.end();
+
+  if (overall === "PASS") {
+    const { commit, branch } = gitInfo();
+    writeLastKnownGood({ commit, branch });
+  }
 
   const hasFail = rows.some((r) => r.status === "FAIL") || warnings.length > 0;
   process.exitCode = hasFail ? 1 : 0;

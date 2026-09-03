@@ -387,19 +387,129 @@ input[type="text"] {
  * reused independently by Placement/StyleReference) are left on the app's
  * ordinary styling on purpose: the ledger treatment is reserved for the
  * primary candidate-review moment, not applied blanket to every control.
+ *
+ * Tokens below are the Positive Inking Sites UX migration spec's exact
+ * values (typography scale, color palette, spacing rhythm) -- not the
+ * approximated palette/sizes this direction shipped with when first
+ * applied live.
+ *
+ * Color tokens are "ledger-" prefixed (--ledger-paper, --ledger-ink, etc.)
+ * rather than the spec's own bare names (--paper, --muted, --accent...).
+ * This isn't a style preference: the app's global :root already defines
+ * --muted and --accent for a DIFFERENT concept at a DIFFERENT value
+ * (secondary text color app-wide; the brand CTA/button color used by the
+ * bare `button` rule and `.option-chip.selected`) -- and .ledger-screen
+ * wraps shared components deliberately left on that ordinary styling (the
+ * "add your own idea" input/button, ReferenceAttachment). CSS custom
+ * properties cascade to every descendant regardless of class, not just
+ * .ledger-* ones, so a scoped bare --accent here would have silently
+ * repainted those buttons' background/border with a pale spec color meant
+ * for ghost-button hover (#DED6CA) instead of the app's real accent --
+ * confirmed directly: the base `button` rule sets both `background` and
+ * `border` from var(--accent), which would have made "Add"/"Add it
+ * anyway" nearly illegible. The prefix sidesteps that class of bug
+ * entirely while still giving Screen 7 exactly one, non-duplicated
+ * source of truth per color concept. Typography-scale and spacing-rhythm
+ * tokens have no such collision (nothing in the app uses --text-h1-size
+ * etc.) and keep the spec's own naming. When this system extends to more
+ * screens, lift this whole block to :root -- typography/spacing token
+ * names already match the spec exactly; the color tokens would need
+ * their prefix dropped only once nothing else on the page still relies
+ * on the generic --muted/--accent meaning. A few supplementary tones
+ * with no spec equivalent (a faint icon ring color) are also
+ * "ledger-" prefixed, marking them as local derivatives rather than
+ * part of the spec's 8-token base palette.
  */
 .ledger-screen {
-  --ledger-paper: #f7f2e6;
-  --ledger-paper-deep: #efe6d3;
-  --ledger-ink: #2b241c;
-  --ledger-ink-soft: #6d6152;
+  /* System fonts only -- no webfont load (spec §1.1). Applied per-rule
+     below, not inherited from this wrapper, so the shared "ordinary
+     styling" components noted above keep the app's default font too. */
+  --font-display: Georgia, "Times New Roman", serif;
+  --font-sans: Arial, Helvetica, sans-serif;
+
+  /* Type scale (spec §1.1). Only a subset is consumed on Screen 7 today
+     (see the rules below) -- the rest is defined as foundation, ready to
+     extend once matching elements (a side panel, two-column choice cards,
+     a secondary in-screen heading) exist here or on another screen. */
+  --text-h1-family: var(--font-display);
+  --text-h1-weight: 400;
+  --text-h1-size: clamp(40px, 5.2vw, 68px);
+  --text-h1-size-mobile: 42px;
+  --text-h1-leading: 1.02;
+  --text-h1-tracking: -0.035em;
+
+  --text-intro-family: var(--font-display);
+  --text-intro-weight: 400;
+  --text-intro-size: 17px;
+  --text-intro-leading: 1.6;
+
+  --text-h2-family: var(--font-display);
+  --text-h2-weight: 400;
+  --text-h2-size: 28px;
+  --text-h2-leading: 1.2;
+
+  --text-label-family: var(--font-sans);
+  --text-label-weight: 700;
+  --text-label-size: 10px;
+  --text-label-leading: 1.2;
+  --text-label-tracking: 0.13em;
+  --text-label-transform: uppercase;
+
+  --text-choice-title-family: var(--font-sans);
+  --text-choice-title-weight: 600;
+  --text-choice-title-size: 14px;
+  --text-choice-title-leading: 1.35;
+
+  --text-choice-desc-family: var(--font-sans);
+  --text-choice-desc-weight: 400;
+  --text-choice-desc-size: 12px;
+  --text-choice-desc-leading: 1.4;
+
+  --text-side-label-family: var(--font-sans);
+  --text-side-label-weight: 700;
+  --text-side-label-size: 9px;
+  --text-side-label-tracking: 0.13em;
+  --text-side-label-transform: uppercase;
+
+  --text-side-value-family: var(--font-display);
+  --text-side-value-weight: 400;
+  --text-side-value-size: 13px;
+  --text-side-value-leading: 1.55;
+
+  --text-button-family: var(--font-sans);
+  --text-button-weight: 500;
+  --text-button-size: 14px;
+  --text-button-nowrap: nowrap;
+
+  /* Color palette (spec §1.2) -- the single source of truth for these
+     eight concepts on this screen. "ledger-" prefixed -- see the comment
+     above this rule for why (collision with the app's generic --muted/
+     --accent, which shared components inside this screen still rely on). */
+  --ledger-paper: #f4f0e8;
+  --ledger-paper-deep: #e9e2d7;
+  --ledger-ink: #171614;
+  --ledger-muted: #6d685f;
+  --ledger-line: #c9c0b3;
+  --ledger-red: #8e2f2a;
+  --ledger-white: #fffdf8;
+  --ledger-accent: #ded6ca;
+  /* Selection wash derived from --ledger-red -- one red, not a second one. */
+  --ledger-red-tint: rgba(142, 47, 42, 0.07);
+  /* Faint decorative tone (unselected seal ring) with no spec equivalent --
+     a local derivative, not part of the spec's 8-token base palette. */
   --ledger-ink-faint: #9a8f7d;
-  --ledger-rule: #ddcfb0;
-  --ledger-rule-soft: #e8ddc4;
-  --ledger-ember: #a3461f;
-  --ledger-ember-deep: #8a3a19;
-  --ledger-ember-tint: rgba(163, 70, 31, 0.07);
-  --ledger-font-display: Georgia, "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
+
+  /* Spacing rhythm (spec §1.3). Only a subset applies to Screen 7's
+     current single-column layout (no side panel or two-column question
+     groups here yet) -- the rest is defined as foundation. */
+  --space-intro-top: 20px;
+  --space-intro-bottom: 32px;
+  --space-question-block-top: 34px;
+  --space-question-group-gap: 28px;
+  --space-choice-grid-gap: 10px;
+  --space-nav-top: 44px;
+  --space-nav-padding-top: 18px;
+  --space-nav-separator: 1px;
 
   background: var(--ledger-paper);
   color: var(--ledger-ink);
@@ -417,14 +527,14 @@ input[type="text"] {
 .ledger-step-label {
   font-size: 0.72rem;
   letter-spacing: 0.06em;
-  color: var(--ledger-ink-soft);
+  color: var(--ledger-muted);
   font-variant-numeric: tabular-nums;
 }
 
 .ledger-progress-track {
   position: relative;
   height: 2px;
-  background: var(--ledger-rule-soft);
+  background: var(--ledger-line);
   border-radius: 2px;
   margin-bottom: 24px;
   overflow: hidden;
@@ -434,18 +544,23 @@ input[type="text"] {
   position: absolute;
   inset: 0 auto 0 0;
   width: 54%; /* Screen 7 of 13 -- see the docstring on ElementsDiscovery */
-  background: var(--ledger-ember);
+  background: var(--ledger-red);
   border-radius: 2px;
 }
 
 .ledger-headline {
-  font-family: var(--ledger-font-display);
-  font-weight: 400;
-  font-size: 1.85rem;
-  line-height: 1.3;
-  letter-spacing: -0.01em;
+  font-family: var(--text-h1-family);
+  font-weight: var(--text-h1-weight);
+  font-size: var(--text-h1-size);
+  line-height: var(--text-h1-leading);
+  letter-spacing: var(--text-h1-tracking);
   color: var(--ledger-ink);
   margin: 0 0 24px;
+}
+@media (max-width: 640px) {
+  .ledger-headline {
+    font-size: var(--text-h1-size-mobile);
+  }
 }
 
 .ledger-list {
@@ -456,14 +571,14 @@ input[type="text"] {
 .ledger-candidate {
   position: relative;
   padding: 22px 0 22px 30px;
-  border-top: 1px solid var(--ledger-rule);
+  border-top: 1px solid var(--ledger-line);
 }
 .ledger-candidate:last-child {
-  border-bottom: 1px solid var(--ledger-rule);
+  border-bottom: 1px solid var(--ledger-line);
 }
 
 .ledger-candidate.selected {
-  background: linear-gradient(to right, var(--ledger-ember-tint), transparent 70%);
+  background: linear-gradient(to right, var(--ledger-red-tint), transparent 70%);
   margin: 0 -20px;
   padding-left: 50px;
   padding-right: 20px;
@@ -505,12 +620,12 @@ input[type="text"] {
   left: 20px;
 }
 .ledger-seal-input:checked ~ .ledger-seal {
-  border-color: var(--ledger-ember);
-  background: var(--ledger-ember);
-  box-shadow: 0 0 0 3px var(--ledger-ember-tint);
+  border-color: var(--ledger-red);
+  background: var(--ledger-red);
+  box-shadow: 0 0 0 3px var(--ledger-red-tint);
 }
 .ledger-seal-input:focus-visible ~ .ledger-seal {
-  outline: 2px solid var(--ledger-ember-deep);
+  outline: 2px solid var(--ledger-red);
   outline-offset: 2px;
 }
 
@@ -523,13 +638,13 @@ input[type="text"] {
 
 .ledger-candidate-meaning {
   font-style: italic;
-  color: var(--ledger-ink-soft);
+  color: var(--ledger-muted);
 }
 
 .ledger-marginalia {
-  margin-top: 20px;
+  margin-top: var(--space-question-block-top);
   padding-left: 18px;
-  border-left: 2px solid var(--ledger-ember);
+  border-left: 2px solid var(--ledger-red);
 }
 
 .ledger-marginalia-field {
@@ -539,20 +654,22 @@ input[type="text"] {
 
 .ledger-marginalia-label {
   display: block;
-  font-size: 0.68rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--ledger-ember-deep);
-  font-weight: 700;
+  font-family: var(--text-label-family);
+  font-weight: var(--text-label-weight);
+  font-size: var(--text-label-size);
+  line-height: var(--text-label-leading);
+  letter-spacing: var(--text-label-tracking);
+  text-transform: var(--text-label-transform);
+  color: var(--ledger-red);
   margin-bottom: 10px;
 }
 
 .ledger-lined-input {
   width: 100%;
   border: none;
-  border-bottom: 1px solid var(--ledger-rule);
+  border-bottom: 1px solid var(--ledger-line);
   background: transparent;
-  font-family: var(--font-ui, inherit);
+  font-family: var(--font-sans);
   font-size: 0.98rem;
   color: var(--ledger-ink);
   padding: 4px 2px 10px;
@@ -570,29 +687,31 @@ input[type="text"] {
 .ledger-fidelity {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: var(--space-choice-grid-gap);
 }
 
 .ledger-fidelity-pill {
-  font-family: inherit;
-  font-size: 0.78rem;
+  font-family: var(--text-choice-title-family);
+  font-weight: var(--text-choice-title-weight);
+  font-size: var(--text-choice-title-size);
+  line-height: var(--text-choice-title-leading);
   padding: 6px 12px;
   border-radius: 999px;
-  border: 1px solid var(--ledger-rule);
-  color: var(--ledger-ink-soft);
+  border: 1px solid var(--ledger-line);
+  color: var(--ledger-muted);
   background: transparent;
   cursor: pointer;
 }
 .ledger-fidelity-pill.active {
   background: var(--ledger-ink);
   border-color: var(--ledger-ink);
-  color: var(--ledger-paper);
+  color: var(--ledger-white);
 }
 
 .ledger-idea-tag {
   font-size: 0.7rem;
-  color: var(--ledger-ember-deep);
-  border: 1px solid var(--ledger-rule);
+  color: var(--ledger-red);
+  border: 1px solid var(--ledger-line);
   border-radius: 4px;
   padding: 1px 6px;
   margin-left: 8px;
@@ -600,18 +719,20 @@ input[type="text"] {
 }
 
 .ledger-footer {
-  margin-top: 8px;
-  padding-top: 22px;
-  border-top: 1px solid var(--ledger-rule);
+  margin-top: var(--space-nav-top);
+  padding-top: var(--space-nav-padding-top);
+  border-top: var(--space-nav-separator) solid var(--ledger-line);
   display: flex;
   align-items: center;
   justify-content: flex-end;
 }
 
 .ledger-cta {
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--ledger-paper);
+  font-family: var(--text-button-family);
+  font-weight: var(--text-button-weight);
+  font-size: var(--text-button-size);
+  white-space: var(--text-button-nowrap);
+  color: var(--ledger-white);
   background: var(--ledger-ink);
   border: 1px solid var(--ledger-ink);
   padding: 13px 28px;

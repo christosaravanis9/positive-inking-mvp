@@ -9,6 +9,9 @@
   ],
   "scripts": {
     "dev": "node scripts/dev.mjs",
+    "start": "node scripts/start.mjs",
+    "stop": "node scripts/stop.mjs",
+    "doctor": "node scripts/doctor.mjs",
     "build": "npm run build -w engine && npm run build -w server && npm run build -w web",
     "test": "npm run build -w engine && npm run test -w engine && npm run test -w server && npm run test -w web",
     "test:integration": "node test-integration/asyncStateRace.mjs",

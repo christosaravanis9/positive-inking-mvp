@@ -33,23 +33,47 @@ Blueprint's Section 4 (Visual hierarchy) is a labelled decision map (Core
 concept / Personal reference / Other elements / Still undecided), with
 every element assigned to exactly one group (a live-test report caught a
 duplication bug in the first version of this grouping — see the session
-log), and the Readiness section names the actual contradiction and its
-concrete next step, not just that one exists. Screen 13 ("Ready to build
-your Blueprint") now has a matching "Open decisions" row using the same
-wording, so it can no longer read "Nothing outstanding" moments before
-the generated Blueprint flags an unresolved contradiction — see the
-session log. 226 unit tests pass across engine/server/web; typecheck and
+log). The Blueprint's Section 12 (Readiness) is now the Sites migration
+spec's five independently-statused components (Meaning / Visual direction
+/ References / Artist discussion / Final artwork) instead of one sentence
+— see the latest session log entry for the full mapping and the three
+Sites-documented semantic defects corrected before porting the model, not
+reproduced. Screen 13 ("Ready to build your Blueprint") uses the same
+Visual direction component for its "Open decisions" row, so it can no
+longer read "None noted" moments before the generated Blueprint's
+Readiness flags an unresolved contradiction, and its "Still needed" row
+is unchanged. 238 unit tests pass across engine/server/web; typecheck and
 build are clean across all three workspaces.
 
 **Design:** a new "studio ledger" visual direction (warm parchment
 background, serif headline, ember-accented selection/marginalia, no card
 chrome) was explored as an isolated static preview, approved, and is now
-applied live to Screen 7 (`ElementsDiscovery.tsx`) only — see the latest
-session log entry. It is deliberately not rolled out to the other 12
-screens yet; doing so is a separate future decision, not assumed by this
-change. All new styling lives in scoped `.ledger-*` classes/CSS custom
-properties in `web/src/styles.css` and in Screen 7's own markup — no
-shared component or other screen's styling was touched.
+applied live to Screen 7 (`ElementsDiscovery.tsx`) only — see the session
+log. It is deliberately not rolled out to the other 12 screens yet; doing
+so is a separate future decision, not assumed by this change. All new
+styling lives in scoped `.ledger-*` classes/CSS custom properties in
+`web/src/styles.css` and in Screen 7's own markup — no shared component or
+other screen's styling was touched. **ChatGPT Sites is now the frozen
+visual/UX reference** — no more bidirectional feature merging between the
+two; visual/UX direction flows from it into this project, not back and
+forth. **A real design-token foundation now exists**, migrated from the
+Positive Inking Sites UX migration spec with exact values (typography
+scale, 8-color palette, spacing rhythm) — see the latest session log entry
+— replacing the approximated palette/sizes the "studio ledger" direction
+first shipped with. It's a shared foundation defined once, ready to extend
+to other screens next; still applied to Screen 7 only for now.
+
+**Workflow/tooling:** a full local-dev-friction pass landed as its own
+chapter (see the latest session log entry) — this was tooling/DX work,
+not a feature chapter, and touched no application logic, UI, or product
+behaviour. `npm run start` / `npm run stop` / `npm run doctor` now sit
+alongside the existing `npm run dev` / `npm run validate:local` (both
+unchanged) as the reliable way to run the stack locally, with automatic
+recovery from a stale copy of this project's own processes, fail-fast
+environment validation, and a commit/branch identifier that's always
+visible in the running app (footer + Telemetry panel, dev-only) so
+"is this browser running current code" never again requires leaving it
+to compare terminal output by hand.
 
 **In progress:** nothing actively mid-change right now.
 
@@ -108,7 +132,13 @@ shared component or other screen's styling was touched.
   harmless there only because `requiresAttestation()` also skips it, not
   because it's the right answer. Left as-is pending your call on whether
   to adjust the options, make the field conditional on `material_type`,
-  or leave it.
+  or leave it. **Update, stronger framing:** further live feedback now
+  leans toward removing/skipping this field entirely for certain
+  scenarios (an object the client made themselves for a living family
+  member, per the finding above), not just gating it conditionally as
+  first investigated. Still not built — the three options on the table
+  are now: adjust the five options, make the field conditional on
+  `material_type`, or drop it entirely for scenarios like this one.
 - **§15.7 production launch blockers** (encrypted-at-rest storage,
   project-scoped access control, deletion/retention, training-use policy,
   legal review of the consent flow) are all still open — see README.md's
@@ -147,8 +177,14 @@ shared component or other screen's styling was touched.
   of Inspiration's *content*, which this session's item #2 fixed — see
   below; this note is about typography/visual treatment only.)
 - **Free-text input + suggestion chips on binary confirmation screens**
-  ("Here's what that suggests" style screens) — currently only
-  right/try-again, no way to add nuance or see suggested phrasing.
+  ("Here's what that suggests" style screens, e.g. `StyleReference.tsx`'s
+  resolution step) — currently only right/try-again, no way to add
+  nuance or see suggested phrasing. **Sharpened by later feedback:** the
+  ask is for both together on the same screen, not either/or —
+  multiple suggestion boxes (alternative phrasings/interpretations to
+  pick from, not just the one shown) *and* a free-text input to type a
+  correction/refinement directly, rather than only being able to accept
+  or reject the single suggestion. Still not built.
 - **Timer/countdown UI during model-call waits** — may overlap with the
   already-specced placement-preference "productive waiting" MVP; should
   probably be coordinated with it rather than built separately.
@@ -162,6 +198,305 @@ decision); nothing else newly introduced this session. See
 got to its current, tested state.
 
 ## Session log
+
+### 2026-09-03 — Replaced the single-sentence Readiness reason with the Sites migration spec's five-component model
+Trigger: `docs/sites-ux-migration-spec.md` doesn't actually exist in this
+repo — it was never committed, only uploaded to the assistant in an
+earlier session and read from that path. Used that uploaded copy directly
+(same document as the design-token migration); its §12 is the Blueprint's
+own "12 — Readiness" subsection (not a top-level section 12 — the doc has
+no top-level section 12 at all), which explicitly says to preserve the
+five-row structure while sourcing statuses from this app's deterministic
+engine and correcting the semantic defects §4.3 lists. Worth getting a
+real copy into this repo before the next task references it by path.
+
+**Replaced:** `engine/src/readiness.ts`'s `describeReadinessReason()`
+(one sentence per readiness state) with `describeReadinessComponents()` --
+five named, independently-statused components (Meaning, Visual direction,
+References, Artist discussion, Final artwork), each a typed status enum
+plus factual detail lines, never invented copy. Real signal per component,
+all pre-existing:
+- **Meaning** — non-empty `statement_of_intention` (full mode) or
+  `attraction_origin` (other modes).
+- **Visual direction** — `hasUnresolvedPrimaryImagery()` and the
+  Association Engine's own `contradictions_noticed`, exactly as
+  `computeReadiness`'s `hasUnresolvedContradiction` already used.
+- **References** — the existing reference checklist
+  (`buildReferenceChecklist`/`isReferenceEntrySatisfied`), now
+  distinguishing three states instead of a binary: nothing in the concept
+  requires one, everything required has been provided, or something
+  required is still missing.
+- **Artist discussion** — `creative_control` being set (Screen 9,
+  mandatory in every journey mode from Screen 7 onward per §7's
+  convergence rule).
+- **Final artwork** — the already-computed overall `ReadinessState`;
+  omitted entirely pre-Blueprint (Screen 13), since it only makes sense
+  once a Blueprint exists to describe.
+
+**Three of the Sites spec's six §4.3 semantic defects genuinely applied
+here and are fixed, not ported:**
+1. *"Intentional absence of exact references is mislabeled... displays
+   'Available to provide' rather than 'Not required.'"* Fixed: References
+   now has a real `not_required` status ("None required for this
+   concept"), distinct from `available`.
+2. *"Meaning and artist discussion are always declared complete/ready...
+   presentation labels, not validated gates."* Fixed: both are now
+   evidence-backed booleans (non-empty meaning text; `creative_control`
+   actually set), not unconditional strings -- even though both are, by
+   this app's own screen-flow rules, always true by the time Screen 13 or
+   the Blueprint is reachable, so the fix's real value is architectural
+   (a genuine gate instead of a string), not a currently-visible behavior
+   change.
+3. *"Final artwork readiness means 'ready to begin artwork.' No artwork
+   is produced or verified."* Fixed: the copy never says artwork is ready
+   to begin -- both of its states say "Not yet begun," differing only in
+   whether the Blueprint itself is ready to hand to an artist.
+
+The other three defects (model-returned open decisions not
+auto-resolving; the recommendation path never reaching design-ready; no
+reference files actually inspected) are specific to mechanisms this app
+doesn't have in the same shape -- `hasUnresolvedPrimaryImagery`/
+`contradictions` are genuinely recomputed here via §14.1's own
+invalidation logic, and reference availability already only reads a real
+uploaded-or-not signal -- so there was nothing to port or fix for those.
+
+**Kept in sync deliberately:** Screen 13's "Open decisions" row now
+renders the same Visual direction component (`readiness: null`, which is
+what limits it to four of the five components pre-Blueprint) instead of
+its own call into the old sentence function -- confirmed live that the
+exact same contradiction wording appears on both screens. Its "Still
+needed" row is unrelated (a pre-existing §8 bullet, never routed through
+the old sentence function) and was left untouched.
+
+**Verified:** `npm run typecheck`, `npm test` (238 tests -- 23 in
+`engine/test/readiness.test.ts` covering every component reaching every
+status, 5 new component-rendering tests in `BlueprintView.test.tsx`,
+plus the existing "bare label with nothing else" regression test updated
+for the new `<dl>` markup rather than the old `p.supporting` structure),
+and `npm run build` all pass. Live-rendered both Screen 13 and the
+Blueprint (real server, real Vite, fake Anthropic double) for an
+"Athena wire" scenario -- a candidate with `fidelity: "exact"` and no
+uploaded reference, plus a real contradiction record -- and confirmed
+programmatically that the exact same contradiction text, missing-
+reference description, and creative-control choice appear on both
+screens. Screenshots sent for review.
+
+### 2026-09-02 — Migrated the Sites design-token system into Screen 7's CSS (exact values, foundational)
+Foundational visual work, not a full screen redesign — no component logic
+touched, only `web/src/styles.css`. Trigger: the "studio ledger" direction
+applied to Screen 7 earlier today used an *approximated* palette/sizing,
+judged by eye against a preview; this migrates the Positive Inking Sites
+UX migration spec's literal, audited values (typography scale, 8-color
+palette, spacing rhythm) in their place.
+
+**Built:** a full token system in `.ledger-screen` (Screen 7's scope):
+- Typography scale as CSS custom properties (`--text-h1-*`, `--text-intro-*`,
+  `--text-h2-*`, `--text-label-*`, `--text-choice-title-*`,
+  `--text-choice-desc-*`, `--text-side-label-*`, `--text-side-value-*`,
+  `--text-button-*`) — family/weight/size/line-height/tracking per the
+  spec, system fonts only (`Georgia, "Times New Roman", serif` /
+  `Arial, Helvetica, sans-serif`, no webfont load).
+- The 8-token color palette (`--ledger-paper`, `--ledger-paper-deep`,
+  `--ledger-ink`, `--ledger-muted`, `--ledger-line`, `--ledger-red`,
+  `--ledger-white`, `--ledger-accent`) at the spec's exact hex values,
+  replacing the earlier approximated `--ledger-ember`/`--ledger-paper`/etc.
+- Spacing-rhythm tokens (`--space-intro-*`, `--space-question-block-top`,
+  `--space-question-group-gap`, `--space-choice-grid-gap`,
+  `--space-nav-*`) at the spec's exact values.
+
+**Reconciliation, not duplication:** every rule in `.ledger-screen` that
+previously referenced the old approximated `--ledger-*` set (colors) or a
+hardcoded literal (typography/spacing) now consumes the new tokens instead
+— confirmed by grep that no old approximated color variable remains
+defined anywhere. Applied where an existing Screen 7 element's role
+genuinely matches a given scale entry (the headline → Screen title/H1
+scale including its literal `clamp(40px, 5.2vw, 68px)` — visibly larger
+than before, by design, per the exact spec number, not preserved at the
+old approximated size; the marginalia follow-up label → Question label/H3
+scale; the fidelity pills → Choice-title scale; the CTA → Standard-button
+scale; the footer nav → the spacing spec's bottom-navigation rhythm).
+Scale entries with no current Screen 7 counterpart (Screen intro copy,
+Screen H2, choice description, side-panel label/value) are defined but
+unconsumed — foundation for when a matching element exists here or on
+another screen, not applied speculatively.
+
+**A real collision caught and avoided, not just checked for:** the spec's
+own token names are bare (`--paper`, `--muted`, `--accent`, ...), but this
+app's global `:root` already defines `--muted` and `--accent` for a
+*different* concept at a *different* value — and, critically, the base
+`button` rule and `.option-chip.selected` set `background`/`border` from
+`var(--accent)`. Screen 7 wraps components deliberately left on that
+ordinary app-wide styling (the "add your own idea" input/button,
+`ReferenceAttachment`) per the earlier ledger work's own scope. CSS custom
+properties cascade to every descendant regardless of class, so a
+Screen-7-scoped bare `--accent` would have silently repainted those
+buttons with the spec's pale ghost-hover color (`#DED6CA`) instead of the
+app's real accent, making "Add"/"Add it anyway" nearly illegible —
+reproduced this directly before catching it, not just reasoned about it
+abstractly. Fix: the 8 color tokens keep a `--ledger-` prefix (exact spec
+*values*, namespaced *names*); typography-scale and spacing-rhythm tokens
+have no such collision (nothing else in the app uses `--text-h1-size`
+etc.) and keep the spec's own naming. Full reasoning is in a CSS comment
+directly above the token block.
+
+**Verified:** `npm run typecheck`, `npm test` (226 tests), and
+`npm run build` (including the production Vite build) all pass unchanged.
+`grep` across `web/src/styles.css` confirms every `--ledger-*` token is
+defined exactly once (no two competing reds/inks/etc.) — the only names
+with two definitions anywhere in the file are the pre-existing, intentional
+light/dark `prefers-color-scheme` pairs, not a duplicate/conflicting
+definition of the same concept. Live-rendered Screen 7 (real server, real
+Vite, fake Anthropic double, a real browser journey through Welcome →
+Viewpoint → Story → Screen 7, one candidate selected to show the
+marginalia/fidelity-pill state) at both desktop and 375px-mobile
+viewports — screenshots sent for review. No structural regression: still
+the same flowing hairline-separated list with no card chrome, hollow-ring
+selection, and marginalia-style follow-ups; the exact-token pass reads as
+a precision correction (crisper contrast, correct hex values) plus one
+deliberate, spec-driven size change (the headline), not a redesign.
+
+### 2026-09-02 — Local dev workflow/tooling chapter: start/stop/doctor, auto port-conflict recovery, always-visible build identifier
+This is a workflow/tooling chapter, not a feature chapter — no
+application logic, UI, or product behaviour changed. Trigger: a session
+that repeatedly lost time to port conflicts, stale git pulls, and not
+knowing whether the running app matched what was pushed — most costly of
+all, four separate instances of debugging against stale code without
+realizing it, because checking required leaving the browser and comparing
+terminal output by hand.
+
+**Built:**
+1. **`npm run start`** — wraps the existing `startStack()` (unchanged;
+   `npm run dev` is untouched and still works exactly as before) with:
+   fail-fast `server/.env` / `ANTHROPIC_API_KEY` validation before
+   spawning anything (value never printed); automatic reclaim of a stale
+   copy of *this project's own* processes (from a previous `npm run
+   start` that didn't shut down cleanly), with a printed explanation of
+   what was killed and why; the existing named-PID `PortConflictError`
+   behaviour preserved unchanged for anything that isn't provably this
+   repo's own process; post-boot health checks (engine/server/web all
+   actually responding, not just spawned); and a success banner that
+   names the URL, the running commit, and the branch.
+2. **`npm run stop`** — stops only this project's own processes, no
+   manual PID-hunting. Two sources, both used: the PID marker
+   `npm run start` writes (`.dev-stack.json`, git-ignored — this is what
+   catches the engine watcher, which holds no port), and a live check of
+   ports 8787/5173 as a fallback for a missing/stale marker. Anything not
+   provably this repo's own process (working directory doesn't match) is
+   reported and left alone, never killed.
+3. **`npm run doctor`** — read-only diagnostic: git branch and whether
+   it's behind origin (best-effort `git fetch`, degrades gracefully
+   offline), port occupancy (and whether the occupant is this repo's own
+   process), whether `server/.env`/`ANTHROPIC_API_KEY` are present
+   (value never printed), and — new — a last-known-good-commit
+   comparison: `npm run validate:local` now records the commit it last
+   fully validated (`.last-known-good-commit.json`, git-ignored) on a
+   full PASS, and `doctor` reports whether HEAD still matches it.
+4. **Always-visible build identifier** — `web/vite.config.ts` now has a
+   `define` block computing the short git commit hash and branch fresh
+   from git at every dev-server start/build (`web/src/vite-env.d.ts`
+   declares the injected `__GIT_COMMIT__`/`__GIT_BRANCH__` globals). A
+   new dev-only `web/src/dev/BuildIdentifier.tsx` renders it as a small
+   fixed footer badge — deliberately *not* inside `TelemetryInspector`'s
+   collapsed `<details>`, so it never requires a click — and it's also
+   echoed in that panel's `<summary>` line (visible without expanding)
+   for redundancy. This directly targets the single most time-costly
+   failure mode from tonight's session.
+5. **`Start Positive Inking.command`** — a Mac double-click launcher
+   (`cd` to the repo, run `npm run start`) so starting the stack never
+   requires opening Terminal manually first.
+
+**A real bug found and fixed along the way, in shared plumbing:**
+`scripts/lib/devStack.mjs`'s `terminateManaged()` skipped signaling a
+child's process group entirely once the *directly tracked* process (e.g.
+the `npm` process for `npm run dev -w engine`) had already exited —
+reasoning "nothing to do here." That's wrong when a grandchild it spawned
+(`tsc --watch`, which retains the same process-group id) survives as an
+orphan: nothing ever signals it. Found this directly while verifying the
+stop→start cycle: a pre-existing, platform-timing-dependent race already
+documented in `docs/dev-server-reliability.md` (not something this
+chapter introduced — reproduced even against an unmodified `npm run dev`)
+occasionally causes the engine watcher to receive an external SIGTERM
+shortly after boot, which triggers the existing crash-cascade shutdown in
+both `dev.mjs` and the new `start.mjs`; with the old `terminateManaged`,
+that cascade left `tsc --watch` running orphaned, undetected by port
+checks (it holds no port). Fixed by always signaling the process group,
+regardless of whether the tracked child has already exited. This is a
+tooling-only fix to shared process-lifecycle plumbing — the underlying
+file-watcher race itself was not (and, per that doc, could not reliably
+be) chased further; it remains an accepted, already-documented flake in
+the dev stack, not a regression from this chapter.
+
+**Verified live, not just read:**
+- Stop→start cycled 5 times in a row (`npm run start` → confirm health →
+  `npm run stop` → confirm ports free, repeat). All 5 stops fully cleaned
+  up and every subsequent start succeeded — including the ~2/5 cycles
+  where the pre-existing engine-watch race above fired mid-cycle, proving
+  the tooling itself never gets stuck even when the underlying dev stack
+  does.
+- Port-conflict-recovery path: started the stack, `kill -9`'d the
+  `npm run start` process directly (simulating a killed terminal — leaves
+  engine/server/web running orphaned with a stale marker on disk), then
+  ran `npm run start` again with no manual cleanup. It found the stale
+  marker, confirmed each PID via working-directory ownership, printed
+  what it was reclaiming and why, and came up clean — both ports
+  responding — with zero manual intervention.
+- `npm run doctor`'s stale-branch detection against real git history:
+  `git reset --soft HEAD~1` (simulating a checkout behind its own
+  remote-tracking ref) made `doctor` correctly report "1 commit(s)
+  behind -- you are looking at OLD code, pull before debugging further";
+  reset back to the real HEAD afterward.
+- `npm run typecheck`, `npm test` (226 tests, unchanged), and
+  `npm run test:dev-reliability` (the existing stress-edit regression
+  test) all still pass after the `terminateManaged` change.
+
+### 2026-09-02 — Investigated a reported style_reference "2+ minute hang": no code bug found
+Trigger: a live report of a successful `style_reference` model call
+(server log: `outcome=success elapsed_ms=5020 budget_ms=12000`, well
+under budget) followed by 2+ minutes with no visible screen progression.
+
+**Investigated, per instruction, before touching anything:**
+1. Traced the client path: `StyleReference.tsx`'s `submit()` goes through
+   the same `useAsyncAction` re-entrancy/staleness-guarded path as every
+   other model-backed screen (`guard.isStale()` checked after the await,
+   before the only state mutation, `setResolution(result)`) -- nothing
+   unprotected. Re-read `useAsyncAction.ts` itself: `pending` clears in a
+   `finally` keyed on the call's own token, independent of whether the
+   guard reports stale, so there is no path that leaves it stuck `true`
+   after a call this hook itself considers current.
+2. Confirmed today's Screen 7 restyling touched exactly three files
+   (`ElementsDiscovery.tsx`, `styles.css`, `docs/PROJECT_STATUS.md` --
+   `git show --stat` on that commit) and introduced no class name outside
+   an `ledger-`-prefixed set that exists nowhere else in `web/src`
+   (grepped to confirm). No shared state file, `JourneyProvider.tsx`,
+   `useAsyncAction.ts`, or `StyleReference.tsx` itself was touched --
+   there is no mechanism by which it could affect this screen.
+3. Live-reproduced the exact reported condition: intercepted
+   `/api/style-reference` in a real browser (Playwright) to return a
+   genuinely successful response instantly (isolating client behavior
+   from real model latency, which the server log already cleared), landed
+   on Screen 11's style-reference lead-in with seeded state, and
+   submitted a real request through the real `useAsyncAction` path. No
+   console or page errors. The screen correctly transitioned from the
+   "Working out what that points toward..." spinner to a new heading,
+   "Here's what that suggests," showing the resolution summary and a
+   "That's right, continue" button; clicking it correctly advanced to
+   the next screen (Artistic direction).
+
+**Root cause: not a code bug.** `StyleReference.tsx`'s own docstring
+states the intended design: "A resolution is always shown back once,
+compactly, and is correctable before it's applied to anything" -- Screen
+11 is a deliberate two-step confirm-before-apply flow, not
+auto-advancing. A successful response correctly produces a *new*
+screen (a confirmation summary), which then waits for an explicit user
+click before the *next* screen appears. The reported "hang" most likely
+happened at that confirmation step -- the screen did update, but not to
+what was being watched for ("artistic direction"), and nothing in this
+investigation found the confirmation screen failing to render or the
+confirm action failing to fire. No code was changed. If this recurs
+against a verified-current checkout, capturing what's actually on
+screen at the moment of the "hang" (a screenshot, or which heading is
+showing) would be the fastest way to tell a genuine regression from
+this same UX read.
 
 ### 2026-09-02 — Applied the "studio ledger" design direction to Screen 7 (live, not a preview)
 An earlier same-day exploration produced an isolated static-HTML preview of

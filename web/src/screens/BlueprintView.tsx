@@ -1,13 +1,18 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useJourney } from "../journey/JourneyProvider";
 import { formatPlacementSummary } from "../journey/placementSummary";
 import { HIERARCHY_LABEL, REFERENCE_STATUS_LABEL, visualElementSentence, groupVisualElementsForHierarchySection } from "../journey/blueprintSummary";
+import {
+  READINESS_COMPONENT_LABEL,
+  buildReadinessComponentInputs,
+  readinessComponentDetail,
+  readinessComponentStatusText,
+} from "../journey/readinessComponentLabels";
 import { logTelemetryEvent } from "../instrumentation/telemetry";
 import {
   buildReferenceChecklist,
   isReferenceEntrySatisfied,
-  hasUnresolvedPrimaryImagery,
-  describeReadinessReason,
+  describeReadinessComponents,
   type ReferenceChecklistEntry,
   type ReadinessState,
   type ProjectState,
@@ -60,24 +65,16 @@ function ElementLine({ element }: { element: VisualElement }) {
 }
 
 /**
- * Same three signals computeReadiness itself was given (the server route
- * computes the state deterministically; this reuses the client-side
+ * The same signals computeReadiness itself was given (the server route
+ * computes the overall state deterministically; this reuses the client-side
  * originals of those signals -- the reference checklist already built for
  * section 8, hasUnresolvedPrimaryImagery, and the Association Engine's own
- * contradictions_noticed -- to explain *why*, without inventing a new
- * signal or reading the model-written Design considerations prose).
+ * contradictions_noticed) to classify each of the five Readiness components
+ * (Sites migration spec §12), without inventing a new signal or reading the
+ * model-written Design considerations prose.
  */
-function readinessReasons(project: ProjectState, readiness: ReadinessState): string[] {
-  const checklist = buildReferenceChecklist(project.visual_elements, project.consent_records);
-  const missingReferenceDescriptions = checklist
-    .filter((entry) => (entry.requirement === "required" || entry.requirement === "strongly_recommended") && !isReferenceEntrySatisfied(entry))
-    .map((entry) => entry.description);
-  return describeReadinessReason({
-    readiness,
-    missingReferenceDescriptions,
-    hasUnresolvedPrimaryImagery: hasUnresolvedPrimaryImagery(project.visual_elements),
-    otherContradictions: project.contradictions,
-  });
+function readinessComponents(project: ProjectState, readiness: ReadinessState) {
+  return describeReadinessComponents(buildReadinessComponentInputs(project, readiness));
 }
 
 /** Builds the plain-text version used by Copy and Save (§4). */
@@ -136,8 +133,12 @@ function formatBlueprintAsText(project: ReturnType<typeof useJourney>["state"]["
   if (project.artist_notes.length > 0) {
     section("Further ideas the client raised (unspecified, for the artist to discuss)", project.artist_notes.map((n) => `- ${n}`).join("\n"));
   }
-  const reasons = readinessReasons(project, blueprint.readiness);
-  section("Readiness", [READINESS_LABEL[blueprint.readiness] ?? blueprint.readiness, ...reasons].join("\n"));
+  const componentLines = readinessComponents(project, blueprint.readiness).map((c) => {
+    const detail = readinessComponentDetail(c, project);
+    const status = readinessComponentStatusText(c);
+    return `${READINESS_COMPONENT_LABEL[c.id]}: ${status}${detail.length > 0 ? ` — ${detail.join(" ")}` : ""}`;
+  });
+  section("Readiness", [READINESS_LABEL[blueprint.readiness] ?? blueprint.readiness, "", ...componentLines].join("\n"));
 
   return lines.join("\n").trim();
 }
@@ -329,11 +330,25 @@ export function BlueprintView() {
       <section>
         <h3>12. Readiness</h3>
         <p>{READINESS_LABEL[blueprint.readiness] ?? blueprint.readiness}</p>
-        {readinessReasons(project, blueprint.readiness).map((reason, i) => (
-          <p key={i} className="supporting">
-            {reason}
-          </p>
-        ))}
+        <dl className="summary-list">
+          {readinessComponents(project, blueprint.readiness).map((c) => {
+            const detail = readinessComponentDetail(c, project);
+            return (
+              <Fragment key={c.id}>
+                <dt>{READINESS_COMPONENT_LABEL[c.id]}</dt>
+                <dd>
+                  {readinessComponentStatusText(c)}
+                  {detail.length > 0 && (
+                    <>
+                      {" — "}
+                      {detail.join(" ")}
+                    </>
+                  )}
+                </dd>
+              </Fragment>
+            );
+          })}
+        </dl>
       </section>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

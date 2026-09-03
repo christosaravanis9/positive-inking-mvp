@@ -173,6 +173,86 @@ describe("BlueprintView -- Visual hierarchy rendering (regression: raw '(undecid
   });
 });
 
+describe("BlueprintView -- componentized Readiness (Sites migration spec §12/§4.2)", () => {
+  it("renders all five component labels", () => {
+    seedBlueprintState({});
+    render(
+      <JourneyProvider>
+        <BlueprintView />
+      </JourneyProvider>,
+    );
+
+    const section = screen.getByRole("heading", { name: "12. Readiness" }).closest("section")!;
+    for (const label of ["Meaning", "Visual direction", "References", "Artist discussion", "Final artwork"]) {
+      expect(section.textContent).toContain(label);
+    }
+  });
+
+  it("Meaning and Artist discussion are evidence-backed, not an unconditional label (Sites migration spec §4.3 defect 4) -- both read 'Not yet captured' when statement_of_intention/creative_control are genuinely unset", () => {
+    seedBlueprintState({}); // seedBlueprintState's fixture never sets statement_of_intention or creative_control
+    render(
+      <JourneyProvider>
+        <BlueprintView />
+      </JourneyProvider>,
+    );
+
+    const section = screen.getByRole("heading", { name: "12. Readiness" }).closest("section")!;
+    expect(section.textContent).toContain("Not yet captured");
+  });
+
+  it("References reads 'None required for this concept', not 'Available to provide', when nothing in the concept needs one (Sites migration spec §4.3 defect 1)", () => {
+    // The default fixture's element is closely_based_on/personal_artefact with no
+    // material_type -- classifyReferenceFeatureKind resolves that to
+    // interpretive_symbol, which referenceRequirementFor marks "optional",
+    // so nothing here is required/strongly_recommended.
+    seedBlueprintState({});
+    render(
+      <JourneyProvider>
+        <BlueprintView />
+      </JourneyProvider>,
+    );
+
+    const section = screen.getByRole("heading", { name: "12. Readiness" }).closest("section")!;
+    expect(section.textContent).toContain("None required for this concept");
+    expect(section.textContent).not.toContain("Available to provide");
+  });
+
+  it("References reads 'Still needed' and names the actual missing element when a required reference is outstanding", () => {
+    seedBlueprintState({
+      visualElements: [
+        elementFixture({
+          description: "A photo of your grandmother's hands",
+          source_category: "personal_person",
+          fidelity: "closely_based_on",
+          reference_status: "to_upload",
+        }),
+      ],
+    });
+    render(
+      <JourneyProvider>
+        <BlueprintView />
+      </JourneyProvider>,
+    );
+
+    const section = screen.getByRole("heading", { name: "12. Readiness" }).closest("section")!;
+    expect(section.textContent).toContain("Still needed");
+    expect(section.textContent).toContain("A photo of your grandmother's hands");
+  });
+
+  it("Final artwork never claims artwork itself is ready to begin (Sites migration spec §4.3 defect 5) -- always says 'Not yet begun'", () => {
+    seedBlueprintState({ contradictions: [{ description: "An exact artefact is specified with no uploaded reference.", resolutions: ["Upload a reference photo"] }] });
+    render(
+      <JourneyProvider>
+        <BlueprintView />
+      </JourneyProvider>,
+    );
+
+    const section = screen.getByRole("heading", { name: "12. Readiness" }).closest("section")!;
+    expect(section.textContent).toContain("Not yet begun");
+    expect(section.textContent).not.toMatch(/ready to begin/i);
+  });
+});
+
 describe("BlueprintView -- Readiness reason rendering (regression: bare label with no reason, then too-vague reason)", () => {
   it("never shows 'Needs refinement' with nothing else -- always surfaces at least one reason", () => {
     seedBlueprintState({ contradictions: [{ description: "An exact artefact is specified with no uploaded reference.", resolutions: ["Upload a reference photo"] }] });
@@ -186,7 +266,8 @@ describe("BlueprintView -- Readiness reason rendering (regression: bare label wi
     expect(section.textContent).toContain("Needs refinement");
     // The bug report's exact symptom: the label with truly nothing after it.
     expect(section.textContent!.trim()).not.toBe("12. ReadinessNeeds refinement");
-    expect(section.querySelectorAll("p.supporting").length).toBeGreaterThan(0);
+    expect(section.querySelectorAll("dd").length).toBeGreaterThan(0);
+    expect(section.textContent).toContain("An exact artefact is specified with no uploaded reference.");
   });
 
   it("names the actual contradiction and its next step, not a generic restatement -- the second live-test regression", () => {

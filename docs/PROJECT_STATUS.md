@@ -33,12 +33,16 @@ Blueprint's Section 4 (Visual hierarchy) is a labelled decision map (Core
 concept / Personal reference / Other elements / Still undecided), with
 every element assigned to exactly one group (a live-test report caught a
 duplication bug in the first version of this grouping — see the session
-log), and the Readiness section names the actual contradiction and its
-concrete next step, not just that one exists. Screen 13 ("Ready to build
-your Blueprint") now has a matching "Open decisions" row using the same
-wording, so it can no longer read "Nothing outstanding" moments before
-the generated Blueprint flags an unresolved contradiction — see the
-session log. 226 unit tests pass across engine/server/web; typecheck and
+log). The Blueprint's Section 12 (Readiness) is now the Sites migration
+spec's five independently-statused components (Meaning / Visual direction
+/ References / Artist discussion / Final artwork) instead of one sentence
+— see the latest session log entry for the full mapping and the three
+Sites-documented semantic defects corrected before porting the model, not
+reproduced. Screen 13 ("Ready to build your Blueprint") uses the same
+Visual direction component for its "Open decisions" row, so it can no
+longer read "None noted" moments before the generated Blueprint's
+Readiness flags an unresolved contradiction, and its "Still needed" row
+is unchanged. 238 unit tests pass across engine/server/web; typecheck and
 build are clean across all three workspaces.
 
 **Design:** a new "studio ledger" visual direction (warm parchment
@@ -194,6 +198,88 @@ decision); nothing else newly introduced this session. See
 got to its current, tested state.
 
 ## Session log
+
+### 2026-09-03 — Replaced the single-sentence Readiness reason with the Sites migration spec's five-component model
+Trigger: `docs/sites-ux-migration-spec.md` doesn't actually exist in this
+repo — it was never committed, only uploaded to the assistant in an
+earlier session and read from that path. Used that uploaded copy directly
+(same document as the design-token migration); its §12 is the Blueprint's
+own "12 — Readiness" subsection (not a top-level section 12 — the doc has
+no top-level section 12 at all), which explicitly says to preserve the
+five-row structure while sourcing statuses from this app's deterministic
+engine and correcting the semantic defects §4.3 lists. Worth getting a
+real copy into this repo before the next task references it by path.
+
+**Replaced:** `engine/src/readiness.ts`'s `describeReadinessReason()`
+(one sentence per readiness state) with `describeReadinessComponents()` --
+five named, independently-statused components (Meaning, Visual direction,
+References, Artist discussion, Final artwork), each a typed status enum
+plus factual detail lines, never invented copy. Real signal per component,
+all pre-existing:
+- **Meaning** — non-empty `statement_of_intention` (full mode) or
+  `attraction_origin` (other modes).
+- **Visual direction** — `hasUnresolvedPrimaryImagery()` and the
+  Association Engine's own `contradictions_noticed`, exactly as
+  `computeReadiness`'s `hasUnresolvedContradiction` already used.
+- **References** — the existing reference checklist
+  (`buildReferenceChecklist`/`isReferenceEntrySatisfied`), now
+  distinguishing three states instead of a binary: nothing in the concept
+  requires one, everything required has been provided, or something
+  required is still missing.
+- **Artist discussion** — `creative_control` being set (Screen 9,
+  mandatory in every journey mode from Screen 7 onward per §7's
+  convergence rule).
+- **Final artwork** — the already-computed overall `ReadinessState`;
+  omitted entirely pre-Blueprint (Screen 13), since it only makes sense
+  once a Blueprint exists to describe.
+
+**Three of the Sites spec's six §4.3 semantic defects genuinely applied
+here and are fixed, not ported:**
+1. *"Intentional absence of exact references is mislabeled... displays
+   'Available to provide' rather than 'Not required.'"* Fixed: References
+   now has a real `not_required` status ("None required for this
+   concept"), distinct from `available`.
+2. *"Meaning and artist discussion are always declared complete/ready...
+   presentation labels, not validated gates."* Fixed: both are now
+   evidence-backed booleans (non-empty meaning text; `creative_control`
+   actually set), not unconditional strings -- even though both are, by
+   this app's own screen-flow rules, always true by the time Screen 13 or
+   the Blueprint is reachable, so the fix's real value is architectural
+   (a genuine gate instead of a string), not a currently-visible behavior
+   change.
+3. *"Final artwork readiness means 'ready to begin artwork.' No artwork
+   is produced or verified."* Fixed: the copy never says artwork is ready
+   to begin -- both of its states say "Not yet begun," differing only in
+   whether the Blueprint itself is ready to hand to an artist.
+
+The other three defects (model-returned open decisions not
+auto-resolving; the recommendation path never reaching design-ready; no
+reference files actually inspected) are specific to mechanisms this app
+doesn't have in the same shape -- `hasUnresolvedPrimaryImagery`/
+`contradictions` are genuinely recomputed here via §14.1's own
+invalidation logic, and reference availability already only reads a real
+uploaded-or-not signal -- so there was nothing to port or fix for those.
+
+**Kept in sync deliberately:** Screen 13's "Open decisions" row now
+renders the same Visual direction component (`readiness: null`, which is
+what limits it to four of the five components pre-Blueprint) instead of
+its own call into the old sentence function -- confirmed live that the
+exact same contradiction wording appears on both screens. Its "Still
+needed" row is unrelated (a pre-existing §8 bullet, never routed through
+the old sentence function) and was left untouched.
+
+**Verified:** `npm run typecheck`, `npm test` (238 tests -- 23 in
+`engine/test/readiness.test.ts` covering every component reaching every
+status, 5 new component-rendering tests in `BlueprintView.test.tsx`,
+plus the existing "bare label with nothing else" regression test updated
+for the new `<dl>` markup rather than the old `p.supporting` structure),
+and `npm run build` all pass. Live-rendered both Screen 13 and the
+Blueprint (real server, real Vite, fake Anthropic double) for an
+"Athena wire" scenario -- a candidate with `fidelity: "exact"` and no
+uploaded reference, plus a real contradiction record -- and confirmed
+programmatically that the exact same contradiction text, missing-
+reference description, and creative-control choice appear on both
+screens. Screenshots sent for review.
 
 ### 2026-09-02 — Migrated the Sites design-token system into Screen 7's CSS (exact values, foundational)
 Foundational visual work, not a full screen redesign — no component logic

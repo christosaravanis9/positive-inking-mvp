@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeReadiness, referenceRequirementFor, describeReadinessReason } from "../src/readiness.js";
+import { computeReadiness, referenceRequirementFor, describeReadinessComponents, type ReadinessComponentInputs } from "../src/readiness.js";
 
 describe("computeReadiness (§13.4, §9.7)", () => {
   it("a low-confidence interpretation can never reach blueprint_ready (AC 16)", () => {
@@ -44,113 +44,160 @@ describe("referenceRequirementFor (§13.4)", () => {
   });
 });
 
-describe("describeReadinessReason", () => {
-  it("gives a fixed reason for artist_consultation_recommended", () => {
-    const reasons = describeReadinessReason({
-      readiness: "artist_consultation_recommended",
-      missingReferenceDescriptions: [],
-      hasUnresolvedPrimaryImagery: false,
-      otherContradictions: [],
-    });
-    expect(reasons).toHaveLength(1);
-    expect(reasons[0]).toMatch(/low-confidence/);
+function baseInputs(overrides: Partial<ReadinessComponentInputs> = {}): ReadinessComponentInputs {
+  return {
+    meaningCaptured: true,
+    hasUnresolvedPrimaryImagery: false,
+    otherContradictions: [],
+    referenceRequirementExists: false,
+    missingReferenceDescriptions: [],
+    creativeControlSet: true,
+    readiness: "blueprint_ready",
+    ...overrides,
+  };
+}
+
+function componentById(inputs: ReadinessComponentInputs, id: string) {
+  return describeReadinessComponents(inputs).find((c) => c.id === id);
+}
+
+describe("describeReadinessComponents", () => {
+  it("returns all five components, in a fixed order, when a readiness state is given (post-Blueprint)", () => {
+    const components = describeReadinessComponents(baseInputs());
+    expect(components.map((c) => c.id)).toEqual(["meaning", "visual_direction", "references", "artist_discussion", "final_artwork"]);
   });
 
-  it("names the actual missing references for references_needed", () => {
-    const reasons = describeReadinessReason({
-      readiness: "references_needed",
-      missingReferenceDescriptions: ["a photo of the handwriting", "a photo of the tattoo it commemorates"],
-      hasUnresolvedPrimaryImagery: false,
-      otherContradictions: [],
-    });
-    expect(reasons).toHaveLength(1);
-    expect(reasons[0]).toContain("a photo of the handwriting");
-    expect(reasons[0]).toContain("a photo of the tattoo it commemorates");
+  it("omits final_artwork when readiness is null (pre-Blueprint, Screen 13) -- only four components are relevant there", () => {
+    const components = describeReadinessComponents(baseInputs({ readiness: null }));
+    expect(components.map((c) => c.id)).toEqual(["meaning", "visual_direction", "references", "artist_discussion"]);
   });
 
-  it("falls back to a generic line for references_needed if no descriptions were passed", () => {
-    const reasons = describeReadinessReason({
-      readiness: "references_needed",
-      missingReferenceDescriptions: [],
-      hasUnresolvedPrimaryImagery: false,
-      otherContradictions: [],
+  describe("meaning", () => {
+    it("is confirmed when the caller reports meaning captured", () => {
+      expect(componentById(baseInputs({ meaningCaptured: true }), "meaning")).toEqual({ id: "meaning", status: "confirmed", detail: [] });
     });
-    expect(reasons).toEqual(["A required reference is still outstanding."]);
+
+    it("is not_yet_captured otherwise -- not an unconditional label (Sites migration spec §4.3 defect 4)", () => {
+      expect(componentById(baseInputs({ meaningCaptured: false }), "meaning")).toEqual({ id: "meaning", status: "not_yet_captured", detail: [] });
+    });
   });
 
-  it("names unresolved primary imagery for needs_refinement", () => {
-    const reasons = describeReadinessReason({
-      readiness: "needs_refinement",
-      missingReferenceDescriptions: [],
-      hasUnresolvedPrimaryImagery: true,
-      otherContradictions: [],
+  describe("visual_direction", () => {
+    it("is clear when there is no unresolved primary imagery and no other contradiction", () => {
+      expect(componentById(baseInputs(), "visual_direction")).toEqual({ id: "visual_direction", status: "clear", detail: [] });
     });
-    expect(reasons).toEqual(["One or more primary visual elements are still an open decision for the client, not yet a concrete idea."]);
+
+    it("is open_decisions and names unresolved primary imagery specifically", () => {
+      const component = componentById(baseInputs({ hasUnresolvedPrimaryImagery: true }), "visual_direction")!;
+      expect(component.status).toBe("open_decisions");
+      expect(component.detail).toEqual(["One or more primary visual elements are still an open decision for the client, not yet a concrete idea."]);
+    });
+
+    it("is open_decisions and names the actual contradiction and its resolutions -- not a generic restatement", () => {
+      const component = componentById(
+        baseInputs({
+          otherContradictions: [
+            { description: "An exact artefact is specified with no uploaded reference.", resolutions: ["Upload a reference photo", "switch to an interpretive rendering"] },
+          ],
+        }),
+        "visual_direction",
+      )!;
+      expect(component.status).toBe("open_decisions");
+      expect(component.detail).toHaveLength(1);
+      expect(component.detail[0]).toContain("An exact artefact is specified with no uploaded reference.");
+      expect(component.detail[0]).toContain("Upload a reference photo");
+      expect(component.detail[0]).toContain("switch to an interpretive rendering");
+    });
+
+    it("names a contradiction with no resolutions attached without inventing one", () => {
+      const component = componentById(
+        baseInputs({ otherContradictions: [{ description: "Two incompatible placements were both confirmed.", resolutions: [] }] }),
+        "visual_direction",
+      )!;
+      expect(component.detail).toEqual(["Two incompatible placements were both confirmed."]);
+    });
+
+    it("names both the primary-imagery reason and every contradiction when all signals are present", () => {
+      const component = componentById(
+        baseInputs({
+          hasUnresolvedPrimaryImagery: true,
+          otherContradictions: [
+            { description: "First contradiction.", resolutions: [] },
+            { description: "Second contradiction.", resolutions: [] },
+          ],
+        }),
+        "visual_direction",
+      )!;
+      expect(component.detail).toHaveLength(3);
+    });
   });
 
-  it("names the actual contradiction and its resolutions for needs_refinement -- not a generic restatement", () => {
-    const reasons = describeReadinessReason({
-      readiness: "needs_refinement",
-      missingReferenceDescriptions: [],
-      hasUnresolvedPrimaryImagery: false,
-      otherContradictions: [
-        { description: "An exact artefact is specified with no uploaded reference.", resolutions: ["Upload a reference photo", "switch to an interpretive rendering"] },
-      ],
+  describe("references", () => {
+    it("is not_required when the checklist has no required/strongly_recommended entry -- not 'Available to provide' for a concept that never needed one (Sites migration spec §4.3 defect 1)", () => {
+      expect(componentById(baseInputs({ referenceRequirementExists: false }), "references")).toEqual({
+        id: "references",
+        status: "not_required",
+        detail: [],
+      });
     });
-    expect(reasons).toHaveLength(1);
-    expect(reasons[0]).toContain("An exact artefact is specified with no uploaded reference.");
-    expect(reasons[0]).toContain("Upload a reference photo");
-    expect(reasons[0]).toContain("switch to an interpretive rendering");
+
+    it("is available when required references exist and none are missing", () => {
+      expect(componentById(baseInputs({ referenceRequirementExists: true, missingReferenceDescriptions: [] }), "references")).toEqual({
+        id: "references",
+        status: "available",
+        detail: [],
+      });
+    });
+
+    it("is still_needed and names the actual missing references when some are outstanding", () => {
+      const component = componentById(
+        baseInputs({ referenceRequirementExists: true, missingReferenceDescriptions: ["a photo of the handwriting", "a photo of the tattoo it commemorates"] }),
+        "references",
+      )!;
+      expect(component.status).toBe("still_needed");
+      expect(component.detail).toEqual(["a photo of the handwriting", "a photo of the tattoo it commemorates"]);
+    });
   });
 
-  it("names a contradiction with no resolutions attached without inventing one", () => {
-    const reasons = describeReadinessReason({
-      readiness: "needs_refinement",
-      missingReferenceDescriptions: [],
-      hasUnresolvedPrimaryImagery: false,
-      otherContradictions: [{ description: "Two incompatible placements were both confirmed.", resolutions: [] }],
+  describe("artist_discussion", () => {
+    it("is ready when creative_control has been set", () => {
+      expect(componentById(baseInputs({ creativeControlSet: true }), "artist_discussion")).toEqual({
+        id: "artist_discussion",
+        status: "ready",
+        detail: [],
+      });
     });
-    expect(reasons).toEqual(["Two incompatible placements were both confirmed."]);
+
+    it("is not_yet_captured otherwise -- not an unconditional label (Sites migration spec §4.3 defect 4)", () => {
+      expect(componentById(baseInputs({ creativeControlSet: false }), "artist_discussion")).toEqual({
+        id: "artist_discussion",
+        status: "not_yet_captured",
+        detail: [],
+      });
+    });
   });
 
-  it("names one reason per contradiction, plus the primary-imagery reason, when both signals are present", () => {
-    const reasons = describeReadinessReason({
-      readiness: "needs_refinement",
-      missingReferenceDescriptions: [],
-      hasUnresolvedPrimaryImagery: true,
-      otherContradictions: [{ description: "An exact artefact is specified with no uploaded reference.", resolutions: ["Upload a reference photo"] }],
+  describe("final_artwork", () => {
+    it("is not_yet_begun_brief_ready when the overall readiness is blueprint_ready", () => {
+      expect(componentById(baseInputs({ readiness: "blueprint_ready" }), "final_artwork")).toEqual({
+        id: "final_artwork",
+        status: "not_yet_begun_brief_ready",
+        detail: [],
+      });
     });
-    expect(reasons).toHaveLength(2);
-  });
 
-  it("names every contradiction when more than one is present", () => {
-    const reasons = describeReadinessReason({
-      readiness: "needs_refinement",
-      missingReferenceDescriptions: [],
-      hasUnresolvedPrimaryImagery: false,
-      otherContradictions: [
-        { description: "First contradiction.", resolutions: [] },
-        { description: "Second contradiction.", resolutions: [] },
-      ],
+    it("is not_yet_begun_pending_items for every other readiness state -- never implies artwork itself is ready to begin (Sites migration spec §4.3 defect 5)", () => {
+      for (const readiness of ["references_needed", "needs_refinement", "artist_consultation_recommended"] as const) {
+        expect(componentById(baseInputs({ readiness }), "final_artwork")).toEqual({
+          id: "final_artwork",
+          status: "not_yet_begun_pending_items",
+          detail: [],
+        });
+      }
     });
-    expect(reasons).toEqual(["First contradiction.", "Second contradiction."]);
-  });
 
-  it("falls back to a generic line for needs_refinement when neither specific signal is set", () => {
-    const reasons = describeReadinessReason({
-      readiness: "needs_refinement",
-      missingReferenceDescriptions: [],
-      hasUnresolvedPrimaryImagery: false,
-      otherContradictions: [],
+    it("is absent entirely when readiness is null", () => {
+      expect(componentById(baseInputs({ readiness: null }), "final_artwork")).toBeUndefined();
     });
-    expect(reasons).toEqual(["Some details are still unresolved and need refining before this design is final."]);
-  });
-
-  it("returns no reasons for blueprint_ready and concept_visual_ready", () => {
-    for (const readiness of ["blueprint_ready", "concept_visual_ready"] as const) {
-      expect(
-        describeReadinessReason({ readiness, missingReferenceDescriptions: [], hasUnresolvedPrimaryImagery: false, otherContradictions: [] }),
-      ).toEqual([]);
-    }
   });
 });

@@ -35,7 +35,8 @@ export function ArtisticDirection() {
   if (needsFidelityTreatment) {
     return (
       <div className="screen">
-        <h2>How faithful should the reproduction be?</h2>
+        <p className="screen-eyebrow">Concept-specific decisions</p>
+        <h2 className="screen-heading">How faithful should the reproduction be?</h2>
         <p className="supporting">
           This applies regardless of how much creative control you've handed over — accuracy on an exact piece isn't
           an artistic preference (§12.8).
@@ -124,6 +125,7 @@ export function ArtisticDirection() {
   const key = result.nextToAsk;
   return (
     <div className="screen">
+      <p className="screen-eyebrow">Concept-specific decisions</p>
       {!ui.advancedControlsOpened && budget.advanced_controls !== "suppressed" && (
         <p className="supporting" style={{ marginBottom: 4 }}>
           Know exactly what you want?{" "}
@@ -141,7 +143,15 @@ export function ArtisticDirection() {
           )}
         </p>
       )}
-      <h2>{DIMENSION_QUESTIONS[key]}</h2>
+      <h2 className="screen-heading">{DIMENSION_QUESTIONS[key]}</h2>
+      {/* Adapted from the Sites reference's own "generated from your subjects..." framing --
+          worded to avoid "generated" here specifically because these dimension questions come
+          from evaluateArtisticDimensions, a deterministic engine function, not a live model call
+          (unlike Step 3's themes or the Avoidances suggestions, which genuinely are model output). */}
+      <p className="supporting">
+        These questions adapt to your subjects, your own vision, the composition and the placement — not a fixed
+        tattoo-style questionnaire.
+      </p>
       <OptionChips options={DIMENSION_OPTIONS[key]} selected={[]} onSelect={(v) => answer(key, v)} />
     </div>
   );

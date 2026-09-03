@@ -69,7 +69,9 @@ export function Placement() {
 
   return (
     <div className="screen">
-      <h2>Where exactly will it live?</h2>
+      <p className="screen-eyebrow">Placement and flow</p>
+      <h2 className="screen-heading">Where exactly will it live?</h2>
+      <p className="supporting">Placement comes before the final artistic questions so those decisions can respond to the actual body area.</p>
       <input type="text" value={bodyArea} onChange={(e) => setBodyArea(e.target.value)} placeholder="Body area (e.g. left forearm)" />
 
       <p className="supporting">Side</p>

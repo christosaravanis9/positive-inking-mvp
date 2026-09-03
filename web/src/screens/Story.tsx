@@ -55,14 +55,20 @@ export function Story() {
     }, "Understanding your story");
   }
 
+  const trimmedLength = text.trim().length;
+
   return (
     <div className="screen">
-      <h2>Tell us what you want this tattoo to be about.</h2>
+      <p className="screen-eyebrow">Tell it naturally</p>
+      <h2 className="screen-heading">What do you want this tattoo to be about?</h2>
       <p className="supporting">
-        Talk naturally. You can mention a person, memory, belief, experience, ambition, change — or simply why you
-        feel drawn to getting tattooed.
+        Mention who or what is involved, why it matters, and what you want to remember, express or become. Do not
+        worry about imagery yet.
       </p>
-      <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Who or what is involved? Why does it matter?" />
+      <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Start wherever the story begins…" />
+      <p className="supporting">
+        {trimmedLength < 20 ? "A few honest sentences are enough." : "That gives us enough to interpret the meaning."}
+      </p>
       <VoiceInputButton
         onTranscript={(t) => {
           setText((prev) => (prev.trim() ? `${prev.trim()} ${t}` : t));
@@ -72,7 +78,7 @@ export function Story() {
       <AsyncError onRetry={submit} />
       {pending && <p className="progress-note">Understanding your story...</p>}
       <button onClick={submit} disabled={text.trim().length === 0 || pending}>
-        {pending ? "Working..." : "Continue"}
+        {pending ? "Finding the meaning…" : "Continue"}
       </button>
     </div>
   );

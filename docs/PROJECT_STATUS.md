@@ -62,13 +62,21 @@ scale, 8-color palette, spacing rhythm) — replacing the approximated
 palette/sizes the "studio ledger" direction first shipped with. It's a
 shared foundation defined once, ready to extend to other screens next.
 
-**The Sites migration is three pieces in now: tokens, Readiness, and the
-"What we've understood" side panel** (see the latest session log entry for
-the panel). Unlike the token system, the panel is genuinely persistent
-across all of Screens 1–13 (not Screen-7-only) — it reuses the exact same
-token values via a shared `.sites-tokens` CSS class rather than
-duplicating them. The panel/placement/treatment items are still queued as
-tasks 4 and 5, not started.
+**The Sites migration is four pieces in now: tokens, Readiness, the
+"What we've understood" side panel, and question-flow copy/structure**
+(see the latest session log entry for the copy migration). The panel is
+genuinely persistent across all of Screens 1–13 (not Screen-7-only) — it
+reuses the exact same token values via a shared `.sites-tokens` CSS class
+rather than duplicating them. Question-flow copy adds a shared
+eyebrow/heading/instruction structure (new `.screen-eyebrow`/
+`.screen-heading` classes, deliberately smaller than Screen 7's own
+"studio ledger" H1 since that visual direction stays Screen-7-only) plus
+a title+description choice-card pattern (`.option-chip-card`) to the
+screens that had bare option labels — applied to 12 of the app's screens
+covered by Sites spec §3, explicitly excluding Screen 7 and the Blueprint
+screen per scope. **The Blueprint restructure (spec §12.10-adjacent
+sections, not yet itemized here) is queued as the final piece, task 5 —
+not started.**
 
 **Workflow/tooling:** a full local-dev-friction pass landed as its own
 chapter (see the latest session log entry) — this was tooling/DX work,
@@ -205,6 +213,87 @@ decision); nothing else newly introduced this session. See
 got to its current, tested state.
 
 ## Session log
+
+### 2026-09-03 — Migrated the Sites question-flow copy/structure pattern (spec §3) into 12 existing screens
+Fourth piece of the Sites migration (after tokens, Readiness, and the
+"What we've understood" panel). Scope was explicitly copy/structure only —
+"HOW questions are framed and structured, not building new questions or
+changing what data is collected" — no screen's data collection,
+validation, storage, async logic, state management, or navigation was
+touched.
+
+**Read spec §3 in full first** (lines 243-668, "Full question flow, step
+by step"): the unnumbered welcome screen plus Steps 1-10, each with its
+own Eyebrow/Heading/Instruction/Type (FIXED|GENERATED|mixed) fields.
+
+**Shared structural pattern, new CSS:** `.screen-eyebrow` (small caps
+label) + `.screen-heading` (serif question, `clamp(26px, 3.6vw, 38px)`) +
+existing `.supporting` instruction text — reusing the same eyebrow +
+large-serif-question + instructional-subtext STRUCTURE already live on
+Screen 7's "studio ledger" work, but deliberately smaller than Screen 7's
+own dramatic H1 (`clamp(40px, 5.2vw, 68px)`) and without Screen 7's
+background/palette/card-chrome — this is a shared structural pattern
+applied app-wide, not an extension of Screen 7's own specific visual
+direction, which stays Screen-7-only per its established scope. Also new:
+`.option-chip.option-chip-card` / `.option-chip-title` /
+`.option-chip-description` for the spec's choice-card pattern (bold title
++ lighter one-line description), reusing `.option-chip`'s existing
+box/hover/click behavior.
+
+**Applied to 12 screens** covered by spec §3 (mapped each of this app's 20
+screen components against the spec's 10 numbered steps + welcome,
+excluding Screen 7 and Blueprint per explicit instruction, and screens
+with no Sites §3 equivalent — Clarification/Correction, ImageDescription/
+ImageProvenance, StyleReference, WorkingNotesView): Welcome, Viewpoint,
+Story, MeaningReflection, IntentionConfirmation, CreativeControl,
+RoughScale, CompositionBackground, Placement, ArtisticDirection,
+Avoidances, DesignConfirmation. Choice-card restructuring (title +
+description) applied where this app's option data is static and Sites'
+descriptions map directly — Viewpoint's four core viewpoints, all four
+CreativeControl options. Explicitly **not** restructured:
+CompositionBackground's `composition_type` options, since the engine's
+`getCompositionOptionPool` has no description field and Sites' own
+descriptions don't match this app's richer, concept-shape-specific option
+pools — adding one would be an engine change, out of scope here.
+
+**FIXED vs. GENERATED honesty — the one case that mattered:**
+`ArtisticDirection.tsx`'s dimension questions (colour, realism, etc.) come
+from `evaluateArtisticDimensions()`, a deterministic ENGINE function with
+no model call — but Sites' equivalent Step 9 is genuinely a live LLM call.
+Borrowed instruction wording was reworded from Sites' own "generated from
+your subjects..." framing to "adapt to your subjects... not a fixed
+tattoo-style questionnaire" specifically to avoid implying a model
+generated these, with a code comment recording why. Avoidances' new status
+line ("Suggestions generated for this specific concept") is the opposite
+case and correctly says "generated," since `requestAvoidanceSuggestions`
+is a genuine model call.
+
+**Deliberately left untouched:** `VoiceInputButton`/`VoiceInput.tsx` (its
+own copy already conveys the same idea; it carries substantial
+cross-browser async error-handling logic explicitly protected by the "do
+not touch async logic" constraint); IntentionConfirmation's hint text
+(Sites describes an inline Save/Cancel edit, this app's "Edit this"
+navigates back to theme selection — copying the hint verbatim would
+misdescribe actual behavior).
+
+**Verified:** `npm run typecheck`, `npm test` (266 tests — unchanged count;
+confirmed via targeted grep that no test asserted on any of the old copy
+strings that changed, so nothing needed updating), and `npm run build` all
+pass. Live-rendered a full real journey (Welcome through Screen 13, real
+server, real Vite, fake Anthropic double) and screenshotted 10 points
+spanning early (Welcome, Viewpoint), middle (Story, MeaningReflection,
+CreativeControl, CompositionBackground), and late (ArtisticDirection,
+Avoidances, Placement, DesignConfirmation) journey — eyebrow/heading/
+choice-card pattern renders correctly at every point, no console or page
+errors. Confirmed the "What we've understood" panel (task 3) still
+populates correctly alongside these copy changes: 14 rows present at
+Screen 13, growing field-by-field at the same real state-driven timing as
+before (Viewpoint/Story/Meaning present by CreativeControl; Composition/
+Treatment/Placement added by DesignConfirmation) — the regression check
+this task asked for, not a full re-verification.
+
+**Blueprint restructure (spec's Blueprint-facing sections) is the final
+piece, task 5 — still queued, not started.**
 
 ### 2026-09-03 — Built the "What we've understood" side panel (Sites migration spec §2), persistent across Screens 1-13
 Third piece of the Sites migration (after tokens and Readiness). `docs/

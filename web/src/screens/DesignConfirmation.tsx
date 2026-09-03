@@ -54,7 +54,9 @@ export function DesignConfirmation() {
 
   return (
     <div className="screen">
-      <h2>Ready to build your Blueprint</h2>
+      <p className="screen-eyebrow">Complete direction</p>
+      <h2 className="screen-heading">Ready to build your Blueprint</h2>
+      <p className="supporting">Everything being confirmed remains visible here. Continue or go back to change it.</p>
       <dl className="summary-list">
         <dt>Main subject</dt>
         <dd>{project.visual_elements.find((e) => e.hierarchy === "primary")?.description ?? project.visual_elements[0]?.description ?? "—"}</dd>

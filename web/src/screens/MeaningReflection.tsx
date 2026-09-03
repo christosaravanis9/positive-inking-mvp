@@ -22,16 +22,18 @@ export function MeaningReflection() {
 
   return (
     <div className="screen">
-      <h2>{isLowConfidence ? "Here is a starting point." : "Here is what we heard."}</h2>
+      <p className="screen-eyebrow">Meaning reflection</p>
+      <h2 className="screen-heading">{isLowConfidence ? "Here is a starting point." : "Here is what we heard."}</h2>
       <div className="reflection-box">{state.ui.discoveryInterpretation}</div>
+      <p className="progress-note">Interpretation generated from your story.</p>
       {isLowConfidence && (
         <p className="supporting">
           This is a starting point, not the full picture — the details you just confirmed matter more here than any
           interpretation.
         </p>
       )}
-      <h3 style={{ marginBottom: 4 }}>What feels most important?</h3>
-      <p className="supporting">Select everything that genuinely matters — there's no limit.</p>
+      <h3 style={{ marginBottom: 4 }}>Which parts feel important?</h3>
+      <p className="supporting">Select everything that belongs. We'll consolidate the values without losing your themes.</p>
       <OptionChips
         options={state.ui.discoveryThemeOptions.map((t) => ({ value: t, label: t }))}
         selected={selected}

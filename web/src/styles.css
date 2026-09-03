@@ -172,6 +172,64 @@ pre {
   font-size: 0.95rem;
 }
 
+/**
+ * Question-flow heading pattern (Sites migration spec §3): eyebrow label +
+ * large serif question + instructional subtext, matching the structure
+ * Screen 7's "studio ledger" work already established. Applied as
+ * additional classes on each screen's own existing heading elements, not a
+ * new markup/layout structure -- copy and typography only. Deliberately
+ * global-safe: unlike .ledger-screen's color tokens (scoped to avoid
+ * colliding with the app's generic --muted/--accent -- see that rule's own
+ * comment), typeface is never ambiguous, so these hardcode the same
+ * Georgia/Arial stacks .sites-tokens defines rather than depending on that
+ * scope. Kept deliberately smaller than Screen 7's own H1 (clamp(40px,
+ * 5.2vw, 68px)) -- this is a shared structural pattern applied app-wide,
+ * not Screen 7's specific "studio ledger" visual direction, which stays
+ * Screen-7-only per that direction's own scope.
+ */
+.screen-eyebrow {
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 700;
+  font-size: 10px;
+  line-height: 1.2;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0;
+}
+
+.screen-heading {
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 400;
+  font-size: clamp(26px, 3.6vw, 38px);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+/**
+ * Choice-card pattern (spec §3): a bold title plus a lighter one-line
+ * description beneath it, for option buttons the spec gives a description
+ * for. Reuses .option-chip's existing box (border/padding/hover) -- this
+ * only restyles the button's own inner content into two lines instead of
+ * one, via .option-chip-title/.option-chip-description spans, so the same
+ * click handler and value keep working unchanged.
+ */
+.option-chip.option-chip-card {
+  display: block;
+  text-align: left;
+}
+.option-chip-title {
+  display: block;
+  font-weight: 600;
+}
+.option-chip-description {
+  display: block;
+  color: var(--muted);
+  font-size: 0.85em;
+  margin-top: 2px;
+}
+
 .option-grid {
   display: flex;
   flex-wrap: wrap;

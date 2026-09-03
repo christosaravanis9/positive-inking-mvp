@@ -12,19 +12,25 @@ export function Viewpoint() {
 
   return (
     <div className="screen">
-      <h2>Where does this tattoo come from?</h2>
+      <p className="screen-eyebrow">Start with time</p>
+      <h2 className="screen-heading">Where does this tattoo come from?</h2>
+      <p className="supporting">Choose the viewpoint that feels closest. It can contain more than one.</p>
       <div className="option-grid" style={{ flexDirection: "column", alignItems: "stretch" }}>
-        <button className="option-chip" onClick={() => choose("past", "full", "past")}>
-          Past — something or someone that shaped me
+        <button className="option-chip option-chip-card" onClick={() => choose("past", "full", "past")}>
+          <span className="option-chip-title">Past</span>
+          <span className="option-chip-description">Something or someone that shaped me</span>
         </button>
-        <button className="option-chip" onClick={() => choose("present", "full", "present")}>
-          Present — what matters in my life now
+        <button className="option-chip option-chip-card" onClick={() => choose("present", "full", "present")}>
+          <span className="option-chip-title">Present</span>
+          <span className="option-chip-description">What matters in my life now</span>
         </button>
-        <button className="option-chip" onClick={() => choose("future", "full", "future")}>
-          Future — who I am becoming or what I am building
+        <button className="option-chip option-chip-card" onClick={() => choose("future", "full", "future")}>
+          <span className="option-chip-title">Future</span>
+          <span className="option-chip-description">Who I am becoming or what I am building</span>
         </button>
-        <button className="option-chip" onClick={() => choose("mixed", "full", "mixed")}>
-          A mixture of these
+        <button className="option-chip option-chip-card" onClick={() => choose("mixed", "full", "mixed")}>
+          <span className="option-chip-title">A mixture</span>
+          <span className="option-chip-description">More than one part of my story</span>
         </button>
         <button className="option-chip" onClick={() => choose("image", "attraction", null)}>
           An image I've been drawn to — I know what I want, more than why

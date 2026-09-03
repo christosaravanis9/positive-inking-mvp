@@ -6,7 +6,8 @@ export function IntentionConfirmation() {
 
   return (
     <div className="screen">
-      <h2>Your tattoo is about...</h2>
+      <p className="screen-eyebrow">Your intention</p>
+      <h2 className="screen-heading">Your tattoo is about...</h2>
       <div className="reflection-box">{state.project.statement_of_intention}</div>
       <div style={{ display: "flex", gap: 8 }}>
         <button onClick={() => patchUI({ intentionConfirmed: true })}>Continue</button>

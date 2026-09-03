@@ -128,7 +128,8 @@ export function CompositionBackground() {
   if (key === "place_disambiguation") {
     return (
       <div className="screen">
-        <h2>{QUESTION_COPY[key]}</h2>
+        <p className="screen-eyebrow">Composition</p>
+        <h2 className="screen-heading">{QUESTION_COPY[key]}</h2>
         <OptionChips
           options={[
             { value: "subject", label: "Something to depict" },
@@ -145,7 +146,8 @@ export function CompositionBackground() {
     const pool = getCompositionOptionPool(signals.concept_shape);
     return (
       <div className="screen">
-        <h2>{QUESTION_COPY[key]}</h2>
+        <p className="screen-eyebrow">Composition</p>
+        <h2 className="screen-heading">{QUESTION_COPY[key]}</h2>
         <OptionChips
           options={pool.map((o) => ({ value: o.label, label: o.label, noBackground: o.noBackground }))}
           selected={[]}
@@ -158,7 +160,8 @@ export function CompositionBackground() {
   if (key === "internal_background") {
     return (
       <div className="screen">
-        <h2>{QUESTION_COPY[key]}</h2>
+        <p className="screen-eyebrow">Composition</p>
+        <h2 className="screen-heading">{QUESTION_COPY[key]}</h2>
         <OptionChips
           options={[
             { value: "none", label: "No background", noBackground: true },
@@ -175,7 +178,8 @@ export function CompositionBackground() {
   const options = GENERIC_OPTIONS[key] ?? [];
   return (
     <div className="screen">
-      <h2>{QUESTION_COPY[key]}</h2>
+      <p className="screen-eyebrow">Composition</p>
+      <h2 className="screen-heading">{QUESTION_COPY[key]}</h2>
       <OptionChips options={options} selected={[]} onSelect={(v) => answer(key, v)} />
     </div>
   );

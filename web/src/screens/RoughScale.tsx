@@ -29,7 +29,8 @@ export function RoughScale() {
 
   return (
     <div className="screen">
-      <h2>Roughly how big, and roughly where?</h2>
+      <p className="screen-eyebrow">Scale and area</p>
+      <h2 className="screen-heading">Roughly how big, and roughly where?</h2>
       <p className="supporting">Body area</p>
       <div className="option-grid">
         {BODY_AREAS.map((area) => (

@@ -50,15 +50,25 @@ export function Avoidances() {
 
   return (
     <div className="screen">
-      <h2>Is there anything you definitely do not want?</h2>
+      <p className="screen-eyebrow">Essential safeguards</p>
+      <h2 className="screen-heading">Is there anything you definitely do not want?</h2>
+      <p className="supporting">These likely failure modes come from this concept. Keep, remove or add to them.</p>
       <AsyncError onRetry={fetchSuggestions} />
       {fetching && <p className="progress-note">Thinking about what could go wrong for this concept...</p>}
+      {!fetching && state.ui.avoidanceSuggestions.length > 0 && (
+        <p className="progress-note">Suggestions generated for this specific concept.</p>
+      )}
       <OptionChips
         options={state.ui.avoidanceSuggestions.map((s) => ({ value: s, label: s }))}
         selected={selected}
         onSelect={toggle}
       />
-      <input type="text" value={somethingElse} onChange={(e) => setSomethingElse(e.target.value)} placeholder="Something else..." />
+      <input
+        type="text"
+        value={somethingElse}
+        onChange={(e) => setSomethingElse(e.target.value)}
+        placeholder="Add something this design must avoid"
+      />
       <div style={{ display: "flex", gap: 8 }}>
         <button onClick={() => confirm("asked_answered")}>Continue</button>
         <button className="secondary" onClick={() => confirm("asked_declined")}>

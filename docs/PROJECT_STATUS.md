@@ -239,7 +239,139 @@ decision); nothing else newly introduced this session. See
 `docs/timeout-matrix.md`) for the detailed history behind how the codebase
 got to its current, tested state.
 
+## Data-minimization / privacy audit
+
+Tracked separately from the §15.7 production-launch-blockers list above
+(those are pre-existing, known, deliberately-deferred items; this section
+is a standing checklist against a specific 7-item data-minimization
+audit, verified by reading the actual code — not assumed). Updated
+2026-09-04; see that date's session log entry below for the full
+investigation and fix detail.
+
+| # | Item | Status |
+|---|---|---|
+| 1 | API key never reaches browser/client code | ✅ Verified clean, no gap |
+| 2 | Server never logs full request/response bodies (story/image data) | ✅ Verified clean, no gap |
+| 3 | Uploaded files never written to disk, even temporarily | ✅ Verified clean, no gap (no server-side upload path exists at all) |
+| 4 | Uploaded images don't retain EXIF/GPS metadata | ❌ Was a gap — **fixed** (`web/src/imageSanitization.ts`) |
+| 5 | Story/image/Blueprint data isn't in localStorage beyond in-memory state | ⚠️ True as described, but by deliberate §16.1 crash-recovery design — not changed, see below |
+| 6 | A user-facing "Delete this session" action exists | ❌ Missing — confirmed, **not built** (reporting only, as instructed) |
+| 7 | No third-party tool (error monitoring/analytics/hosting logs) sees story/prompt content | ✅ Verified clean, no gap (no third-party integration exists at all) |
+
+**Items 5 and 6 together are the one real open product decision here**,
+not a code fix: the journey's full state (story, reference images,
+Blueprint) is deliberately persisted to `localStorage` so a crash or
+accidental reload doesn't lose a client's answers (§16.1's own explicit
+requirement, already relied on by `IntentionConfirmation`'s "Edit this"
+and every other Back/Edit affordance in the app). That's a legitimate
+design choice, not an oversight — but paired with the fact that nothing
+today lets a client explicitly clear that persisted data, the two
+together are a real gap in the full picture. Resolving it needs a
+product/design decision (copy, placement, whether it's session-only or
+project-scoped, whether it also needs to account for the §15.7
+encrypted-at-rest/retention items), not just a code change — flagged
+here for you to decide scope on, matching how other open decisions in
+this document are tracked.
+
 ## Session log
+
+### 2026-09-04 — Data-minimization/privacy audit: 7-item checklist verified, EXIF stripping fixed, two real gaps flagged
+
+Investigated a specific 7-item data-minimization checklist by reading the
+actual code (not assuming), reported findings, then fixed only the
+confirmed gap. Full findings recorded in the new "Data-minimization /
+privacy audit" section above; this entry is the detail behind it.
+
+**Items verified clean, no code change needed (1, 2, 3, 7):**
+- **API key (1):** read once in `server/src/env.ts`, used only in
+  `server/src/modelClient.ts`'s outbound header. Never logged, never in
+  a response body, never referenced anywhere in `web/`/`engine/` (the
+  one hit -- `AsyncError.tsx` -- is static developer-facing help text
+  naming the env var, never reading or containing a value).
+- **Server logging (2):** no morgan/pino/winston, no request-logging
+  middleware. The only `console.*` calls are `[model-timing]`
+  (stage/timing/token counts, never prompt content), the Express
+  fallback error handler (the `Error` object only, never `req.body`),
+  and two process-crash handlers. No route file logs anything at all.
+- **File uploads (3):** no multer/formidable/busboy dependency, no
+  server-side upload endpoint anywhere. Reference images are handled
+  entirely client-side (`FileReader`/canvas -> data URL) and never
+  appear in any of the 6 client API modules' outgoing payloads --
+  confirmed by reading each one.
+- **Third-party tools (7):** no Sentry/Bugsnag/analytics/APM dependency
+  in any `package.json`. `web/src/instrumentation/telemetry.ts` is
+  explicitly first-party/local-only -- every event goes to
+  `localStorage`, never a network call.
+
+**Item 4 (EXIF metadata) -- the one genuine gap, fixed.** Images are
+never sent to the model (nothing to strip on that path), but the data
+URL held in state and persisted to `localStorage` previously carried
+the original file's EXIF intact, GPS included, since
+`FileReader.readAsDataURL()` copies bytes verbatim with no processing.
+Added `web/src/imageSanitization.ts`: `readFileAsSanitizedDataUrl()`
+re-encodes every image through a canvas before it ever reaches app
+state -- canvas pixel data carries no metadata channel at all, so this
+drops EXIF/GPS/orientation tags entirely rather than parsing and
+selectively removing them (a JPEG's orientation tag is naturally "baked
+in" correctly as a side effect, since the browser auto-orients the
+source before the pixels are read). PNG stays PNG (lossless,
+preserves transparency); every other type normalises to JPEG at 0.92
+quality. Non-image files (the PDF `ReferenceAttachment.tsx` also
+accepts) pass straight through unchanged -- EXIF doesn't apply to a
+PDF. Rejects rather than silently falling back to unstripped data on
+any failure (read error, decode error, no canvas context), so a caller
+can never end up with EXIF-laden data by accident. Wired into all 3
+upload sites: `ReferenceAttachment.tsx`, `StyleReference.tsx`,
+`Placement.tsx` (both of its photo inputs).
+
+**Items 5 and 6 -- reported, not code-fixed, per instruction.** See the
+audit table above for the full reasoning; in short, persistence is
+deliberate (§16.1 crash recovery) and the missing delete action is the
+real gap in the combination, needing a product decision rather than a
+code fix.
+
+**Verified:**
+- `npm run typecheck`, `npm test` (373 tests: engine 165, server 52, web
+  156 -- up from 360 before this pass), `npm run build`, all pass.
+- `web/src/imageSanitization.test.ts` (7 tests): routes image files
+  through the canvas path and non-image files through the plain
+  FileReader path with nothing ever touching canvas; PNG stays PNG,
+  everything else normalises to JPEG; rejects (never falls back) when
+  no canvas context is available or the image fails to decode; always
+  revokes the object URL it creates, success or failure. jsdom has no
+  real canvas 2D implementation without the native `canvas` npm package
+  (not a dependency here, and adding one purely for a test double would
+  be exactly the unnecessary weight this fix was meant to avoid) -- these
+  tests verify the module's contract with fakes, the same pattern
+  `VoiceInput.test.tsx` already uses for the Web Speech API; the actual
+  pixel-level guarantee is proven by the live-browser run below instead.
+- `server/test/dataMinimizationAudit.test.ts` (9 tests): a request
+  carrying a distinctive story-text marker and a run against a
+  distinctive fake API key, asserting neither ever appears in any
+  response body (success, model-error, or the health check) or in
+  anything passed to `console.log`/`error`/`warn` on any path; plus
+  static checks that no upload-handling dependency or multipart/disk-
+  write pattern exists in `package.json` or any route file.
+- `web/src/dataMinimizationAudit.test.ts` (4 tests): scans every real
+  `web/src` source file for the API key env var name or its server-side
+  field name (one verified-harmless exception, `AsyncError.tsx`'s help
+  text, explicitly allow-listed with its own test proving it's genuinely
+  just static text); confirms no client API module sets an auth header
+  or calls a non-relative Anthropic URL.
+- **Live browser, real data:** built a real JPEG with real embedded GPS
+  EXIF (San Francisco coordinates) and a distinctive camera-make tag
+  using Pillow/piexif, uploaded it through the real Placement screen
+  against a real server/Vite/fake-Anthropic-double stack. Confirmed the
+  source file genuinely contained the EXIF bytes, then confirmed the
+  resulting stored image (read back from its actual preview `<img>` src)
+  contained neither the EXIF marker nor the camera-make tag --
+  byte-for-byte, not inferred. Separately, ran a full session (99 real
+  network responses collected, including a deliberately triggered
+  model-error response) against a server configured with a
+  realistic-looking API key, and confirmed that key never appeared in
+  any response body the browser actually received. Screenshot captured
+  showing the successfully re-encoded (stripped) image rendering
+  correctly in its own preview.
 
 ### 2026-09-04 — "What we've understood" panel polish: click-to-edit rows + mobile interaction check (Sites migration polish pass)
 

@@ -6,6 +6,7 @@ import { AsyncError } from "../components/AsyncError";
 import { ModelWaitIndicator } from "../components/ModelWaitIndicator";
 import { describeDimensionValue, PROJECT_FIELD_BY_DIMENSION } from "../journey/artisticDimensionLabels";
 import { logTelemetryEvent } from "../instrumentation/telemetry";
+import { readFileAsSanitizedDataUrl } from "../imageSanitization";
 import type { StyleReferenceData } from "../api/types";
 import type { ArtisticDimensionKey, ProjectState } from "@positive-inking/engine";
 
@@ -57,13 +58,12 @@ export function StyleReference() {
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setExamplePhoto({ dataUrl: String(reader.result), fileName: file.name });
-      logTelemetryEvent("reference_requested", project.project_id, { context: "style_example" });
-    };
-    reader.onerror = () => setPhotoError("Couldn't read that photo. Try again or choose a different one.");
-    reader.readAsDataURL(file);
+    readFileAsSanitizedDataUrl(file)
+      .then((dataUrl) => {
+        setExamplePhoto({ dataUrl, fileName: file.name });
+        logTelemetryEvent("reference_requested", project.project_id, { context: "style_example" });
+      })
+      .catch(() => setPhotoError("Couldn't read that photo. Try again or choose a different one."));
   }
 
   function confirmResolution() {

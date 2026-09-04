@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import type { ConsentRecord } from "@positive-inking/engine";
+import { readFileAsSanitizedDataUrl } from "../imageSanitization";
 
 export interface ReferenceDraft {
   dataUrl: string | null;
@@ -74,12 +75,9 @@ export function ReferenceAttachment({
       if (inputRef.current) inputRef.current.value = "";
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      onChange({ ...value, dataUrl: String(reader.result), fileName: file.name });
-    };
-    reader.onerror = () => setFileError("Couldn't read that file. Try again or choose a different one.");
-    reader.readAsDataURL(file);
+    readFileAsSanitizedDataUrl(file)
+      .then((dataUrl) => onChange({ ...value, dataUrl, fileName: file.name }))
+      .catch(() => setFileError("Couldn't read that file. Try again or choose a different one."));
   }
 
   const needsAttestation =

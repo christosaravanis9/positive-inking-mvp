@@ -2,6 +2,7 @@ import { useRef, useState, type RefObject } from "react";
 import { useJourney } from "../journey/JourneyProvider";
 import { OptionChips } from "../components/OptionChips";
 import { logTelemetryEvent } from "../instrumentation/telemetry";
+import { readFileAsSanitizedDataUrl } from "../imageSanitization";
 
 /** Same cap as ReferenceAttachment, for the same reason -- no backend storage in this build (see §15.7 production blocker note). */
 const MAX_FILE_BYTES = 3 * 1024 * 1024;
@@ -39,10 +40,9 @@ export function Placement() {
       if (inputRef.current) inputRef.current.value = "";
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => onLoaded(String(reader.result), file.name);
-    reader.onerror = () => setPhotoError("Couldn't read that photo. Try again or choose a different one.");
-    reader.readAsDataURL(file);
+    readFileAsSanitizedDataUrl(file)
+      .then((dataUrl) => onLoaded(dataUrl, file.name))
+      .catch(() => setPhotoError("Couldn't read that photo. Try again or choose a different one."));
   }
 
   function confirm() {

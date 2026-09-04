@@ -91,7 +91,16 @@ the Welcome screen and back to the app, with `web/public/llms.txt`,
 `sitemap.xml`, and a `robots.txt` that explicitly allows the major AI
 answer-engine crawlers by name. All served as real static files, never
 routed through the private React SPA -- confirmed by fetching the raw
-HTML response with no JS execution. 406 unit tests pass across
+HTML response with no JS execution. **The app is now Render-deploy-ready**:
+`server/src/app.ts` serves the built frontend in production (a real gap
+that was found and fixed, verified by running the actual compiled server
+with `PORT`/`NODE_ENV=production` set and curling every route category),
+`render.yaml` defines the service, and anonymous usage analytics now
+writes to Supabase Postgres in production (falling back to the original
+local file automatically when Supabase isn't configured, e.g. local dev)
+instead of a local file that couldn't survive Render's ephemeral
+filesystem -- see the latest session log entry for the exact env vars
+needed and the full investigation. 411 unit tests pass across
 engine/server/web; typecheck and build are clean across all three
 workspaces.
 
@@ -303,6 +312,181 @@ here for you to decide scope on, matching how other open decisions in
 this document are tracked.
 
 ## Session log
+
+### 2026-09-04 — Render deployment prep + anonymous analytics moved from local file to Supabase Postgres
+
+Two-part production-readiness pass: making this deployable as a single
+Render web service, and swapping the anonymous-analytics store (added in
+ebfa350) off a local file that can't survive Render's ephemeral
+filesystem. Both parts were investigated before anything was changed, per
+instruction.
+
+**Part 1 -- Render deployment prep:**
+
+- **PORT binding: already correct, no fix needed.** `server/src/env.ts`
+  already read `Number(process.env.PORT ?? 8787)` -- confirmed by reading
+  the file, not assumed.
+- **Health check: reused the existing route rather than adding a
+  redundant one.** `GET /api/health` already existed and already returns
+  200 with a small diagnostic body (`{ ok, modelConfigured }`). Rather
+  than add a second, functionally-identical `/healthz` route, `render.yaml`
+  points its `healthCheckPath` at `/api/health` directly.
+- **Static frontend serving in production: a real gap, found and fixed.**
+  `server/src/app.ts` was API-only -- nothing served the built React
+  frontend (`web/dist/`) at all. On Render, only this one process runs (no
+  separate Vite dev server, which only exists locally), so without this
+  fix the deployed app would have had a working API and no UI. Fixed by
+  adding `express.static(WEB_DIST_DIR)` (resolved relative to this file
+  via `import.meta.url`, not `process.cwd()`, the same convention
+  `analyticsStore.ts` already uses) plus a catch-all SPA fallback for any
+  other non-`/api/*` GET request, guarded with `existsSync` so a checkout
+  without `web/dist` built (e.g. running server tests in isolation)
+  degrades to Express's ordinary 404 rather than crashing.
+- **`render.yaml` added** at the repo root: build command
+  (`npm install && npm run build`), start command (`npm run start -w
+  server`), health check path, and every required env var declared with
+  `sync: false` (Render's own "must be set manually in the dashboard, not
+  stored in this file" mechanism) plus an explanatory comment for each --
+  no secret is stored in the file itself. **Flagged, not silently
+  guessed:** this sandbox's network egress to render.com is blocked, so
+  the exact current Blueprint schema could not be verified live against
+  Render's docs -- the field names used match Render's long-documented
+  spec, but the file's own header comment tells you to sanity-check it
+  against Render's dashboard on first connect (which validates on
+  connect and reports a clear error on any mismatched field name).
+- **No hardcoded localhost/port found.** Every client-side API call
+  already uses a relative path (`fetch("/api/...")`, confirmed in both
+  `web/src/api/client.ts` and `web/src/instrumentation/analytics.ts`), so
+  none of them would break pointing at a different origin. CORS
+  (`cors()` with no options) is already permissive/origin-agnostic, not
+  hardcoded to a specific origin -- left unchanged since narrowing it
+  wasn't asked for and isn't required for correctness. The one
+  `localhost` reference found (`server/src/index.ts`'s own startup log
+  line) is cosmetic console output only, not a functional path.
+- **Verified live**, not just by reading code: built the real production
+  bundle (`npm run build`), then ran the actual compiled server
+  (`node server/dist/index.js`) with `PORT`/`NODE_ENV=production` set
+  exactly as Render would, and curled `/api/health` (200), `/` (the real
+  SPA `index.html`, not an error), `/methodology.html` (a static AEO
+  page), the hashed JS bundle referenced from `index.html` (200, not
+  404), `/robots.txt`, an unknown non-API path (correctly served the SPA
+  fallback), and an unknown `/api/...` path (correctly a real 404, not
+  swallowed by the fallback).
+
+**Part 2 -- analytics: local file -> Supabase Postgres:**
+
+- **Env vars reported first, before implementing**, per instruction:
+  `SUPABASE_URL` (Project Settings -> API -> Project URL) and
+  `SUPABASE_SERVICE_ROLE_KEY` (Project Settings -> API -> service_role
+  secret -- deliberately not the anon/public key, since a server-side
+  insert needs to bypass Row Level Security and this key must never reach
+  a browser).
+- **Schema** (`docs/supabase-schema.sql`, to be run once in Supabase's SQL
+  editor): one `analytics_events` table covering both existing event
+  shapes (`screen_reached`, `journey_completed`) with nullable columns for
+  whichever fields don't apply to a given row -- deliberately one table,
+  not two, matching "keep it as simple as the current JSON structure" and
+  mirroring how the existing JSONL stream already mixes both shapes. RLS
+  is enabled with no policies (the server only ever writes via the
+  service_role key, which bypasses RLS; nothing reads this table from a
+  browser today, matching `analyticsStore.ts`'s existing "reads nothing
+  back" design).
+- **Client choice: `@supabase/supabase-js` (official JS client), not a
+  raw `pg` connection.** Reasoning: this workload is simple single-row
+  inserts with no transactions or complex SQL, the official client talks
+  HTTPS/REST rather than a raw TCP connection, so there's no connection-
+  pool lifecycle to manage on Render's free tier, and it's officially
+  maintained rather than something to hand-roll connection handling for.
+  Added as a new `server` dependency.
+- **Local-dev fallback: automatic, based on whether both env vars are
+  set** (`server/src/supabaseClient.ts`'s `getSupabaseClient()` returns
+  `null` unless both `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are
+  present; `analyticsStore.ts`'s `appendAnalyticsEvent()` writes to
+  Supabase when it gets a real client back, otherwise falls back to the
+  original local-file JSONL write, unchanged). No separate flag or config
+  needed -- local dev with no Supabase project configured behaves exactly
+  as it did before this change; only production (where both vars are set
+  via Render) writes to Supabase.
+- **Validation discipline unchanged, not weakened.** The route
+  (`server/src/routes/analytics.ts`) and its zod schema were not touched
+  at all -- `analyticsStore.ts`'s storage swap sits entirely behind the
+  same `appendAnalyticsEvent()` call the route already made, so the
+  schema still has no free-text field, and a bad/malicious payload still
+  never reaches either storage backend.
+
+**Part 3 -- documentation:**
+
+- **`docs/positive-inking-privacy-notice.md`'s "Anonymous usage
+  analytics" section** now states plainly that this data is stored via
+  Supabase (a third-party database provider), with the same "cannot
+  contain story/image content, cannot identify you" guarantee restated
+  as still true and why (the validating schema has no free-text field at
+  all, unchanged by this swap). **Also updated the notice's own
+  "Third-party tools" line**, which previously read as "we do not use any
+  third-party analytics... tools" without qualification -- technically
+  still true in substance (Supabase never receives story/image content)
+  but would have read as contradicting the new Supabase mention a few
+  paragraphs later. Reworded to name Supabase explicitly while restating
+  the actual guarantee (no third party ever receives story/image
+  content), rather than leaving an apparent inconsistency in a document
+  about to be read by real people. The published static page
+  (`web/public/privacy.html`) was kept in sync with both changes, same
+  discipline as the previous session's stale-hedge fix.
+- **`docs/deployment.md` added**: Supabase setup steps (create project,
+  run the schema SQL, where to find the two required credentials),
+  Render setup steps (connect the repo, set the `sync: false` env vars,
+  deploy, add the `discover.positiveinking.org` custom domain once live),
+  a table of exactly which env vars are required vs. optional, and an
+  explicit callout that forgetting to set the two Supabase vars in Render
+  fails silently (falls back to the local file, which then loses data on
+  every restart) rather than loudly -- worth knowing before wondering why
+  analytics numbers look low after a deploy.
+
+**Verified:**
+- `npm run typecheck`, `npm test` (411 tests -- engine 165, server 65 [+5
+  new in `analyticsStore.test.ts`], web 181, up from 406 before this
+  pass), `npm run build`, all pass.
+- `server/test/analyticsStore.test.ts` (new, 5 tests, mocking both
+  `@supabase/supabase-js` and `node:fs/promises` so no real network call
+  or disk write happens in the test suite): writes to Supabase (correct
+  table name, correct row, correct client construction args) when both
+  env vars are set; falls back to the local file when neither is set;
+  falls back to the local file when only one of the two is set (proving
+  the branch requires both, not just one); a Supabase insert error
+  propagates as a thrown error so the route's existing fire-and-forget
+  `202 { ok: false }` handling still applies; the Supabase client is
+  constructed once and reused across multiple calls, not reconnected
+  per-event.
+- Existing `server/test/analyticsRoute.test.ts` (all 8 tests) required no
+  changes at all and still passes unmodified -- it already mocked
+  `analyticsStore.js` at the module boundary, so the internal storage
+  swap is invisible to it, exactly the kind of seam that test was
+  written against.
+- **Live production-mode verification** (not just unit tests): described
+  under Part 1 above -- the real compiled server, real `PORT`/
+  `NODE_ENV=production`, real curl requests against every route category
+  that matters (API, static SPA, static AEO pages, hashed assets, SPA
+  fallback, real 404 on an unknown API path).
+- **Not verified, and cannot be from this sandbox:** an actual write to a
+  real Supabase project (no live Supabase credentials exist here) --
+  `analyticsStore.test.ts` proves the client is called correctly with the
+  right table/row shape when configured, and `docs/supabase-schema.sql`
+  is the exact schema the row shape is designed against, but a real
+  end-to-end write against your actual Supabase project needs to be
+  checked once it's set up, per `docs/deployment.md`.
+
+**Exactly what you need to do, as a numbered list:**
+1. In Supabase: create a project, run `docs/supabase-schema.sql` once in
+   its SQL editor, then copy the Project URL and the service_role secret
+   from Project Settings -> API.
+2. In Render: connect this repo (it will detect `render.yaml`), then set
+   these env vars in its dashboard when prompted: `ANTHROPIC_API_KEY`
+   (required), `ANTHROPIC_MODEL` (optional), `SUPABASE_URL` (required in
+   production), `SUPABASE_SERVICE_ROLE_KEY` (required in production, the
+   service_role secret specifically, not the anon key).
+3. Deploy, confirm `/api/health` responds, then add
+   `discover.positiveinking.org` as a custom domain in Render's dashboard
+   once the service is live (Settings -> Custom Domains).
 
 ### 2026-09-04 — AEO/citation-authority initiative: Phase 1 (public content) and Phase 2 (machine readability) shipped
 

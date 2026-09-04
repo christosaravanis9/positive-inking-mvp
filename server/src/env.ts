@@ -45,8 +45,21 @@ export const env = {
   // on error responses -- never surfaced in production, never a secret either
   // way (see errors.ts's sendModelErrorResponse).
   isDevelopment: (process.env.NODE_ENV ?? "development") !== "production",
+  // Anonymous analytics storage (analyticsStore.ts). Both must be set for
+  // Supabase to be used; either missing falls back to the local-file store,
+  // which is fine for local dev but does NOT survive Render's ephemeral
+  // filesystem -- these are required in production. supabaseServiceRoleKey
+  // is deliberately the service_role secret (Project Settings -> API), not
+  // the anon/public key: it must bypass Row Level Security for a server-side
+  // insert, and it must never be sent to or usable from a browser.
+  supabaseUrl: process.env.SUPABASE_URL ?? "",
+  supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
 };
 
 export function isModelConfigured(): boolean {
   return env.anthropicApiKey.length > 0;
+}
+
+export function isSupabaseConfigured(): boolean {
+  return env.supabaseUrl.length > 0 && env.supabaseServiceRoleKey.length > 0;
 }

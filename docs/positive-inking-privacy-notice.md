@@ -79,11 +79,13 @@ through Anthropic's Console/API Platform, which is governed by
 Anthropic's Commercial Terms and Data Processing Addendum, confirmed
 as of this notice's last update.
 
-**Third-party tools:** we do not use any third-party analytics,
-advertising, or error-tracking tools that would give another company
-access to your story or images. [VERIFY this remains true if you add
-any hosting, analytics, or monitoring tools in future — update this
-notice if so.]
+**Third-party tools:** we use Supabase (a database provider) to store
+anonymous usage analytics — see "Anonymous usage analytics" below for
+what that means in practice. We do not use any third-party analytics,
+advertising, or error-tracking tool that would give another company
+access to your story or images: Supabase never receives your story
+text, your images, or anything that identifies you personally, and no
+other third-party tool of any kind is used.
 
 ---
 
@@ -109,6 +111,18 @@ which steps take longest, and where people tend to stop. This data is
 not linked to your story, your images, or anything that identifies
 you personally; it's used only to help us understand and improve the
 tool. You cannot be identified from this information.
+
+This data is stored using Supabase, a third-party database provider,
+rather than purely on our own infrastructure. What's recorded is
+structurally limited to step names, timestamps, and a random
+non-persistent session identifier that resets every time you reload
+the page — the system that validates each event before it's stored has
+no field capable of carrying free text at all, so your story, your
+images, or anything else you type or upload cannot reach this table
+even accidentally. Using Supabase changes where this anonymous data is
+stored; it does not change what is collected, and the same "you cannot
+be identified from this information" guarantee applies exactly as
+before.
 
 ---
 

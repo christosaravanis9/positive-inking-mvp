@@ -1,0 +1,55 @@
+# Render Blueprint for Positive Inking. See docs/deployment.md for the full
+# setup walkthrough. This file defines the single web service (build/start
+# commands, health check, and which env var KEYS exist) -- it never stores
+# a real secret. Every envVars entry below uses `sync: false`, Render's own
+# mechanism for "this key must be set manually in the dashboard, do not
+# read a value from this file" -- Render will prompt for each of these the
+# first time this Blueprint is deployed.
+#
+# NOTE: this repo's sandbox could not reach render.com to verify the exact
+# current Blueprint schema against Render's live docs (network egress to
+# render.com is blocked here) -- the field names below match Render's
+# long-documented Blueprint spec (env/plan/buildCommand/startCommand/
+# healthCheckPath/envVars with sync: false), but sanity-check this file
+# against Render's dashboard the first time you connect this repo; Render
+# validates render.yaml on connect and reports a clear error on any
+# mismatched field name.
+
+services:
+  - type: web
+    name: positive-inking
+    env: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run start -w server
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      # Required -- Anthropic Console/API Platform. Without this the server
+      # runs in intentional degraded "model unavailable" mode (see
+      # README.md's "Local Development" section) rather than failing to
+      # start -- so a missing key here won't crash the deploy, but every
+      # journey will degrade to Working Notes until it's set.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+
+      # Optional -- defaults to claude-sonnet-5 if unset (server/src/env.ts).
+      - key: ANTHROPIC_MODEL
+        sync: false
+
+      # Required in production -- Supabase Project Settings -> API ->
+      # Project URL (docs/deployment.md, docs/supabase-schema.sql). If
+      # either Supabase var is missing, anonymous analytics silently falls
+      # back to writing a local file, which does NOT survive this service's
+      # ephemeral filesystem across restarts/redeploys.
+      - key: SUPABASE_URL
+        sync: false
+
+      # Required in production -- Supabase Project Settings -> API ->
+      # service_role secret key. Deliberately NOT the anon/public key: this
+      # key bypasses Row Level Security for server-side inserts and must
+      # never be exposed to a browser.
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false

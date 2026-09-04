@@ -23,6 +23,9 @@ export function Welcome() {
         Discover my tattoo
       </button>
       <p className="supporting">Around 5 minutes · No account required</p>
+      <p className="supporting">
+        <a href="/methodology.html">How this works</a> · <a href="/faq.html">FAQ</a>
+      </p>
     </div>
   );
 }

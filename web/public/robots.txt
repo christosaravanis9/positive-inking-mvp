@@ -1,0 +1,49 @@
+# Positive Inking -- robots.txt
+# Everything on this site is open to crawling. /api/ is listed only because it
+# serves JSON endpoints, not content -- there is nothing there worth indexing,
+# not because it's private.
+
+User-agent: *
+Allow: /
+Disallow: /api/
+
+# AI answer-engine / assistant crawlers -- explicitly allowed, not just left
+# unaddressed, so citation of the methodology and FAQ pages is a deliberate
+# choice, not an accident of an unconfigured file.
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-User
+Allow: /
+
+User-agent: Claude-SearchBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+User-agent: Amazonbot
+Allow: /
+
+Sitemap: https://positiveinking.org/sitemap.xml

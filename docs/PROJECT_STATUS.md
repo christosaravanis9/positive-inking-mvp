@@ -80,7 +80,18 @@ screen, and a third-party photo rights checkbox that genuinely blocks
 independent slots) until checked, via one small shared
 `PhotoRightsCheckbox` component -- see the latest session log entry.
 The privacy notice itself lives in the repo at
-`docs/positive-inking-privacy-notice.md`. 406 unit tests pass across
+`docs/positive-inking-privacy-notice.md`. **Three public, static,
+crawlable pages now exist** at `web/public/methodology.html`,
+`web/public/faq.html`, and `web/public/privacy.html` (flat filenames,
+not directory-style -- a real `vite dev` SPA-fallback routing
+constraint was found and is documented in the latest session log
+entry), each carrying schema.org JSON-LD (Organization site-wide,
+FAQPage on the FAQ page, Article on the methodology page), linked from
+the Welcome screen and back to the app, with `web/public/llms.txt`,
+`sitemap.xml`, and a `robots.txt` that explicitly allows the major AI
+answer-engine crawlers by name. All served as real static files, never
+routed through the private React SPA -- confirmed by fetching the raw
+HTML response with no JS execution. 406 unit tests pass across
 engine/server/web; typecheck and build are clean across all three
 workspaces.
 
@@ -292,6 +303,131 @@ here for you to decide scope on, matching how other open decisions in
 this document are tracked.
 
 ## Session log
+
+### 2026-09-04 — AEO/citation-authority initiative: Phase 1 (public content) and Phase 2 (machine readability) shipped
+
+Content approved (methodology page, FAQ page, including the three
+corrected entries from the prior round) and finalized as real static
+pages, then Phase 2 built on top. Explicitly separate from, and does
+not touch, the private intake journey (Screens 1-13) or its logic.
+
+**Phase 1 — three static pages, served as real files via `web/public/`
+(Vite copies this directory verbatim into `dist/` and serves it as-is
+in dev), not more SPA routes:**
+- `web/public/methodology.html` -- "The Provenance Method," the
+  approved methodology draft, semantic HTML (single H1, one H2 per
+  section, no skipped levels).
+- `web/public/faq.html` -- the approved FAQ draft with all three
+  corrected entries folded in in place of their originals (the voice-
+  audio-routing disclosure, the 18+-matching "Who is Positive Inking
+  for?" answer, and the new readiness-disclaimer entry), 13 Q&A pairs
+  total, each as an H2 question with its answer immediately beneath
+  (direct-answer format).
+- `web/public/privacy.html` -- the privacy notice rendered as semantic
+  HTML. **Also fixed two stale entries while doing this**: the
+  markdown source (`docs/positive-inking-privacy-notice.md`) still had
+  `[FILL IN before public launch]` hedges under "Sensitive information"
+  and "Photographs of other people" describing gaps that were actually
+  closed in commit b79a247 (the sensitive-info notice and the photo-
+  rights checkbox both already ship). Publishing the notice publicly
+  with those stale hedges still in place would have been inaccurate,
+  so both sections were updated in the markdown source to state the
+  now-true fact (the checkbox/notice already exist) before the HTML
+  page was built from it -- the markdown and the new public page agree.
+
+Each page has a `<title>`, an accurate (non-marketing) meta
+description, a footer linking to the other two pages plus back to the
+app ("Start your Blueprint" -> `/`), and a header nav. `web/src/screens/
+Welcome.tsx` gained two plain `<a>` links ("How this works" ->
+`/methodology.html`, "FAQ" -> `/faq.html`) -- ordinary anchor tags
+causing a full navigation, not client-side routing, since these pages
+live outside the SPA's render tree entirely.
+
+**Filename format: flat `.html`, not directory-style `/methodology/` --
+a real constraint found, not a style preference.** Directory-style
+paths were tried first and worked correctly under `vite preview`
+(production build) but **did not** work under `vite dev` (actual local
+dev): Vite dev's SPA-fallback middleware intercepted `/methodology/`
+navigation and served the app shell instead of the static file, proven
+by a live Playwright click-through that landed on the real URL but
+with the Welcome screen's own H1 still rendered. Switched to flat
+filenames (`/methodology.html`, `/faq.html`, `/privacy.html`), which
+resolve as literal static-file matches in every server involved (dev,
+preview, and any eventual static host) with no dependency on a
+particular server's directory-index behaviour -- confirmed by re-
+running the same live click-through after the switch, which then
+passed. All cross-links, canonical URLs, JSON-LD self-references,
+`sitemap.xml`, and `llms.txt` were updated to match.
+
+**Phase 2 — machine readability:**
+- **Organization schema**, inline JSON-LD on all three pages (name,
+  url, description only -- no founding date, employee count, or other
+  unverifiable fact invented).
+- **FAQPage schema** on `faq.html`, `mainEntity` built from the actual
+  13 visible Q&A pairs -- verified programmatically (not just visually)
+  that every JSON-LD question/answer string matches the page's own
+  visible text exactly.
+- **Article schema** on `methodology.html` (headline, description,
+  `author: Christos Aravanis`, `publisher: Positive Inking`,
+  `datePublished`/`dateModified: 2026-09-04`, `mainEntityOfPage`) --
+  no invented credentials beyond what the privacy notice already
+  establishes.
+- **`web/public/llms.txt`**, following the emerging convention: an H1,
+  a one-paragraph blockquote summary, links to all three pages, and a
+  short "Notes for automated systems" section stating the 18+
+  restriction and the provenance-principle constraint explicitly for
+  machine readers.
+- **`web/public/sitemap.xml`** listing all 4 URLs (`/`, `/methodology.html`,
+  `/faq.html`, `/privacy.html`).
+- **`web/public/robots.txt`**: `Allow: /` for `User-agent: *`
+  (`Disallow: /api/` only, since those are JSON endpoints with nothing
+  crawlable, not a privacy boundary), plus explicit `Allow: /` blocks
+  for GPTBot, ChatGPT-User, ClaudeBot, Claude-User, Claude-SearchBot,
+  anthropic-ai, PerplexityBot, Perplexity-User, Google-Extended,
+  Applebot-Extended, CCBot, and Amazonbot -- named individually so
+  citation is a deliberate choice, not an accident of an unconfigured
+  file -- plus a `Sitemap:` line.
+
+**One grounded assumption, flagged rather than silently made:** no
+production domain exists yet for this MVP, so `https://positiveinking.org`
+was used as the base for canonical URLs and JSON-LD `url` fields --
+inferred from the privacy notice's own existing contact email domain
+(`Christos@positiveinking.org`), not invented. Worth confirming this is
+the actual intended domain before real deployment.
+
+**Verified:**
+- `npm run typecheck`, `npm test` (406 tests, unchanged count -- no
+  logic changed, only markup/content/config files added), `npm run
+  build`, all pass.
+- **Raw HTML without JS execution**: built the production bundle
+  (`npm run build`) and served the real `dist/` output via `vite
+  preview`; `curl`'d `/methodology.html`, `/faq.html`, `/privacy.html`
+  directly and confirmed the real `<title>`, `<h1>`, and full body
+  content are present in the raw response -- not an empty root div. All
+  13 FAQ headings counted in the raw HTML. Single `<h1>` confirmed on
+  each page.
+- **Structured data validity**: extracted every `<script type=
+  "application/ld+json">` block from each page's raw HTML and parsed
+  it with `JSON.parse` (all valid), then checked each against its
+  type's required fields (Organization: name/url; Article: headline/
+  datePublished/author; FAQPage: non-empty `mainEntity` of well-formed
+  Question/Answer pairs). Separately cross-checked, programmatically,
+  that all 13 FAQPage JSON-LD question/answer strings match the page's
+  own visible text exactly (a Google structured-data requirement, not
+  just good practice).
+- **`robots.txt`**: confirmed via the same served build that it allows
+  everything except `/api/`, and that the root `/` (the private intake
+  app's own entry point) still serves its real, untouched SPA shell
+  (`<div id="root"></div>`) -- confirming this work never touched
+  Screens 1-13.
+- **Live browser, real click-through (not curl-only)**: a Playwright
+  run against the actual `npm run dev`-equivalent Vite dev server
+  confirmed both new Welcome-screen links are visible, clicking "How
+  this works" performs a real navigation to `/methodology.html` with
+  its own H1 rendered (this is the check that caught the directory-
+  style routing bug above), `/faq.html` renders directly, and its
+  "Start your Blueprint" footer link navigates back to the real intake
+  app. Screenshots captured and reviewed.
 
 ### 2026-09-04 — AEO/citation-authority initiative: investigation + Phase 1 content drafts underway; voice-audio-routing claim verified and corrected
 

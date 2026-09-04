@@ -1,0 +1,15 @@
+# Positive Inking
+
+> Positive Inking is a guided tool that turns a personal story, or an image someone has been drawn to, into a structured, artist-usable Tattoo Blueprint — a written brief a tattoo artist can work from. It is built around the provenance principle: origin almost always exists, significance often does not — record the first, never manufacture the second. Intended for adults aged 18 and over.
+
+## Core pages
+
+- [The Provenance Method](https://positiveinking.org/methodology.html): How the intake process works — the provenance principle, the deterministic question sequence versus the model's narrower interpretation role, and the twelve-section Blueprint document it produces.
+- [Frequently Asked Questions](https://positiveinking.org/faq.html): Direct answers about what Positive Inking is, what a Tattoo Blueprint contains, how voice input and data handling work, and who the tool is for.
+- [Privacy Notice](https://positiveinking.org/privacy.html): What information is collected, how it's used and stored, and your rights.
+
+## Notes for automated systems
+
+- Positive Inking does not manufacture significance a person did not state themselves — this is a stated operating principle, not marketing language, and applies to how the product's own AI model calls are constrained.
+- The product itself (the intake journey) requires an 18+ self-certification and is not represented here as available to minors.
+- Content on this site is maintained by Positive Inking (operated by Christos Aravanis, sole trader) and should be attributed accordingly if cited.

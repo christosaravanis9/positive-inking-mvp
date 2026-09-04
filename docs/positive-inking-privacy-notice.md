@@ -122,10 +122,10 @@ include sensitive information, it is processed only for the purpose
 of creating your Blueprint, in the same way as the rest of your story,
 as described above.
 
-**[FILL IN before public launch]**: if legal review confirms it's
-needed, add an explicit consent step here (a separate checkbox before
-sensitive detail can be submitted) rather than relying on this notice
-alone.
+Before the story field, the app shows a short notice that your story
+may include sensitive information of this kind and that including it
+is entirely optional — a reminder shown at the point of entry, not a
+consent step you have to act on.
 
 ---
 
@@ -138,9 +138,11 @@ agreement, and please avoid uploading photographs of children's faces.
 For handwriting or object references, a closely cropped image of just
 the relevant detail is preferred over a full photograph.
 
-**[FILL IN before public launch]**: this should become an explicit
-confirmation checkbox at the point of upload, not just notice text —
-flagged in the audit as a genuine gap.
+At each point in the app where you can upload a reference photo, you
+must check a confirmation ("I confirm I have the right to use this
+image, and that any identifiable person in it knows and agrees to it
+being used here") before the upload is accepted — this is an
+explicit checkbox at the point of upload, not just notice text.
 
 ---
 

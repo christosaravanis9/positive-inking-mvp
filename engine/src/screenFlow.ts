@@ -33,6 +33,37 @@ export type ScreenId =
   | "blueprint"
   | "working_notes";
 
+/**
+ * Runtime companion to the ScreenId union above -- needed wherever a screen
+ * id has to be validated as actual data rather than just typechecked (e.g.
+ * server/src/routes/analytics.ts's zod schema for anonymous step-timing
+ * events). `satisfies readonly ScreenId[]` keeps this list honest against
+ * the type union at compile time: adding/removing a ScreenId without
+ * updating this array is a type error, not a silent runtime gap.
+ */
+export const SCREEN_IDS = [
+  "welcome",
+  "viewpoint",
+  "story",
+  "clarification",
+  "correction",
+  "meaning_reflection",
+  "intention_confirmation",
+  "image_description",
+  "image_provenance",
+  "elements_discovery",
+  "creative_control",
+  "rough_scale",
+  "composition_background",
+  "style_reference",
+  "artistic_direction",
+  "avoidances",
+  "placement",
+  "design_confirmation",
+  "blueprint",
+  "working_notes",
+] as const satisfies readonly ScreenId[];
+
 export interface JourneyProgress {
   journey_mode: JourneyMode;
   manualPathActive: boolean;

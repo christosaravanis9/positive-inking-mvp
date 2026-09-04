@@ -62,9 +62,20 @@ model-call wait state in the journey now uses one shared
 `ModelWaitIndicator` component** (animated dots + a count-up "Still
 working — Ns" past 5s, never a countdown) instead of static text --
 addresses the deferred timer/countdown item, see the latest session log
-entry for the full list of 9 locations changed. 324 unit tests pass
-across engine/server/web; typecheck and build are clean across all
-three workspaces.
+entry for the full list of 9 locations changed. **The finalized privacy
+notice's two described-but-not-yet-built features now exist**: an 18+
+self-certification checkbox inline on the Welcome screen (no new
+screen, no ID collected, blocks Continue until checked, persists via
+the existing `JourneyState`), and anonymous cross-user usage analytics
+(a same-origin `POST /api/analytics/event` endpoint, structurally
+incapable of carrying story/image content since its schema has no
+free-text field, appending step-timing/completion events to a git-
+ignored local JSONL file) -- see the latest session log entry for the
+full design, the real content-leak bug it caught and fixed, and live-
+verification numbers. The privacy notice itself now lives in the repo
+at `docs/positive-inking-privacy-notice.md`. 394 unit tests pass across
+engine/server/web; typecheck and build are clean across all three
+workspaces.
 
 **Design:** a new "studio ledger" visual direction (warm parchment
 background, serif headline, ember-accented selection/marginalia, no card
@@ -274,6 +285,137 @@ here for you to decide scope on, matching how other open decisions in
 this document are tracked.
 
 ## Session log
+
+### 2026-09-04 — Two additions from the finalized privacy notice: an 18+ checkbox, and anonymous cross-user analytics
+
+The privacy notice is now finalized (copied verbatim into the repo at
+`docs/positive-inking-privacy-notice.md`, alongside the code it
+describes) and its "Age" and "Anonymous usage analytics" sections
+describe two features that didn't exist yet. Built both, minimal and
+non-intrusive as instructed.
+
+**1. 18+ confirmation checkbox — no new screen.** Added directly to
+`web/src/screens/Welcome.tsx`: a single checkbox ("I confirm I am 18 or
+older.") next to the existing entry copy, no ID collected, no separate
+step. `UIState` gained one new field, `ageConfirmed: boolean` (default
+`false`), stored and persisted exactly like every other `ui` flag
+through the existing `JourneyState`/localStorage mechanism — not a new
+subsystem. The Continue button (`disabled={!state.ui.ageConfirmed}`)
+stays disabled until it's checked.
+
+**2. Anonymous usage analytics — proposed before implementing, per
+instruction.** The existing `web/src/instrumentation/telemetry.ts` is
+first-party and local-only (confirmed in the 2026-09-03 data-
+minimization audit below — every event goes to `localStorage`, never a
+network call), so it cannot produce the aggregate, cross-user
+completion-rate/time-per-step data the privacy notice's own "Anonymous
+usage analytics" section describes. Proposed and built the smallest
+reasonable approach given this app's architecture (no accounts, no
+database): a same-origin server endpoint,
+`POST /api/analytics/event`, that accepts only two event shapes
+(`screen_reached`, `journey_completed`) and appends each as one JSON
+line to `server/data/analytics-events.jsonl` (git-ignored, no
+dashboard/query endpoint — append-only). Chose self-hosted over a
+third-party analytics service specifically so the notice's own "we do
+not use any third-party analytics... tools" line stays true with zero
+added verification burden, rather than becoming another thing to keep
+in sync with vendor changes.
+
+**Structurally, not just by convention, incapable of carrying story or
+image content.** The request schema
+(`server/src/routes/analytics.ts`, zod) has no free-text field at all —
+every field is either an enum (`screen`/`from_screen`, validated
+against a new `SCREEN_IDS` runtime const in `engine/src/screenFlow.ts`;
+`journey_mode`) or a bounded, non-negative integer (`elapsed_ms`/
+`elapsed_ms_on_previous_screen`, capped at 24h). There is no code path
+by which a request body containing story text or image data could pass
+validation, let alone reach the store — confirmed by
+`server/test/analyticsRoute.test.ts`, not just asserted. `session_id`
+is a client-generated UUID held only in a module-scope variable
+(`web/src/instrumentation/analytics.ts`) — never written to
+localStorage, regenerated on every page load — so events can't be
+stitched across a reload or across visits; it exists solely to compute
+per-attempt step timing, not as a durable identifier. **Confirmed: this
+sends no story text, no image data, and nothing that could re-identify
+a specific person's journey content — only step identifiers, a journey
+mode, and timestamps/durations**, matching the privacy notice's own
+description exactly.
+
+**Wiring:** `Journey.tsx` reports `screen_reached` (current screen,
+previous screen, elapsed ms since the previous screen was reached,
+journey mode) from a `useEffect` keyed on the computed `screen` value
+alone, so it fires exactly once per real screen transition and never on
+unrelated state updates (typing, etc.). `DesignConfirmation.tsx` reports
+`journey_completed` (journey mode, total elapsed ms) at the same point
+it already logs the equivalent local-only telemetry event, reusing the
+same already-computed `elapsed_ms` value rather than computing it
+twice. Both calls are fire-and-forget (`fetch(...).catch(() => {})`,
+`keepalive: true`) — analytics can never throw, retry, or surface a UI
+error, the same non-negotiable rule `telemetry.ts` already follows.
+
+**A real bug caught by the "never leaks content" test, then fixed.** The
+route's first draft echoed `parsed.error.message` back in the 400
+response on a validation failure, matching every other route in this
+app. zod's own `invalid_enum_value` error message includes a
+`"received": "<the submitted value>"` field — so a request that put
+story-like text where the `screen` enum belongs would have had that
+text reflected straight back in the error response, defeating the
+entire point of this endpoint. Caught by
+`analyticsRoute.test.ts`'s own "rejects free text smuggled into the
+screen field" test before this ever shipped. Fixed by using a static
+error message for this route specifically, instead of `parsed.error
+.message` — left every other route's existing error-message pattern
+unchanged, since their fields are legitimately free-text and don't
+carry this specific risk.
+
+**Verified:**
+- `npm run typecheck`, `npm test` (394 tests — engine 165, server 60,
+  web 169, up from 373 before this pass), `npm run build`, all pass.
+- `server/test/analyticsRoute.test.ts` (8 tests): accepts well-formed
+  `screen_reached`/`journey_completed` events; strips an unexpected
+  extra field containing a story marker entirely before persisting;
+  rejects free text smuggled into the `screen` enum field *and*
+  confirms the 400 response body doesn't leak it (the test that caught
+  the bug above); rejects an unknown event name, a malformed
+  `session_id`, and an `elapsed_ms` over the 24h bound; accepts every
+  real `SCREEN_IDS` value.
+- `web/src/instrumentation/analytics.test.ts` (5 tests): both report
+  functions POST exactly the expected field set and nothing else; the
+  same session id is reused across multiple calls in one page load;
+  never throws when the request fails; `from_screen`/
+  `elapsed_ms_on_previous_screen` are `null` on the first screen.
+- `web/src/screens/Welcome.test.tsx` (5 tests): Continue disabled until
+  checked, re-disables on uncheck, confirmation stored as a plain
+  boolean in the existing localStorage key, persists across a
+  simulated reload, and clicking Continue leaves `ageConfirmed` itself
+  untouched.
+- `web/src/journey/Journey.test.tsx` gained 3 tests covering the
+  analytics wiring: fires once on mount with `from_screen: null`; fires
+  again with both screen names, a numeric elapsed value, and the
+  journey mode when a click-to-edit row changes the screen; does not
+  fire on an unrelated local-state update (typing in Story.tsx's
+  textarea).
+- **Live browser, real end-to-end journey (not seeded/shortcut):**
+  drove a complete real click-through of the full "full"-mode journey,
+  Welcome through Blueprint, against a real server + real Vite dev
+  server + a fake Anthropic double, capturing every real
+  `POST /api/analytics/event` request the browser actually sent. 19
+  total analytics requests captured (18 `screen_reached`, 1
+  `journey_completed`); zero of them contained the story text typed in
+  along the way or its planted identifying detail; every captured
+  request body's keys were a subset of the expected whitelist, nothing
+  extra ever rode along. Separately verified the 18+ checkbox: Continue
+  starts disabled, enables the moment the checkbox is checked, and both
+  the checked state and the enabled button survive a page reload with
+  no need to re-check. Screenshots captured for both.
+
+**Privacy notice added to the repo.** Copied the finalized notice
+verbatim into `docs/positive-inking-privacy-notice.md`. Its "Third-
+party tools" claim ("we do not use any third-party analytics...
+tools") remains true after this change: the analytics endpoint is
+same-origin (`/api/analytics/event`, served by this app's own Express
+server), not a third-party service — no other company receives any
+data as a result of this addition.
 
 ### 2026-09-04 — Data-minimization/privacy audit: 7-item checklist verified, EXIF stripping fixed, two real gaps flagged
 

@@ -9,6 +9,7 @@ import { describeCreativeControl } from "../journey/creativeControlLabels";
 import { buildConfirmedProjectSummary } from "../journey/blueprintSummary";
 import { buildReadinessComponentInputs, readinessComponentDetail } from "../journey/readinessComponentLabels";
 import { logTelemetryEvent, elapsedSinceJourneyStarted } from "../instrumentation/telemetry";
+import { reportJourneyCompleted } from "../instrumentation/analytics";
 import { buildReferenceChecklist, isReferenceEntrySatisfied, anyRequiredReferenceMissing, hasUnresolvedPrimaryImagery, describeReadinessComponents } from "@positive-inking/engine";
 
 /** Screen 13 (§8). The complete summary stays on screen next to the action -- no detached verification (§6, AC 64). "Still needed: [references]" is the spec's own Screen 13 bullet (§8). */
@@ -45,11 +46,12 @@ export function DesignConfirmation() {
       if (guard.isStale()) return;
 
       patchUI({ blueprint, blueprintReady: true, designConfirmed: true });
-      // §22: completion-rate numerator + time-by-mode.
-      logTelemetryEvent("journey_completed", project.project_id, {
-        journey_mode: project.journey_mode,
-        elapsed_ms: elapsedSinceJourneyStarted(project.project_id),
-      });
+      // §22: completion-rate numerator + time-by-mode (local-only, per-project debugging log).
+      const elapsedMs = elapsedSinceJourneyStarted(project.project_id);
+      logTelemetryEvent("journey_completed", project.project_id, { journey_mode: project.journey_mode, elapsed_ms: elapsedMs });
+      // Anonymous usage analytics (privacy notice) -- the same already-computed, non-identifying
+      // elapsed_ms value, sent server-side so completion rate can be reviewed in aggregate.
+      if (elapsedMs !== null) reportJourneyCompleted(project.journey_mode, elapsedMs);
     }, "Building your Blueprint");
   }
 

@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getNextScreen, type ScreenId } from "@positive-inking/engine";
 import { useJourney } from "./JourneyProvider";
 import { deriveProgress } from "./deriveProgress";
 import { GLOBAL_ERROR_EVENT, type GlobalErrorDetail } from "../globalErrors";
+import { reportScreenReached } from "../instrumentation/analytics";
 import { Welcome } from "../screens/Welcome";
 import { Viewpoint } from "../screens/Viewpoint";
 import { Story } from "../screens/Story";
@@ -65,6 +66,7 @@ const HIDE_UNDERSTANDING_PANEL: ReadonlySet<ScreenId> = new Set(["welcome", "blu
 export function Journey() {
   const { state } = useJourney();
   const [globalError, setGlobalError] = useState<GlobalErrorDetail | null>(null);
+  const previousScreenRef = useRef<{ screen: ScreenId; enteredAt: number } | null>(null);
 
   useEffect(() => {
     const handler = (event: Event) => setGlobalError((event as CustomEvent<GlobalErrorDetail>).detail);
@@ -75,6 +77,17 @@ export function Journey() {
   const screen = getNextScreen(deriveProgress(state));
   const ScreenComponent = SCREEN_COMPONENTS[screen];
   const showUnderstandingPanel = !HIDE_UNDERSTANDING_PANEL.has(screen);
+
+  // Anonymous usage analytics (privacy notice's "which steps take longest" / "where
+  // people tend to stop"): fires only when the computed screen actually changes, not on
+  // every keystroke/state update, since it depends on `screen` alone, not `state`.
+  useEffect(() => {
+    const previous = previousScreenRef.current;
+    const now = Date.now();
+    reportScreenReached(screen, previous?.screen ?? null, previous ? now - previous.enteredAt : null, state.project.journey_mode);
+    previousScreenRef.current = { screen, enteredAt: now };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen]);
 
   return (
     <div className={`app-shell${showUnderstandingPanel ? " journey-with-panel" : ""}`}>

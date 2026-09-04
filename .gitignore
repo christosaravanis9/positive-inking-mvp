@@ -11,3 +11,6 @@ coverage/
 *.tsbuildinfo
 .dev-stack.json
 .last-known-good-commit.json
+# Anonymous usage-analytics append log (server/src/analyticsStore.ts) --
+# local-only aggregate event data, never committed.
+server/data/

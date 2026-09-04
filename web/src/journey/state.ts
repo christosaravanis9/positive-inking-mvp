@@ -15,6 +15,8 @@ export interface ApiErrorState {
 
 export interface UIState {
   pastWelcome: boolean;
+  /** Privacy notice's "Age" section: an 18+ self-certification checkbox on the Welcome screen -- no ID collected, no separate step. */
+  ageConfirmed: boolean;
   viewpointSelected: boolean;
 
   /**
@@ -119,6 +121,7 @@ export function createInitialJourneyState(): JourneyState {
     project: createEmptyProjectState(crypto.randomUUID(), now),
     ui: {
       pastWelcome: false,
+      ageConfirmed: false,
       viewpointSelected: false,
       discoveryCompleted: false,
       clarificationShown: false,

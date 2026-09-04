@@ -1,10 +1,13 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { createEmptyProjectState } from "@positive-inking/engine";
 import { JourneyProvider } from "./JourneyProvider";
 import { createInitialJourneyState, type JourneyState } from "./state";
 import { savePersistedState } from "./persistence";
 import { Journey } from "./Journey";
+
+vi.mock("../instrumentation/analytics", () => ({ reportScreenReached: vi.fn() }));
+const { reportScreenReached } = await import("../instrumentation/analytics");
 
 /**
  * Round-trip coverage for the "What we've understood" panel's click-to-edit
@@ -129,5 +132,61 @@ describe("Journey -- 'What we've understood' panel click-to-edit round trip", ()
     );
 
     expect(screen.queryAllByRole("button", { name: "Edit Treatment" })).toHaveLength(0);
+  });
+});
+
+describe("Journey -- anonymous usage analytics wiring (step timing / funnel)", () => {
+  beforeEach(() => {
+    vi.mocked(reportScreenReached).mockClear();
+  });
+
+  it("fires once for the screen reached on mount, with no previous screen", () => {
+    seedMidJourneyState();
+    render(
+      <JourneyProvider>
+        <Journey />
+      </JourneyProvider>,
+    );
+
+    expect(reportScreenReached).toHaveBeenCalledTimes(1);
+    expect(reportScreenReached).toHaveBeenCalledWith("creative_control", null, null, "full");
+  });
+
+  it("fires again, naming both screens, when a click-to-edit row actually changes the current screen", () => {
+    seedMidJourneyState();
+    render(
+      <JourneyProvider>
+        <Journey />
+      </JourneyProvider>,
+    );
+    vi.mocked(reportScreenReached).mockClear();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Edit Story" })[0]);
+
+    expect(reportScreenReached).toHaveBeenCalledTimes(1);
+    const [screenArg, fromScreenArg, elapsedArg, journeyModeArg] = vi.mocked(reportScreenReached).mock.calls[0];
+    expect(screenArg).toBe("story");
+    expect(fromScreenArg).toBe("creative_control");
+    expect(typeof elapsedArg).toBe("number");
+    expect(elapsedArg).toBeGreaterThanOrEqual(0);
+    expect(journeyModeArg).toBe("full");
+  });
+
+  it("does NOT fire again on a state update that doesn't change the current screen (e.g. typing in a field)", () => {
+    const state = createInitialJourneyState();
+    state.ui = { ...state.ui, pastWelcome: true, viewpointSelected: true };
+    savePersistedState(state);
+    render(
+      <JourneyProvider>
+        <Journey />
+      </JourneyProvider>,
+    );
+    vi.mocked(reportScreenReached).mockClear();
+
+    // Story.tsx's textarea is local component state (setText) until Continue is
+    // clicked -- typing here never touches journeyState/the computed screen at all.
+    fireEvent.change(screen.getByPlaceholderText("Start wherever the story begins…"), { target: { value: "typing, not navigating" } });
+
+    expect(reportScreenReached).not.toHaveBeenCalled();
   });
 });

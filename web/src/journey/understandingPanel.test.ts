@@ -184,6 +184,55 @@ describe("deriveUnderstandingRows -- Sites migration spec §2.2", () => {
     });
   });
 
+  describe("editUiPatch -- click-to-edit navigation (mobile/desktop panel polish pass)", () => {
+    function patchFor(id: string, project: ProjectState) {
+      return deriveUnderstandingRows(project).find((r) => r.id === id)?.editUiPatch;
+    }
+
+    it("Viewpoint always points back to the viewpoint screen -- the one screen in every journey mode that sets it", () => {
+      for (const mode of ["full", "attraction", "expert"] as const) {
+        expect(patchFor("viewpoint", baseProject({ journey_mode: mode, user_viewpoint: "past" }))).toEqual({ viewpointSelected: false });
+      }
+    });
+
+    it("Story points to the story screen in full mode, and image_description in attraction/expert mode", () => {
+      expect(patchFor("story", baseProject({ journey_mode: "full", raw_story: "x" }))).toEqual({ discoveryCompleted: false });
+      expect(patchFor("story", baseProject({ journey_mode: "attraction", raw_story: "x" }))).toEqual({ imageDescribed: false });
+      expect(patchFor("story", baseProject({ journey_mode: "expert", raw_story: "x" }))).toEqual({ imageDescribed: false });
+    });
+
+    it("Meaning is clickable in full mode (MeaningReflection.tsx is the reliable single source)", () => {
+      expect(patchFor("meaning", baseProject({ journey_mode: "full", confirmed_themes: ["a"] }))).toEqual({ themesSelected: false });
+    });
+
+    it("Meaning is NOT clickable in attraction/expert mode -- its only possible source (ImageProvenance's one-time re-entry offer) can never be reliably re-reached", () => {
+      expect(patchFor("meaning", baseProject({ journey_mode: "attraction", confirmed_themes: ["a"] }))).toBeUndefined();
+      expect(patchFor("meaning", baseProject({ journey_mode: "expert", confirmed_themes: ["a"] }))).toBeUndefined();
+    });
+
+    it("Visual material always points to Screen 7, which every journey mode converges on", () => {
+      expect(patchFor("visual_material", baseProject({ visual_elements: [elementFixture({})] }))).toEqual({ elementsDiscovered: false });
+    });
+
+    it("Composition always points to the composition screen", () => {
+      expect(patchFor("composition", baseProject({ composition_type: "x" }))).toEqual({ compositionFlowDone: false });
+    });
+
+    it("Placement always points to the placement screen", () => {
+      expect(patchFor("placement", baseProject({ side: "left" }))).toEqual({ placementDone: false });
+    });
+
+    it("Treatment is NEVER clickable -- its four fields can each independently come from StyleReference.tsx or ArtisticDirection.tsx, with no single source screen", () => {
+      const project = baseProject({
+        realism_level: "graphic",
+        linework_weight: "light",
+        shading_method: "minimal",
+        colour_strategy: "full",
+      });
+      expect(patchFor("treatment", project)).toBeUndefined();
+    });
+  });
+
   it("never includes an 'Emerging vision' row -- no equivalent field exists in this app's real state (spec §2.3)", () => {
     const project = baseProject({
       user_viewpoint: "past",

@@ -241,6 +241,95 @@ got to its current, tested state.
 
 ## Session log
 
+### 2026-09-04 — "What we've understood" panel polish: click-to-edit rows + mobile interaction check (Sites migration polish pass)
+
+Two small polish items on top of the Sites migration panel work.
+
+**1. Click-to-edit panel rows.** Each row now jumps back to the screen
+that produced it, reusing the exact Back/Edit mechanism every existing
+affordance already uses (`patchUI({ someGatingFlag: false })` --
+`IntentionConfirmation`'s "Edit this", `DesignConfirmation`'s "Add
+references"/"Change something") -- no new navigation system, no new
+state-invalidation logic added anywhere.
+
+`understandingPanel.ts`'s `UnderstandingRow` gained an optional
+`editUiPatch: Partial<UIState>` field, computed per row from an audit of
+which screen(s) actually write that field:
+- **Viewpoint, Visual material, Composition, Placement** -- clickable in
+  every journey mode; each has exactly one screen that ever sets it
+  (Viewpoint.tsx, ElementsDiscovery.tsx, CompositionBackground.tsx,
+  Placement.tsx respectively -- Placement's row also includes size_class
+  from RoughScale.tsx, but Placement.tsx is treated as the row's dominant
+  source since it owns the majority of the displayed value).
+- **Story** -- clickable, target depends on journey_mode: Story.tsx in
+  full mode, ImageDescription.tsx in attraction/expert mode (both write
+  raw_story, mode-exclusively, never both in the same journey).
+- **Meaning** -- clickable only in full mode (MeaningReflection.tsx).
+  Left non-clickable in attraction/expert mode: its only possible source
+  there is ImageProvenance's one-time optional re-entry offer, which
+  never re-offers once resolved (`reentryOffered` stays permanently
+  true) -- there is no existing navigation path back to a state that
+  could actually let the client revise it, so nothing was invented to
+  fake one.
+- **Treatment** -- intentionally left non-clickable. Its four fields can
+  each independently arrive from StyleReference.tsx (auto-resolved) or
+  ArtisticDirection.tsx (asked directly), and which came from which
+  varies per journey -- exactly the "no single source screen" case the
+  request itself allowed leaving alone.
+
+`UnderstandingPanel.tsx`: a clickable row's dt+dd pair is wrapped in one
+`<div role="button" tabIndex={0}>` (valid `<dl>` content per HTML5's
+"optionally wrapped in div elements" grouping rule), with Enter/Space
+keyboard activation and an `aria-label="Edit {label}"` for a clean
+accessible name independent of the row's own text. Styling
+(`.understood-row-edit` in `styles.css`) is deliberately understated,
+matching the studio-ledger restraint elsewhere in this panel: no button
+chrome, just a pointer cursor, an underline that appears only on
+hover/focus, and a focus-visible ring -- plus a small negative-margin/
+matching-padding pair that widens the actual tap target to the panel's
+edges without shifting the visible text.
+
+**2. Mobile interaction check (Task 3 had only confirmed the collapsed
+`<details>` renders below 900px via a static screenshot, never actually
+interacted with).** Tested for real, with a live browser: tapping the
+collapsed `<summary>` expands smoothly (native `<details>` behaviour,
+no custom JS needed); the now-clickable rows measured **310x57px** as
+touch targets on a 390px-wide viewport, comfortably above the ~44px
+comfortable-tap-size guideline; and the panel's expand/collapse state
+persists correctly as the user moves between screens in either
+direction (stays open after an edit-click navigation, stays collapsed
+after a real Continue-driven navigation) -- because Journey.tsx only
+`key`s the current *screen* component, not the panel, so the same
+`<details>` DOM node survives every screen change within a session (a
+full page reload does still reset it, same as any other un-persisted UI
+toggle -- not a bug, an inherent property of state that was never
+claimed to survive a reload). **No usability issues were found here --
+nothing was changed for item 2 beyond what item 1 already delivers.**
+
+**Verified:** `npm run typecheck`, `npm test` (353 tests: engine 165,
+server 43, web 145 -- up from 338 before this pass), `npm run build`,
+all pass. `understandingPanel.test.ts` gained a full
+`editUiPatch` describe block covering every row's clickability decision
+and its journey-mode branching; `UnderstandingPanel.test.tsx` gained
+component-level tests for the button role, keyboard focus, and the
+"only that row's own flag flips, nothing else" invariant; a new
+`journey/Journey.test.tsx` (Journey.tsx had no prior test coverage)
+proves a full click-to-edit round trip through the real screen router --
+click a row, land on the real source screen, the already-confirmed
+answer is still there to edit -- plus confirms Treatment never renders a
+clickable affordance even mid-journey. Also added a `define` block to
+`vitest.config.ts` for `__GIT_COMMIT__`/`__GIT_BRANCH__` (static
+placeholder values) -- `vite.config.ts` already injects real git info
+for `BuildIdentifier.tsx`/`TelemetryInspector.tsx`, both dev-only
+components always mounted inside `Journey.tsx`; without a matching
+define in the separate `vitest.config.ts`, any test rendering `Journey`
+(none existed before this pass) would crash on those literal identifier
+references. Live browser check at both desktop (1280px) and mobile
+(390px) viewports confirmed the click-to-edit round trip, the hover/
+focus affordance, and the actual mobile tap-to-expand + touch-target +
+persistence behaviour described above. Screenshots captured for both
+viewports.
+
 ### 2026-09-03 — Fixed the monotonic new-idea demotion dead end; two more silent-dead-end Continue buttons fixed the same way
 
 The follow-up to the Screen 7 investigation's flagged-but-not-fixed item:

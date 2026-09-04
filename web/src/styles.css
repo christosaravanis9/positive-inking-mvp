@@ -1098,6 +1098,39 @@ input[type="text"] {
   margin: 0 0 15px;
 }
 
+/**
+ * A clickable row (dt+dd wrapped in one div -- valid <dl> content per the
+ * HTML5 spec's "optionally wrapped in div elements" grouping rule) jumps
+ * back to that value's source screen to edit it. Deliberately understated,
+ * matching the "studio ledger" restraint elsewhere in this panel -- no
+ * button chrome, no background fill, just the affordances a reader expects
+ * from an inline text link: pointer cursor, an underline that appears only
+ * on hover/focus (dt already carries the row's own visual weight via
+ * --ledger-red, so a permanent underline would be redundant emphasis), and
+ * a visible focus ring for keyboard users navigating with Tab. The wrapper
+ * itself carries no margin/padding of its own -- dt/dd keep the exact
+ * spacing/divider rhythm every other row already has -- so the only change
+ * versus a non-clickable row is the affordances below plus a slightly
+ * negative side margin/matching padding that widens the tap target out to
+ * the panel's own edges without shifting the visible text, most relevant
+ * on the sub-900px collapsed panel (.understood-mobile) where this is a
+ * touch target, not just a mouse target.
+ */
+.understood-row-edit {
+  cursor: pointer;
+  margin: 0 -8px;
+  padding: 0 8px;
+  border-radius: 3px;
+}
+.understood-row-edit:hover dt {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.understood-row-edit:focus-visible {
+  outline: 2px solid var(--ledger-red);
+  outline-offset: 2px;
+}
+
 .understood-footer {
   font-family: var(--text-side-value-family);
   font-weight: var(--text-side-value-weight);

@@ -19,17 +19,41 @@ import { deriveUnderstandingRows, UNDERSTANDING_PANEL_EMPTY_COPY, UNDERSTANDING_
  *   shown here -- only the field summary is.
  */
 export function UnderstandingPanel({ variant }: { variant: "rail" | "details" }) {
-  const { state } = useJourney();
+  const { state, patchUI } = useJourney();
   const rows = deriveUnderstandingRows(state.project);
 
   const rowList = (
     <dl className="understood-rows">
-      {rows.map((row) => (
-        <Fragment key={row.id}>
-          <dt>{row.label}</dt>
-          <dd>{row.value}</dd>
-        </Fragment>
-      ))}
+      {rows.map((row) => {
+        const content = (
+          <>
+            <dt>{row.label}</dt>
+            <dd>{row.value}</dd>
+          </>
+        );
+        if (!row.editUiPatch) {
+          return <Fragment key={row.id}>{content}</Fragment>;
+        }
+        const goEdit = () => patchUI(row.editUiPatch!);
+        return (
+          <div
+            key={row.id}
+            className="understood-row-edit"
+            role="button"
+            tabIndex={0}
+            aria-label={`Edit ${row.label}`}
+            onClick={goEdit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                goEdit();
+              }
+            }}
+          >
+            {content}
+          </div>
+        );
+      })}
     </dl>
   );
 

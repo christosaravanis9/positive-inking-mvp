@@ -293,6 +293,85 @@ this document are tracked.
 
 ## Session log
 
+### 2026-09-04 — AEO/citation-authority initiative: investigation + Phase 1 content drafts underway; voice-audio-routing claim verified and corrected
+
+Kicked off a new initiative (separate from the private intake app):
+public-facing, static, crawlable content explaining Positive Inking's
+methodology, so AI answer engines (ChatGPT, Perplexity, Google AI
+Overviews, Claude) can find and cite it. Explicitly does not touch the
+private intake journey (Screens 1-13) or its logic.
+
+**Investigation (Phase 0), reported before writing anything:**
+- No public marketing/content site or public routes exist in this repo
+  today -- `web/` is a single client-side SPA (`App.tsx` -> `JourneyProvider`
+  -> `Journey`), no router, no `web/public/` directory. The private
+  intake journey is the only thing currently public.
+- Confirmed client-side-only, no SSR: `web/index.html` is an empty
+  `<div id="root">` plus a module script tag, nothing else. A crawler
+  that doesn't execute JS would see nothing. New public content pages
+  need to ship as real static HTML, not more SPA routes -- recommended
+  (not yet built) rather than assumed.
+- No `robots.txt`, `sitemap.xml`, or `llms.txt` anywhere in the repo;
+  `index.html`'s `<head>` has only a charset, viewport, and bare title
+  -- nothing currently blocks AI crawlers, but nothing invites them
+  either. A blank slate, not a fix.
+
+**Phase 1 content drafted for review (methodology page + FAQ page),
+grounded only in verifiable facts already in this codebase** (the real
+Provenance system prompt's actual rules, `Viewpoint.tsx`'s real three
+journey-mode entry points, the README's actual deterministic-engine-
+vs-model-interpretation architecture claim, the Blueprint's real
+12-section structure, the five-component Readiness system) -- no
+invented user counts, credentials, or claims. **Not yet finalized or
+committed as files** -- explicitly waiting on your sign-off per your
+own instruction before Phase 2 (structured data, llms.txt, sitemap/
+robots.txt) treats any of it as final.
+
+**Content corrections applied this round, from your review:**
+- **Voice-audio-routing claim, verified rather than assumed.** Read
+  `web/src/components/VoiceInput.tsx`'s actual recognition setup: only
+  `recognition.continuous`, `recognition.interimResults`, and
+  `recognition.lang` are ever set (lines 148-150) -- no on-device/
+  local-processing flag is requested anywhere in the file or
+  elsewhere in `web/src`. Per MDN's own documentation, the default
+  behaviour absent such a flag is server-based recognition (Chrome
+  sends audio to Google's servers to perform the conversion). **Confirmed:
+  this app does not request on-device mode, so the off-device default
+  applies** -- the disclosure copy you provided was already accurate
+  as stated, not the "unlikely" alternative case.
+- **`docs/positive-inking-privacy-notice.md`'s "Voice input" section**
+  updated to state this as a confirmed fact instead of the prior
+  `[VERIFY before publishing]` hedge -- replaced "We have not
+  independently verified whether your browser sends audio to its own
+  cloud service" with the accurate, now-confirmed disclosure: browsers
+  including Chrome send the audio to their own servers by default,
+  this is the browser's behaviour rather than something Positive
+  Inking controls, and only the resulting text (never audio) ever
+  reaches this app.
+- **FAQ draft corrections** (not yet a committed file, corrected in
+  the draft under review): added the same accurate voice-audio-routing
+  disclosure as a direct-answer FAQ entry; replaced "Who is Positive
+  Inking for?"'s answer (which said "anyone," contradicting the 18+
+  checkbox already shipped on Welcome per the b79a247/ebfa350 work) with
+  wording that matches the actual 18+ gate; added a new entry
+  clarifying that Blueprint "readiness" describes creative-brief
+  completeness only -- not medical, legal, or technical suitability,
+  and not final approval, which stays with the client and their artist.
+
+**Explicitly not touched:** voice input itself (stays fully active, not
+disabled or altered in any way -- this was a documentation-accuracy
+task only); localStorage/session-storage behaviour (a settled decision
+from the earlier data-minimization audit, not reopened here); nothing
+already shipped in ebfa350 (18+ checkbox + anonymous analytics), b79a247
+(sensitive-info notice + photo rights checkboxes), or bb1db2d was
+re-touched or re-implemented.
+
+**Verified:** this was a documentation/content correction task with one
+investigation step, not a code change -- no logic changed, so no new
+test coverage was needed and none was added. Confirmed by reading
+`VoiceInput.tsx` in full (not just grepping) that no on-device
+recognition flag exists anywhere in the file.
+
 ### 2026-09-04 — Two consent checkboxes from the privacy notice: sensitive-information disclosure on Story, third-party photo rights at all 3 upload sites
 
 The privacy notice (added to the repo in the previous session-log entry

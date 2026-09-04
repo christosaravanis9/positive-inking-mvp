@@ -89,18 +89,15 @@ notice if so.]
 
 ## Voice input
 
-If you choose to use the microphone/dictation feature, your speech is
-processed using your web browser's built-in speech recognition. **We
-have not independently verified whether your browser sends audio to
-its own cloud service to perform this recognition** (this varies by
-browser and is outside our control). We do not record, store, or have
-access to any audio ourselves — only the resulting text is used. If
-you would prefer not to use voice input, you can type your story
-instead at any time.
-
-**[VERIFY before publishing]**: if you want to make a stronger claim
-about voice privacy, this needs technical verification per browser
-(Chrome, Safari, Firefox) before it can be stated as fact.
+If you use the microphone/dictation feature, your browser's built-in
+speech recognition is used to convert speech to text. By default, most
+browsers (including Chrome) send this audio to their own servers (e.g.
+Google's, for Chrome) to perform the conversion — this is a function
+of your browser, not something Positive Inking controls or has access
+to. We do not receive, store, or have access to any audio ourselves —
+only the resulting text reaches us, exactly as if you had typed it. If
+you'd prefer not to use voice input, you can type your story instead
+at any time.
 
 ---
 

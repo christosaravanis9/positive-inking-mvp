@@ -70,10 +70,17 @@ the existing `JourneyState`), and anonymous cross-user usage analytics
 (a same-origin `POST /api/analytics/event` endpoint, structurally
 incapable of carrying story/image content since its schema has no
 free-text field, appending step-timing/completion events to a git-
-ignored local JSONL file) -- see the latest session log entry for the
-full design, the real content-leak bug it caught and fixed, and live-
-verification numbers. The privacy notice itself now lives in the repo
-at `docs/positive-inking-privacy-notice.md`. 394 unit tests pass across
+ignored local JSONL file) -- see that session log entry for the full
+design, the real content-leak bug it caught and fixed, and live-
+verification numbers. **Two more privacy-notice consent checkboxes now
+exist**: a non-blocking sensitive-information disclosure on the Story
+screen, and a third-party photo rights checkbox that genuinely blocks
+(disables the file input) each of the 3 upload sites
+(`ReferenceAttachment.tsx`, `StyleReference.tsx`, `Placement.tsx`'s two
+independent slots) until checked, via one small shared
+`PhotoRightsCheckbox` component -- see the latest session log entry.
+The privacy notice itself lives in the repo at
+`docs/positive-inking-privacy-notice.md`. 406 unit tests pass across
 engine/server/web; typecheck and build are clean across all three
 workspaces.
 
@@ -285,6 +292,114 @@ here for you to decide scope on, matching how other open decisions in
 this document are tracked.
 
 ## Session log
+
+### 2026-09-04 — Two consent checkboxes from the privacy notice: sensitive-information disclosure on Story, third-party photo rights at all 3 upload sites
+
+The privacy notice (added to the repo in the previous session-log entry
+below) describes two more things that didn't exist in the UI yet: a
+sensitive-information disclosure on the story input, and an explicit
+confirmation at the point of uploading a reference photo of someone
+else. Both added, minimally, no new screens.
+
+**1. Sensitive-information notice on Story.tsx — disclosure, not a
+gate.** A single `<p className="reference-note">` line ("Your story may
+include sensitive information such as health, recovery, religion, or
+sexuality. Including this is entirely optional.") sits directly above
+the story textarea, always visible before submission. Deliberately no
+checkbox, no state, no effect on the existing Continue disabled
+condition (`text.trim().length === 0`) — purely informational, exactly
+as instructed.
+
+**2. Third-party photo rights checkbox — gates the upload itself, at
+all 3 sites.** Investigated how upload works at each site before
+touching anything (the same 3 sites the EXIF-stripping fix touched):
+`ReferenceAttachment.tsx` (1 file input, reused twice inside
+`ElementsDiscovery.tsx` for candidates and added ideas),
+`StyleReference.tsx` (1 optional example-photo input, shown only when
+a style resolution is under-specified), and `Placement.tsx` (2
+independent optional inputs — nearby-tattoo reference and placement
+photograph). None of `ReferenceAttachment.tsx`'s existing attestation
+checkboxes cover this: those only render after `material_type`/
+`subject_relationship` are chosen, and only for specific relationship
+values (living/child/deceased) — they answer "does this specific
+person consent," not "do you have the right to use this image at
+all," and only StyleReference/Placement even use `ReferenceAttachment`
+at one of their three sites. So this is a genuinely new, non-redundant
+gate, not a duplicate of existing consent UI.
+
+Built one small shared component, `web/src/components/
+PhotoRightsCheckbox.tsx`, so the exact required wording ("I confirm I
+have the right to use this image, and that any identifiable person in
+it knows and agrees to it being used here.") lives in exactly one
+place, reused at all 4 physical upload widgets across the 3 files.
+Each site disables its own `<input type="file">` via `disabled={!
+confirmed}` until its checkbox is checked — a real, literal block
+(the browser's own file picker can't even open), not just a note. Each
+site's file-processing function (`handleFile`/`attachExample`/
+`attachFile`) also has a belt-and-braces guard (`if (!file ||
+!confirmed) return;`) so the upload can never be processed even if the
+`disabled` attribute were somehow bypassed — same defense-in-depth
+discipline as the zod validation-error fix in the analytics work
+above. `Placement.tsx`'s two upload slots are independently gated
+(their own separate `nearbyRightsConfirmed`/`placementRightsConfirmed`
+state) since they're genuinely different uploads that could show
+different subjects — checking one never enables the other.
+`ReferenceAttachment.tsx`'s `ReferenceDraft` gained one new field,
+`rights_confirmed: boolean` (defaulted `false` in
+`emptyReferenceDraft()`; `draftFromExisting()` — which rehydrates an
+already-uploaded reference when navigating back via Screen 13's "Add
+references" — sets it `true` only when an asset already exists, since
+that upload could only have happened via this same gate the first
+time, matching the function's own existing "don't make users
+reconfirm what they just did" purpose).
+
+**Confirmed not blocking anything it shouldn't:** uploads remain
+entirely optional everywhere — none of the 3 screens' Continue buttons
+changed their disabled conditions, and checking one photo's checkbox
+never affects any other upload slot or the rest of the journey.
+
+**Verified:**
+- `npm run typecheck`, `npm test` (406 tests — engine 165, server 60,
+  web 181, up from 394 before this pass), `npm run build`, all pass.
+- `web/src/components/ReferenceAttachment.test.tsx` (new, 4 tests):
+  the file input is disabled until the checkbox is checked; checking
+  it updates `rights_confirmed` via `onChange` independent of other
+  fields; a file selected while unconfirmed never reaches `onChange`
+  (the belt-and-braces guard, exercised by dispatching a change event
+  directly against the still-disabled input); the checkbox doesn't
+  render once a file is already attached.
+- `web/src/screens/StyleReference.test.tsx` (new, 2 tests): the
+  example-photo input is disabled until confirmed; an unconfirmed file
+  selection is never processed into a preview.
+- `web/src/screens/Placement.test.tsx` (new, 4 tests): both file
+  inputs start disabled; checking the nearby-tattoo checkbox enables
+  only that input, not the placement-photo one; checking both enables
+  both; Continue's own disabled condition (body area only) is
+  unaffected by either checkbox.
+- `web/src/screens/Story.test.tsx` gained a new describe block (2
+  tests): the sensitive-information notice renders near the input;
+  Continue's disabled state is driven purely by the existing
+  empty-text rule, unaffected by the notice, and a real submission
+  still goes through.
+- **Live browser, full real journey (not seeded/shortcut) through all
+  3 sites:** age-gated entry through Story (screenshotted the notice
+  visible above the textarea, Continue still enabled once text is
+  typed) into a real Association response, selected a candidate, set
+  its fidelity to "Exactly as-is" to reveal `ReferenceAttachment` —
+  confirmed the file input starts disabled ("Choose File" greyed out),
+  enables the instant the checkbox is checked, and a real PNG upload
+  then succeeds and previews correctly. Continued to StyleReference
+  (network response stubbed for this one call only, to deterministically
+  reach the under-specified-style branch that shows its optional
+  example-photo upload — the fake Anthropic double itself and every
+  other route were untouched) and confirmed the identical
+  disabled → enabled → real-upload-succeeds sequence. Continued to
+  Placement and confirmed both slots start disabled, checking the
+  nearby-tattoo checkbox enables only that slot (placement-photo slot
+  independently stays disabled), and both real uploads succeed once
+  each is confirmed on its own — Continue stayed enabled throughout,
+  driven only by the body-area field. All checks passed; screenshots
+  captured and reviewed at each site.
 
 ### 2026-09-04 — Two additions from the finalized privacy notice: an 18+ checkbox, and anonymous cross-user analytics
 

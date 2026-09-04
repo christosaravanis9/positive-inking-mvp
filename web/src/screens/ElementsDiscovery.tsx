@@ -114,6 +114,10 @@ function draftFromExisting(elementId: string, state: JourneyState): ReferenceDra
     attestation_text: record?.attestation_text ?? "",
     copyright_flag: record?.copyright_flag ?? false,
     flag_resolution: record?.flag_resolution ?? null,
+    // An existing asset could only have been stored via the upload gate below, so
+    // rehydrating it back never needs to be reconfirmed -- consistent with the rest
+    // of this function's "don't make users reconfirm what they just did" purpose.
+    rights_confirmed: Boolean(asset?.dataUrl),
   };
 }
 

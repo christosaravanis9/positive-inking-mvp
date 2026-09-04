@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import type { ConsentRecord } from "@positive-inking/engine";
 import { readFileAsSanitizedDataUrl } from "../imageSanitization";
+import { PhotoRightsCheckbox } from "./PhotoRightsCheckbox";
 
 export interface ReferenceDraft {
   dataUrl: string | null;
@@ -11,6 +12,10 @@ export interface ReferenceDraft {
   attestation_text: string;
   copyright_flag: boolean;
   flag_resolution: ConsentRecord["flag_resolution"];
+  /** Privacy notice's "Photographs of other people" section -- gates the upload
+   * itself (see PhotoRightsCheckbox), distinct from attestation_given, which
+   * only applies once material_type/subject_relationship are known. */
+  rights_confirmed: boolean;
 }
 
 export function emptyReferenceDraft(): ReferenceDraft {
@@ -23,6 +28,7 @@ export function emptyReferenceDraft(): ReferenceDraft {
     attestation_text: "",
     copyright_flag: false,
     flag_resolution: null,
+    rights_confirmed: false,
   };
 }
 
@@ -69,7 +75,10 @@ export function ReferenceAttachment({
 
   function handleFile(file: File | undefined) {
     setFileError(null);
-    if (!file) return;
+    // Belt-and-braces: the file input itself is disabled until rights_confirmed
+    // is true, but this guard means the upload can never be processed even if
+    // that's somehow bypassed (e.g. a programmatically dispatched event).
+    if (!file || !value.rights_confirmed) return;
     if (file.size > MAX_FILE_BYTES) {
       setFileError(`That file is too large for this prototype (max ${Math.round(MAX_FILE_BYTES / 1024 / 1024)}MB). Try a smaller image.`);
       if (inputRef.current) inputRef.current.value = "";
@@ -106,12 +115,17 @@ export function ReferenceAttachment({
         </div>
       ) : (
         <>
+          <PhotoRightsCheckbox
+            checked={value.rights_confirmed}
+            onChange={(rights_confirmed) => onChange({ ...value, rights_confirmed })}
+          />
           <input
             ref={inputRef}
             type="file"
             accept="image/*,application/pdf"
             onChange={(e) => handleFile(e.target.files?.[0])}
             aria-label={`Attach a reference for ${elementDescription}`}
+            disabled={!value.rights_confirmed}
           />
           {fileError && <p className="reference-error">{fileError}</p>}
         </>

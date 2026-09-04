@@ -207,3 +207,40 @@ describe("Story -- meaning-depth gate", () => {
     expect(storyValue).not.toContain('in response to: "Is there one moment this is really about?"');
   });
 });
+
+describe("Story -- sensitive-information notice (privacy notice's 'Sensitive information' section)", () => {
+  it("renders the notice near the story input, visible before submission", () => {
+    seedStoryState();
+    render(
+      <JourneyProvider>
+        <Story />
+      </JourneyProvider>,
+    );
+
+    screen.getByText(
+      "Your story may include sensitive information such as health, recovery, religion, or sexuality. Including this is entirely optional.",
+    );
+  });
+
+  it("never blocks Continue -- disclosure only, no consent-gating", async () => {
+    vi.mocked(requestDiscovery).mockResolvedValue(notThinResult());
+    seedStoryState();
+    render(
+      <JourneyProvider>
+        <Story />
+      </JourneyProvider>,
+    );
+
+    // The notice is present and Continue is enabled purely based on the existing
+    // non-empty-text rule -- the notice itself has no checkbox and adds no gate.
+    screen.getByText(/Your story may include sensitive information/);
+    const continueButton = screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement;
+    expect(continueButton.disabled).toBe(true); // still empty text -- unrelated to the notice
+
+    fireEvent.change(screen.getByPlaceholderText("Start wherever the story begins…"), { target: { value: "A short story." } });
+    expect((screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement).disabled).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await waitFor(() => expect(requestDiscovery).toHaveBeenCalledTimes(1));
+  });
+});

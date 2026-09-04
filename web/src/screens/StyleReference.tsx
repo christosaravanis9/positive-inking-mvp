@@ -7,6 +7,7 @@ import { ModelWaitIndicator } from "../components/ModelWaitIndicator";
 import { describeDimensionValue, PROJECT_FIELD_BY_DIMENSION } from "../journey/artisticDimensionLabels";
 import { logTelemetryEvent } from "../instrumentation/telemetry";
 import { readFileAsSanitizedDataUrl } from "../imageSanitization";
+import { PhotoRightsCheckbox } from "../components/PhotoRightsCheckbox";
 import type { StyleReferenceData } from "../api/types";
 import type { ArtisticDimensionKey, ProjectState } from "@positive-inking/engine";
 
@@ -28,6 +29,7 @@ export function StyleReference() {
   const [resolution, setResolution] = useState<StyleReferenceData | null>(null);
   const [examplePhoto, setExamplePhoto] = useState<{ dataUrl: string; fileName: string } | null>(null);
   const [photoError, setPhotoError] = useState<string | null>(null);
+  const [photoRightsConfirmed, setPhotoRightsConfirmed] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function skip() {
@@ -52,7 +54,10 @@ export function StyleReference() {
 
   function attachExample(file: File | undefined) {
     setPhotoError(null);
-    if (!file) return;
+    // Belt-and-braces, mirroring ReferenceAttachment.tsx: the file input is
+    // disabled until photoRightsConfirmed is true, but this guard means the
+    // upload can never be processed even if that's somehow bypassed.
+    if (!file || !photoRightsConfirmed) return;
     if (file.size > MAX_FILE_BYTES) {
       setPhotoError(`That photo is too large for this prototype (max ${Math.round(MAX_FILE_BYTES / 1024 / 1024)}MB). Try a smaller one.`);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -144,7 +149,16 @@ export function StyleReference() {
                     </div>
                   </div>
                 ) : (
-                  <input ref={fileInputRef} type="file" accept="image/*" onChange={(e) => attachExample(e.target.files?.[0])} />
+                  <>
+                    <PhotoRightsCheckbox checked={photoRightsConfirmed} onChange={setPhotoRightsConfirmed} />
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => attachExample(e.target.files?.[0])}
+                      disabled={!photoRightsConfirmed}
+                    />
+                  </>
                 )}
               </div>
             )}

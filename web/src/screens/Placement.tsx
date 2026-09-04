@@ -3,6 +3,7 @@ import { useJourney } from "../journey/JourneyProvider";
 import { OptionChips } from "../components/OptionChips";
 import { logTelemetryEvent } from "../instrumentation/telemetry";
 import { readFileAsSanitizedDataUrl } from "../imageSanitization";
+import { PhotoRightsCheckbox } from "../components/PhotoRightsCheckbox";
 
 /** Same cap as ReferenceAttachment, for the same reason -- no backend storage in this build (see §15.7 production blocker note). */
 const MAX_FILE_BYTES = 3 * 1024 * 1024;
@@ -29,12 +30,22 @@ export function Placement() {
     state.ui.referenceAssets.nearby_tattoo ?? null,
   );
   const [photoError, setPhotoError] = useState<string | null>(null);
+  const [nearbyRightsConfirmed, setNearbyRightsConfirmed] = useState(false);
+  const [placementRightsConfirmed, setPlacementRightsConfirmed] = useState(false);
   const placementInputRef = useRef<HTMLInputElement>(null);
   const nearbyInputRef = useRef<HTMLInputElement>(null);
 
-  function attachFile(file: File | undefined, onLoaded: (dataUrl: string, fileName: string) => void, inputRef: RefObject<HTMLInputElement>) {
+  function attachFile(
+    file: File | undefined,
+    onLoaded: (dataUrl: string, fileName: string) => void,
+    inputRef: RefObject<HTMLInputElement>,
+    rightsConfirmed: boolean,
+  ) {
     setPhotoError(null);
-    if (!file) return;
+    // Belt-and-braces, mirroring ReferenceAttachment.tsx: each file input is
+    // disabled until its own rightsConfirmed flag is true, but this guard
+    // means the upload can never be processed even if that's somehow bypassed.
+    if (!file || !rightsConfirmed) return;
     if (file.size > MAX_FILE_BYTES) {
       setPhotoError(`That photo is too large for this prototype (max ${Math.round(MAX_FILE_BYTES / 1024 / 1024)}MB). Try a smaller one.`);
       if (inputRef.current) inputRef.current.value = "";
@@ -144,21 +155,26 @@ export function Placement() {
             </div>
           </div>
         ) : (
-          <input
-            ref={nearbyInputRef}
-            type="file"
-            accept="image/*"
-            onChange={(e) =>
-              attachFile(
-                e.target.files?.[0],
-                (dataUrl, fileName) => {
-                  setNearbyTattooPhoto({ dataUrl, fileName });
-                  logTelemetryEvent("reference_requested", state.project.project_id, { context: "nearby_tattoo" });
-                },
-                nearbyInputRef,
-              )
-            }
-          />
+          <>
+            <PhotoRightsCheckbox checked={nearbyRightsConfirmed} onChange={setNearbyRightsConfirmed} />
+            <input
+              ref={nearbyInputRef}
+              type="file"
+              accept="image/*"
+              disabled={!nearbyRightsConfirmed}
+              onChange={(e) =>
+                attachFile(
+                  e.target.files?.[0],
+                  (dataUrl, fileName) => {
+                    setNearbyTattooPhoto({ dataUrl, fileName });
+                    logTelemetryEvent("reference_requested", state.project.project_id, { context: "nearby_tattoo" });
+                  },
+                  nearbyInputRef,
+                  nearbyRightsConfirmed,
+                )
+              }
+            />
+          </>
         )}
       </div>
 
@@ -176,21 +192,26 @@ export function Placement() {
             </div>
           </div>
         ) : (
-          <input
-            ref={placementInputRef}
-            type="file"
-            accept="image/*"
-            onChange={(e) =>
-              attachFile(
-                e.target.files?.[0],
-                (dataUrl) => {
-                  setPlacementPhoto(dataUrl);
-                  logTelemetryEvent("reference_requested", state.project.project_id, { context: "placement_photo" });
-                },
-                placementInputRef,
-              )
-            }
-          />
+          <>
+            <PhotoRightsCheckbox checked={placementRightsConfirmed} onChange={setPlacementRightsConfirmed} />
+            <input
+              ref={placementInputRef}
+              type="file"
+              accept="image/*"
+              disabled={!placementRightsConfirmed}
+              onChange={(e) =>
+                attachFile(
+                  e.target.files?.[0],
+                  (dataUrl) => {
+                    setPlacementPhoto(dataUrl);
+                    logTelemetryEvent("reference_requested", state.project.project_id, { context: "placement_photo" });
+                  },
+                  placementInputRef,
+                  placementRightsConfirmed,
+                )
+              }
+            />
+          </>
         )}
       </div>
 

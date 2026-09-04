@@ -166,6 +166,10 @@ export function Story() {
         Mention who or what is involved, why it matters, and what you want to remember, express or become. Do not
         worry about imagery yet.
       </p>
+      <p className="reference-note">
+        Your story may include sensitive information such as health, recovery, religion, or sexuality. Including this
+        is entirely optional.
+      </p>
       <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Start wherever the story begins…" />
       <p className="supporting">
         {trimmedLength < 20 ? "A few honest sentences are enough." : "That gives us enough to interpret the meaning."}

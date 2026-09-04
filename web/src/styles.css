@@ -7,6 +7,15 @@
   --border: #d9d2c7;
   --error-bg: #fdecea;
   --error-fg: #7a1f13;
+  /* Text-selection highlight -- literal copies of the "studio ledger" palette's
+     --ledger-red/--ledger-white values (see .sites-tokens below), not the scoped
+     tokens themselves: those are deliberately confined to .sites-tokens-scoped
+     elements only (avoiding the --accent/--muted collision documented there), but
+     this pair doesn't collide with anything and reads with strong contrast against
+     both this light theme and the dark one below, so it's used globally as one
+     consistent selection color rather than needing a separate dark-mode override. */
+  --selection-bg: #8e2f2a;
+  --selection-fg: #fffdf8;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
@@ -20,6 +29,17 @@
     --error-bg: #3a1712;
     --error-fg: #ffb4a3;
   }
+}
+
+/* Bug: with no ::selection rule at all, the browser's default (a blue highlight)
+   was used everywhere -- against the dark-mode background above (--bg: #16140f)
+   that reads as illegible dark-blue-on-near-black, most noticeably in the "What
+   we've understood" panel (.understood-rail), which sets no background/color of
+   its own and inherits these root tokens directly. Global, not panel-scoped, since
+   the underlying cause (no rule existed) affects text selection anywhere in the app. */
+::selection {
+  background: var(--selection-bg);
+  color: var(--selection-fg);
 }
 
 * {

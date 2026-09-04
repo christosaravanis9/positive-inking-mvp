@@ -162,6 +162,20 @@ to compare terminal output by hand.
 **In progress:** nothing actively mid-change right now.
 
 **Open decisions waiting on you:**
+- **ArtisticDirection/CompositionBackground dead-end — root cause found,
+  fix proposed, not yet implemented pending your direction.** Both
+  screens can get permanently stuck on their own "...settled. Moving
+  on..." fallback with no button, no heading, and (for ArtisticDirection)
+  no way back either, since going back via the panel's "Edit Composition"
+  row immediately re-triggers the identical dead end one screen earlier.
+  See the latest session log entry for the full root cause and live
+  reproduction. Proposed fix: auto-finalize a flow that's already fully
+  resolved on render (not only via the screen's own `answer()` handler) —
+  this also resolves the "Edit Composition" re-trap as a side effect,
+  likely without needing separate forward-navigation UI in the "What
+  we've understood" panel. Confirm this is the right scope before it's
+  implemented, since the panel's backward-only navigation is itself a
+  product decision, not just a bug.
 - **Meaning-depth gate prompt wording — real-model verification still
   needed from you.** The new Discovery prompt item (§ MEANING DEPTH) asks
   the model to classify a story as thin only when the stated reason is
@@ -312,6 +326,120 @@ here for you to decide scope on, matching how other open decisions in
 this document are tracked.
 
 ## Session log
+
+### 2026-09-04 — Live-test bug: ArtisticDirection/CompositionBackground can hang with no way forward or back; dark-mode text selection was illegible (fixed)
+
+Three related items from one live-testing session, investigated together
+since the last two surfaced while trying to recover from the first.
+
+**1-5. Confirmed real, reproduced live: "Artistic direction settled. Moving
+on..." is a genuine dead end, not a false alarm or timing artifact --
+investigated, not yet fixed (a fix was proposed but implementation was
+deferred pending a product decision on item 7 below).** Root cause:
+`ArtisticDirection.tsx`'s `!result.nextToAsk` fallback branch only ever
+gets `ui.artisticFlowDone` set to `true` from inside its own `answer()`
+handler -- which requires a question to have been shown and clicked.
+`evaluateArtisticDimensions()` (`engine/src/artisticDimensions.ts`) can
+legitimately return `nextToAsk: null` on the component's very *first*
+render, before `answer()` has ever run once, whenever a named style
+reference has already resolved most/all of the 7 resolvable dimensions
+(`RESOLVABLE_STYLE_DIMENSIONS`, `server/src/schemas/styleReference.ts`)
+and the remaining two (`visual_presence`, `rendering_references`) aren't
+triggered for a small, non-exact-fidelity piece. When that happens, no
+button is ever rendered, `answer()` is never called, and
+`getNextScreen()` (`engine/src/screenFlow.ts`) keeps returning
+`"artistic_direction"` forever, since nothing else ever sets the flag.
+This is a distinct failure mode from the "Composition settled" case
+investigated and ruled a false alarm on 2026-09-03 -- that investigation
+only ruled out reaching the settled state *via* `answer()`'s own React 18
+batching; it never considered reaching it already-settled on mount, with
+no `answer()` call in the component's history at all.
+
+The two `style_reference` calls visible in the original bug report's
+server log are a legitimate two-step flow ("That's not right — try
+again" resubmitting different text), not a hidden retry/duplicate bug --
+confirmed by reading `StyleReference.tsx`'s `tryAgain()`. They're simply
+what made full dimension resolution likely enough to trigger the latent
+bug in this specific session.
+
+Live-reproduced end to end (real server, real Vite, real
+`ArtisticDirection.tsx`, only the one style-reference network response
+stubbed to resolve all 7 dimensions for a small piece): the `.screen`
+div's entire rendered content was exactly the one `<p>` from the
+screenshot -- no heading, no button, no option chips -- confirmed to
+persist 4+ seconds later (not a flash), with `ui.artisticFlowDone`
+permanently `false` in the persisted journey state, zero uncaught JS
+errors. `CompositionBackground.tsx` has the structurally identical flaw
+(same `!flow.nextToAsk` -> only-set-via-`answer()` pattern) and is
+equally reachable in principle, later actually reproduced live via item 7
+below.
+
+**6. UX bug, root-caused and fixed: illegible dark-mode text selection.**
+No `::selection` CSS rule existed anywhere in `web/src/styles.css`
+(confirmed by search, zero matches). The app's root `--bg`/`--fg` tokens
+already correctly swap under `prefers-color-scheme: dark`
+(`--bg: #16140f`), and the "What we've understood" panel
+(`.understood-rail`) sets no background/color of its own -- it inherits
+these root tokens directly (it only borrows `.sites-tokens` for
+typography/spacing, per its own code comment). With no `::selection` rule
+anywhere, the browser's default blue highlight painted against that
+near-black background, illegible -- and this was global (anywhere text
+could be selected), not panel-specific, exactly as reported. Fixed by
+adding `--selection-bg`/`--selection-fg` at `:root` (literal copies of
+the ledger palette's red/white values, not the scoped `--ledger-*`
+tokens themselves, which stay deliberately confined to `.sites-tokens`
+elements per the existing `--accent`/`--muted` collision reasoning
+already documented there) plus one global `::selection` rule. Live-
+verified in a real dark-color-scheme browser context: read back the
+*actual computed* selection colors (not just that a rule exists) --
+resolved to `rgb(142, 47, 42)` background / `rgb(255, 253, 248)` text.
+Screenshot captured showing legible red-on-cream-text selection against
+the dark page.
+
+**7. Investigated and reported, NOT fixed (a product decision, not a bug
+fix) -- and turns out to be the SAME root cause as items 1-5, not a
+separate issue.** `understandingPanel.ts`'s `editUiPatch` mechanism is
+structurally backward-only: every row sets a gating flag to `false`,
+never forward. Nothing in that file's otherwise-thorough comments
+addresses this as a considered tradeoff (every other omission there is
+explicitly justified) -- reads as an unexamined gap, not a deliberate
+constraint.
+
+More importantly, live-reproduced that going back doesn't reliably work
+either, for the same two screens: while stuck on ArtisticDirection,
+clicking "Edit Composition" in the panel does NOT land on an editable
+Composition screen -- it immediately re-triggers the identical dead-end
+pattern one screen earlier ("Composition settled. Moving on...", no
+heading, no button). This is mechanically guaranteed, not incidental:
+going back only clears `compositionFlowDone`, never the underlying
+answers, so `evaluateCompositionFlow()` re-runs against the exact same
+already-fully-resolved `already_answered` data and immediately returns
+`nextToAsk: null` again. Since `CompositionBackground.tsx` and
+`ArtisticDirection.tsx` are the only two screens using this "evaluate a
+flow, only advance via `answer()`" pattern, every other panel row
+(Viewpoint, Story, Meaning, Placement -- simple one-shot forms) edits
+normally; only these two are affected, and they're affected on both the
+"stuck" side and the "going back" side by the identical structural flaw.
+**Net effect, confirmed live:** once stuck, there is no way forward past
+ArtisticDirection, and the one affordance that looks like it should help
+(Edit Composition) produces a second identical trap instead. Recommended
+(not implemented): the same fix that resolves items 1-5 -- auto-
+finalizing a flow that's already fully resolved on render, not only via
+`answer()` -- would resolve the "Edit Composition" trap as a side effect
+too, likely without needing separate forward-navigation UI. Left as an
+open decision pending direction, per instruction.
+
+**Verified:** `npm run typecheck`, `npm test` (411 tests, unchanged count
+-- items 1-5 and 7 were investigation-only, item 6 was a CSS-only
+change with no logic to unit-test), `npm run build`, all pass. Live
+Playwright reproductions (real server, real Vite, real components, only
+network responses stubbed) for all three items, with screenshots
+reviewed for each: the original hang, the dark-mode selection fix, and
+the Composition re-trap. Console/network monitored throughout -- zero
+uncaught JS errors at any transition; the one console 404 observed
+during the original repro didn't correlate with any tracked failed
+request (most consistent with a routine `favicon.ico` 404, unrelated to
+the bug).
 
 ### 2026-09-04 — Render deployment prep + anonymous analytics moved from local file to Supabase Postgres
 

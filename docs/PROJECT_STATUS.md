@@ -100,7 +100,12 @@ writes to Supabase Postgres in production (falling back to the original
 local file automatically when Supabase isn't configured, e.g. local dev)
 instead of a local file that couldn't survive Render's ephemeral
 filesystem -- see the latest session log entry for the exact env vars
-needed and the full investigation. 411 unit tests pass across
+needed and the full investigation. **The ArtisticDirection/
+CompositionBackground dead end (found 2026-09-04) is now fixed**: both
+screens auto-finalize when their flow is already fully resolved on
+render, not only via their own `answer()` click handler -- confirmed
+live to also resolve the "Edit Composition" panel re-trap as a side
+effect, with no separate change needed. 418 unit tests pass across
 engine/server/web; typecheck and build are clean across all three
 workspaces.
 
@@ -162,20 +167,6 @@ to compare terminal output by hand.
 **In progress:** nothing actively mid-change right now.
 
 **Open decisions waiting on you:**
-- **ArtisticDirection/CompositionBackground dead-end — root cause found,
-  fix proposed, not yet implemented pending your direction.** Both
-  screens can get permanently stuck on their own "...settled. Moving
-  on..." fallback with no button, no heading, and (for ArtisticDirection)
-  no way back either, since going back via the panel's "Edit Composition"
-  row immediately re-triggers the identical dead end one screen earlier.
-  See the latest session log entry for the full root cause and live
-  reproduction. Proposed fix: auto-finalize a flow that's already fully
-  resolved on render (not only via the screen's own `answer()` handler) —
-  this also resolves the "Edit Composition" re-trap as a side effect,
-  likely without needing separate forward-navigation UI in the "What
-  we've understood" panel. Confirm this is the right scope before it's
-  implemented, since the panel's backward-only navigation is itself a
-  product decision, not just a bug.
 - **Meaning-depth gate prompt wording — real-model verification still
   needed from you.** The new Discovery prompt item (§ MEANING DEPTH) asks
   the model to classify a story as thin only when the stated reason is
@@ -326,6 +317,86 @@ here for you to decide scope on, matching how other open decisions in
 this document are tracked.
 
 ## Session log
+
+### 2026-09-05 — Fixed the ArtisticDirection/CompositionBackground dead end: auto-finalize a flow already resolved on render
+
+Implements the fix proposed in the 2026-09-04 investigation below (commit
+0f00fee), now confirmed live to resolve both the original hang and the
+"Edit Composition" re-trap as one change, not two.
+
+**The fix, exactly as scoped -- one small addition per screen, no rewrite
+of the evaluation functions:** both `ArtisticDirection.tsx` and
+`CompositionBackground.tsx` gained a `useEffect` that runs
+`evaluateArtisticDimensions()`/`evaluateCompositionFlow()`'s own
+finalization logic (setting `artisticFlowDone`/`compositionFlowDone` to
+`true`, and for ArtisticDirection also applying every resolved
+dimension's value via the existing `finalizeAllDimensions()`) whenever
+`nextToAsk` is already `null` on render -- not only from inside the
+screen's own `answer()` click handler, which is all that existed before.
+`evaluateArtisticDimensions()`/`evaluateCompositionFlow()` themselves
+were not touched at all -- confirmed correct, the investigation found
+nothing wrong with their logic, only with how the screens reacted to it.
+
+Both effects are guarded against redundant work (`!ui.artisticFlowDone`
+/ `!state.ui.compositionFlowDone`) and, for ArtisticDirection, against
+firing while `needsFidelityTreatment` is still true (that prerequisite
+question takes priority; finalizing dimensions before it's answered
+would be premature). `ArtisticDirection.tsx` needed a small structural
+change beyond just adding the effect: its `needsFidelityTreatment` early
+return previously happened *before* `result` was computed, which would
+have made the new `useEffect` call conditional (a Rules-of-Hooks
+violation -- React would see a different number of hooks called between
+renders). Reordered so `result` and the effect are computed
+unconditionally on every render, with the fidelity-treatment and
+"settled" early returns both moved after the hook.
+
+**Confirmed live: this fix resolves the navigation re-trap too, as a
+side effect, with no separate addition needed.** Reproduced the exact
+"Edit Composition" scenario from the investigation on top of the fix:
+clicking that panel row while stuck on ArtisticDirection now
+auto-finalizes Composition immediately (same effect, same mechanism),
+which lets the journey's own `getNextScreen()` walk forward through
+Style Reference and ArtisticDirection -- both auto-finalizing in turn
+since neither's underlying answers changed -- landing cleanly back on
+Avoidances rather than re-trapping. No forward-navigation UI was added
+to the "What we've understood" panel, per instruction -- the panel's
+rows are still backward-only; the fix simply means backward navigation
+onto either of these two screens no longer gets stuck when it lands on
+already-fully-resolved data.
+
+**Verified:**
+- `npm run typecheck`, `npm test` (418 tests -- engine 165, server 65,
+  web 188 [+7 new: `ArtisticDirection.test.tsx` and
+  `CompositionBackground.test.tsx`], up from 411 before this pass),
+  `npm run build`, all pass.
+- New regression tests seed a journey state landing directly on each
+  screen with its flow already fully resolved (every dimension/question
+  key pre-filled in `ui.artisticAnswers`/`ui.compositionAnswers`) and
+  assert: the screen still renders its "settled" text (confirming the
+  test genuinely reproduces the bug condition) but the completion flag
+  and, for ArtisticDirection, every resolved project field, are set
+  automatically with no click; the fix is idempotent (no error when the
+  flag is already `true`); ArtisticDirection correctly does NOT
+  auto-finalize while a pending fidelity-treatment question exists; and
+  a companion "genuinely not yet resolved" case for
+  `CompositionBackground.tsx` confirms the fix never skips a real,
+  legitimate question.
+- **Live browser reproduction of the exact original scenario** (small,
+  non-exact-fidelity design + a confidently-recognized style like
+  "American traditional" resolving all 7 style-resolvable dimensions,
+  real server + real Vite + real components, only the one style-
+  reference network response stubbed): confirmed the "settled" dead-end
+  text never appears, the journey auto-advances straight to Avoidances
+  with `ui.artisticFlowDone` correctly `true` in persisted state with no
+  click, and the full journey completes end to end through Placement and
+  Design Confirmation to a real, correctly-populated Blueprint (its
+  "Concept-specific decisions"/"Artistic treatment" sections show every
+  style-resolved value). **Separately re-verified the "Edit Composition"
+  re-trap scenario** on the same fix: clicking that row from the stuck
+  state no longer shows "Composition settled" or any other settled-
+  fallback text, landing back on Avoidances instead. Zero uncaught JS
+  errors throughout either run. Screenshots captured for both scenarios
+  and the completed Blueprint.
 
 ### 2026-09-04 — Live-test bug: ArtisticDirection/CompositionBackground can hang with no way forward or back; dark-mode text selection was illegible (fixed)
 

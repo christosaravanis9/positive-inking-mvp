@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useJourney } from "../journey/JourneyProvider";
 import { deriveConceptSignals } from "../journey/deriveConceptSignals";
 import { OptionChips } from "../components/OptionChips";
@@ -114,6 +115,31 @@ export function CompositionBackground() {
       compositionFlowDone: nextFlow.nextToAsk === null,
     });
   }
+
+  /**
+   * Auto-finalize when the flow is ALREADY fully resolved the moment this
+   * component renders -- most commonly reached by going back to this screen
+   * (e.g. via the "What we've understood" panel's "Edit Composition" row)
+   * after it was already fully answered: going back only clears
+   * compositionFlowDone, never state.ui.compositionAnswers, so
+   * evaluateCompositionFlow() re-runs against the exact same already-fully-
+   * answered data and immediately returns nextToAsk: null again. Without
+   * this, nothing ever re-sets compositionFlowDone (only answer()'s own
+   * click handler did), so the "settled" fallback below renders with no
+   * button to click and the journey can never advance past it -- see
+   * docs/PROJECT_STATUS.md's 2026-09-04 investigation for the full live-
+   * reproduced root cause (the identical pattern as ArtisticDirection.tsx).
+   * Unlike ArtisticDirection, composition questions have no "defaulted"
+   * value to finalize when skipped (evaluateCompositionFlow's skipped/
+   * not_applicable questions carry value: null, not a default) -- so there
+   * is nothing analogous to finalizeAllDimensions() needed here.
+   */
+  useEffect(() => {
+    if (flow.nextToAsk === null && !state.ui.compositionFlowDone) {
+      patchUI({ compositionBudgetSpent: flow.budgetSpent, compositionFlowDone: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flow.nextToAsk]);
 
   if (!flow.nextToAsk) {
     return (

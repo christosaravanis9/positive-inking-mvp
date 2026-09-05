@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useJourney } from "../journey/JourneyProvider";
 import { deriveConceptSignals } from "../journey/deriveConceptSignals";
 import { OptionChips } from "../components/OptionChips";
@@ -19,26 +20,6 @@ export function ArtisticDirection() {
 
   const hasExactFidelityElement = project.visual_elements.some((e) => e.fidelity === "exact");
   const needsFidelityTreatment = fidelityTreatmentRequired(hasExactFidelityElement, "handwriting") && !project.fidelity_treatment;
-
-  if (needsFidelityTreatment) {
-    return (
-      <div className="screen">
-        <p className="screen-eyebrow">Concept-specific decisions</p>
-        <h2 className="screen-heading">How faithful should the reproduction be?</h2>
-        <p className="supporting">
-          This applies regardless of how much creative control you've handed over — accuracy on an exact piece isn't
-          an artistic preference (§12.8).
-        </p>
-        <div className="option-grid" style={{ flexDirection: "column", alignItems: "stretch" }}>
-          {FIDELITY_TREATMENT_OPTIONS.map((option) => (
-            <button key={option} className="option-chip" onClick={() => patchProject({ fidelity_treatment: option })}>
-              {option}
-            </button>
-          ))}
-        </div>
-      </div>
-    );
-  }
 
   const budget = computeQuestionBudget({
     creative_control: signals.creative_control,
@@ -95,6 +76,48 @@ export function ArtisticDirection() {
     if (nextResult.nextToAsk === null) {
       finalizeAllDimensions(nextResult.dimensions);
     }
+  }
+
+  /**
+   * Auto-finalize when the flow is ALREADY fully resolved the moment this
+   * component renders -- e.g. a named style reference already settled every
+   * eligible dimension, so evaluateArtisticDimensions() returns
+   * nextToAsk: null before answer() has ever run once in this component's
+   * lifetime. Without this, nothing ever sets artisticFlowDone (only
+   * answer()'s own click handler did), so the "settled" fallback below
+   * renders with no button to click and the journey can never advance --
+   * see docs/PROJECT_STATUS.md's 2026-09-04 investigation for the full
+   * live-reproduced root cause. Skipped while needsFidelityTreatment is true
+   * -- that question is a prerequisite gate, not part of this flow, and
+   * finalizing dimensions before it's answered would be premature.
+   */
+  useEffect(() => {
+    if (needsFidelityTreatment) return;
+    if (result.nextToAsk === null && !ui.artisticFlowDone) {
+      patchUI({ artisticBudgetSpent: result.budgetSpent, artisticFlowDone: true });
+      finalizeAllDimensions(result.dimensions);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [needsFidelityTreatment, result.nextToAsk]);
+
+  if (needsFidelityTreatment) {
+    return (
+      <div className="screen">
+        <p className="screen-eyebrow">Concept-specific decisions</p>
+        <h2 className="screen-heading">How faithful should the reproduction be?</h2>
+        <p className="supporting">
+          This applies regardless of how much creative control you've handed over — accuracy on an exact piece isn't
+          an artistic preference (§12.8).
+        </p>
+        <div className="option-grid" style={{ flexDirection: "column", alignItems: "stretch" }}>
+          {FIDELITY_TREATMENT_OPTIONS.map((option) => (
+            <button key={option} className="option-chip" onClick={() => patchProject({ fidelity_treatment: option })}>
+              {option}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
   }
 
   if (!result.nextToAsk) {

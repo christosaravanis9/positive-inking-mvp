@@ -81,18 +81,7 @@ function provenanceInput(rawStoryText) {
 function associationInput() {
   return {
     visual_candidates: [
-      {
-        description: "a small hand-drawn motif built from the client's own handwriting",
-        personal_meaning: "a custom mark made specifically for this project",
-        source_category: "new_materialisation",
-        resolution_state: "concrete",
-        personal_relevance: 8,
-        story_relevance: 8,
-        visual_potential: 7,
-        originality: 8,
-        genericity: 2,
-        reference_availability: 5,
-      },
+      // Mode A -- literal object (existing, unchanged by the three-mode expansion).
       {
         description: "a specific object tied to a shared memory",
         personal_meaning: "a tangible marker of the relationship",
@@ -105,6 +94,36 @@ function associationInput() {
         originality: 4,
         genericity: 6,
         reference_availability: 3,
+      },
+      // Mode B -- pure abstraction, deliberately not tied to a literal object
+      // (existing, unchanged; rule 8 still requires the idea itself be real).
+      {
+        description: "a new mark made by overlapping the outlines of both your initials",
+        personal_meaning: "a custom mark made specifically for this project",
+        source_category: "new_materialisation",
+        resolution_state: "concrete",
+        personal_relevance: 8,
+        story_relevance: 8,
+        visual_potential: 7,
+        originality: 8,
+        genericity: 2,
+        reference_availability: 5,
+      },
+      // Mode C -- illustrative sequence (the 2026-09-06 expansion this fixture now
+      // covers): one candidate, one description naming a cohesive small sequence,
+      // each part concrete on its own -- the exact worked example from rule 8 itself.
+      {
+        description:
+          "Three small linked panels, no border between them: a figure standing at a fork in a path; the same figure's hand resting on a compass; the figure walking forward alone, path behind now faded.",
+        personal_meaning: "traces the moment of choosing to trust your own judgment",
+        source_category: "new_materialisation",
+        resolution_state: "concrete",
+        personal_relevance: 9,
+        story_relevance: 9,
+        visual_potential: 8,
+        originality: 9,
+        genericity: 2,
+        reference_availability: 2,
       },
     ],
     place_role: "none",

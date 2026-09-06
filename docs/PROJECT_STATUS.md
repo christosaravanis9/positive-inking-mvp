@@ -125,12 +125,22 @@ Inspiration finally renders at all (it was a real, silently-unwired schema
 field before this) as a genuine quote-box callout in both the on-screen
 Blueprint and its plain-text export; Screen 7 now states outright that
 selection is multi-select; and the "Resume where you left off" panel
-navigation fix proposed last session is now built and live. Two items from
-that same round were investigated and reported but deliberately NOT
-built — a three-mode Association candidate expansion, and Screen 7
-per-candidate re-roll — see "Open decisions" below and the latest session
-log entry for both. 431 unit tests pass across engine/server/web;
-typecheck and build are clean across all three workspaces.
+navigation fix proposed last session is now built and live. **The
+three-mode Association candidate expansion (literal object / pure
+abstraction / illustrative sequential storytelling) proposed in that round
+is now approved and shipped too** — `server/src/schemas/association.ts`'s
+rule 1/6/8 extended, zero schema/UI change, verified live with an example
+candidate in all three modes. Screen 7 per-candidate re-roll got a
+recommendation (client-only reserve-pool swap) rather than a build — see
+"Open decisions" below. **A real production incident investigated in the
+same round**: a live Blueprint call timed out at 30003ms against its
+30000ms budget; production's own `[model-timing]` logs (already
+unconditionally emitted, no new instrumentation needed) confirm this
+wasn't a one-off — the manual retry that followed succeeded at 27507ms,
+still within ~2.5s of the same ceiling. A budget raise is recommended,
+awaiting your sign-off — see "Open decisions." 431 unit tests pass across
+engine/server/web; typecheck and build are clean across all three
+workspaces.
 
 **Design:** a new "studio ledger" visual direction (warm parchment
 background, serif headline, ember-accented selection/marginalia, no card
@@ -190,20 +200,30 @@ to compare terminal output by hand.
 **In progress:** nothing actively mid-change right now.
 
 **Open decisions waiting on you:**
-- **Three-mode Association candidate expansion (literal object / pure
-  abstraction / illustrative sequential storytelling) — investigated,
-  report only, nothing implemented.** Full findings, the recommended
-  prompt-only approach (no schema change), and example candidate text for
-  all three modes (including all 5 Mode C panel/sequence examples) are in
-  the latest session log entry. **Do not implement without a follow-up
-  confirmation**, per your own instruction.
-- **Screen 7 per-candidate individual re-roll — investigated, two
-  approaches proposed, neither built.** Both require genuinely new state
-  (either a small per-candidate async-tracking hook plus a server request
-  extension for "one alternative, avoiding X/Y/Z", or a simpler
-  client-only reserve-pool swap with no new server call). Full comparison
-  in the latest session log entry — **awaiting your choice of approach**
-  before any of it is built.
+- **Screen 7 per-candidate individual re-roll — recommendation given,
+  not built.** Recommend the client-only reserve-pool swap over a real
+  server round-trip: it cannot violate the async/staleness guards (it
+  isn't async at all), adds zero new production model-call volume at a
+  moment (see the Blueprint timeout item below) when that volume is
+  already worth watching, and is a much smaller, more reviewable change.
+  Full reasoning in the latest session log entry. **Awaiting your
+  approval of this recommendation** before building anything.
+- **Production Blueprint timeout (30003ms, real incident) — real
+  production data pulled from Render's own logs, no fix applied yet.**
+  The exact incident and its manual retry are both in production's
+  `[model-timing]` log (unconditionally emitted, no new instrumentation
+  needed): the timeout landed at 30003ms against the 30000ms budget, and
+  the retry succeeded at 27507ms — both real samples sit within ~2.5s of
+  the ceiling, not "comfortable margin" as `docs/timeout-matrix.md`
+  assumed when Blueprint's budget was last reviewed. Recommend raising
+  the Blueprint budget (same precedent as Association's own earlier
+  30000→40000 raise) as the primary fix; recommend AGAINST adding
+  automatic retry-on-timeout for now, since that reverses a deliberate,
+  documented design choice (`model_timeout` is intentionally not treated
+  as a transient fault, unlike `model_http_error`) and doubles worst-case
+  wait time and API cost per timeout. Full data and reasoning in the
+  latest session log entry. **Awaiting your decision on the new budget
+  number** before touching `modelTimeouts.ts`.
 - **Meaning-depth gate prompt wording — real-model verification still
   needed from you.** The new Discovery prompt item (§ MEANING DEPTH) asks
   the model to classify a story as thin only when the stated reason is
@@ -353,6 +373,153 @@ here for you to decide scope on, matching how other open decisions in
 this document are tracked.
 
 ## Session log
+
+### 2026-09-06 (later still) — Three-mode Association expansion shipped; re-roll recommendation given; a real production Blueprint timeout confirmed from live logs, not a one-off
+
+Two decisions and one investigation from the same follow-up thread. Per
+your explicit instruction, only decision 1 was implemented — decision 2
+and the investigation are reported here for your sign-off, nothing else
+was touched.
+
+**DECISION 1 — SHIPPED: three-mode Association candidate expansion.**
+Implemented exactly the approved zero-schema-change approach from the
+earlier investigation. `server/src/schemas/association.ts`:
+- Rule 1 (ASSOCIATIONS) now names the three legitimate candidate shapes up
+  front — literal object, pure abstraction, illustrative sequence — with
+  the same "never forced into a quota, never preferred by default" framing
+  from the proposal.
+- Rule 6 (NO INVENTION) gained one sentence: applies to every part of a
+  sequence individually, not just the candidate as a whole.
+- Rule 8 (CONCRETENESS) gained a new subsection for sequence candidates:
+  one candidate, one description naming the whole cohesive sequence (never
+  split across multiple `visual_candidates` entries, never a new schema
+  shape), with the same BAD/BETTER discipline applied per-part instead of
+  to the candidate as a whole, the worked panel example from the proposal,
+  and an explicit note that format is open (panels, polaroid fragments,
+  morph/collage, still scene, integrated figure) with the story's own arc
+  left open to interpretation rather than narrating an invented event.
+  **Mode A's existing grounding requirement is completely unchanged** —
+  every line of the original BAD/BETTER framework stayed exactly as it
+  was; the new subsection is purely additive.
+- `test-integration/fakeAnthropic.mjs`'s Association fixture now returns
+  one candidate per mode (including the exact three-panel compass example
+  from rule 8 itself) so a live journey actually exercises all three.
+
+**Verification:** typecheck, full test suite (431 tests, no test files
+needed changes — this was a prompt-only change plus a fixture update),
+and build all pass. Live Playwright run against the real dev stack: all
+three modes rendered on Screen 7 in the same list, ranked by the existing
+`rankVisualCandidates` weighting (the Mode C candidate ranked first on its
+higher personal/story relevance and originality scores — no ranking logic
+was touched, it just already does this), the Mode C candidate's full
+multi-part description rendered intact as one candidate, and it selected
+via the exact same single checkbox Modes A/B use — confirming the
+zero-new-UI claim held in practice, not just in code. As with the earlier
+`personal_meaning` prompt change, this sandbox has no real
+`ANTHROPIC_API_KEY`, so the model's own real generation behavior under the
+new rules couldn't be observed here — only that the pipeline, ranking, and
+rendering handle a Mode C candidate correctly once one exists.
+
+**DECISION 2 — RECOMMENDATION (not implemented): client-only reserve-pool
+swap for Screen 7 per-candidate re-roll.** You asked for a plain
+recommendation with reasoning rather than picking blind between the two
+options from the earlier investigation. Recommending the **client-only
+reserve-pool swap** over the real server round-trip, for three reasons
+specific to this codebase:
+1. **It cannot violate the async/staleness guards, because it isn't async
+   at all.** `useAsyncAction` (`web/src/journey/useAsyncAction.ts`) exists
+   because of a real production incident (its own top comment describes
+   it) and deliberately serializes exactly one in-flight action per hook
+   instance. A per-candidate re-roll via a real server call needs a new,
+   keyed variant of that same guard discipline — genuinely new
+   infrastructure in the one area of this codebase that has already been
+   burned once by a subtle bug in exactly this class of problem. The
+   reserve-pool swap is a synchronous array rotation; there is no guard to
+   get wrong.
+2. **It adds no new production model-call volume, at the moment that
+   volume is specifically under scrutiny** — see the Blueprint timeout
+   finding directly below. Adding a new per-candidate model call (however
+   infrequently used) is the wrong direction to move in while actively
+   confirming whether current call volume/latency is already marginal in
+   production.
+3. **It's the smaller, more reviewable change**, consistent with how
+   narrow-scope this codebase's own recent additions have been (e.g.
+   `resumeTracking.ts` from last session — a small synchronous derived-state
+   helper, not a new subsystem).
+The real downside — a reserve pool surfaces an already-generated,
+lower-ranked candidate rather than a genuinely new idea — is manageable by
+requesting a modestly larger batch up front (e.g. 6-8 candidates instead
+of 2-3 shown) rather than needing the heavier real-round-trip machinery;
+with three modes now live, a larger pool should also contain more genuine
+variety across modes, not just near-duplicates of the top pick. If real
+usage after shipping this shows people still find the alternatives too
+similar, that's the natural, evidence-based trigger to revisit the real
+round-trip approach later — not something to build speculatively now.
+**Awaiting your approval before building either approach.**
+
+**INVESTIGATION 3 — real production timing data found, no fix applied.**
+Checked whether `npm run diagnose-model` (or an equivalent) can run
+against the live Render deployment specifically: it can't directly as
+written — it's a standalone script that calls the real Anthropic API
+straight from wherever it's invoked (using local env vars), not through
+the deployed server, so running it locally only ever measures latency from
+this sandbox's own network path, not Render's. Running it as a genuine
+Render-side job (SSH exec or a one-off Job resource) was considered but
+**not done** — per your own standing instruction from an earlier session,
+I don't make live-service changes to your Render account without your
+separate go-ahead, and creating a new job/resource there counts as one.
+
+The better option turned out to already exist and need no new code at
+all: `server/src/modelTiming.ts`'s `[model-timing]` log line is
+**unconditionally emitted in every environment, including production**
+(its own comment says so explicitly — it predates this investigation).
+Querying Render's own log history for the service (`list_logs`, read-only,
+no live-service change) for `*model-timing*` in today's window surfaced
+the exact incident, still there:
+```
+[model-timing] stage=blueprint attempt=1 outcome=model_timeout elapsed_ms=30003 budget_ms=30000
+  (2026-09-06T22:52:52Z)
+[model-timing] stage=blueprint attempt=1 outcome=success elapsed_ms=27507 budget_ms=30000 input_tokens=2550 output_tokens=2576 output_tokens_per_sec=93.6
+  (2026-09-06T22:56:59Z -- the manual retry)
+```
+Also visible in the same window: `discovery` at 10.5-10.6s (budget
+20000ms), `association` at 20.5s (budget 40000ms), `style_reference` at
+3.0s, `avoidance` at 4.2s — all comfortably inside budget. **Blueprint is
+the one outlier, and both real samples of it landed within ~2.5s of the
+30000ms ceiling** — not "comfortable margin," which is what
+`docs/timeout-matrix.md` assumed when Blueprint's budget was last
+reviewed ("Not touched by the revision below — comfortable margin in the
+one real run so far"). This is genuinely new evidence against that
+assumption, not a re-confirmation of it.
+
+**Is this a one-off or a real gap?** Both real samples we have ran close
+to the edge, and the likely mechanism supports it being systemic, not a
+fluke: throughput across all three real calls sits in the same ~90-110
+tokens/sec band (100.8, 97.7, 93.6 — no outlier there), so the difference
+isn't network/infra drift on this one call. What's different is *output
+volume* — the successful Blueprint call generated 2576 output tokens, its
+twelve written sections drawing on a real, detailed journey, versus
+whatever a small generic diagnostic fixture produces locally (the
+18.4s figure from an earlier session's local measurement almost certainly
+reflects a shorter fixture summary, not a real journey's actual content
+volume). At ~94-100 tokens/sec, a real Blueprint needing just a few
+hundred more output tokens than this one did — an easy, plausible amount
+for a richer real story — pushes back over 30s again.
+
+**Recommendation (not applied):** raise Blueprint's budget, following the
+exact precedent already in this codebase — Association's own budget was
+raised 30000→40000ms after a single real timeout incident, the same shape
+of evidence this is. Recommend AGAINST adding automatic retry-on-timeout
+for Blueprint: `modelClient.ts` deliberately does not retry a
+`model_timeout` (unlike `model_http_error`) — its own test asserts this
+explicitly ("a timeout is not treated as a transient fault") — and
+reversing that for one route doubles the worst-case wait and API cost per
+timeout instead of just giving the single call enough room to finish, which
+the data suggests is the actual, simpler fix. **Awaiting your decision on
+the new Blueprint budget number** — `MODEL_TIMEOUT_BLUEPRINT_MS` in
+`server/.env`/`engine/src/modelTimeouts.ts`'s default, plus updating
+`docs/timeout-matrix.md`'s own table and its now-outdated "comfortable
+margin" note, once you confirm.
 
 ### 2026-09-06 (later same day) — Five live-feedback items shipped, two investigated and reported (not built), plus the previously-proposed panel navigation fix now built
 

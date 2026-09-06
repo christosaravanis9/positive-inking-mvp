@@ -22,6 +22,23 @@ personal visual material and a set of candidate elements for the user to react
 to, confirm, reject or extend.
 
 1. ASSOCIATIONS — Move from values, themes or provenance to concrete visuals.
+A candidate may take any of three shapes, chosen freely per candidate based on
+what the story actually supports — never forced into a quota, and never
+preferred by default over what the story calls for:
+  - A single literal object, motif or mark. The default most stories call for.
+  - A deliberately abstract mark not tied to any literal object (see
+    new_materialisation in rule 2, and rule 8's concreteness note on
+    abstraction).
+  - A cohesive small illustrative sequence — a handful of linked panels,
+    fragments, an integrated scene, or a morph/collage — that reads as one
+    design, not several separate candidates competing for the same idea.
+    Only propose this when the story's own shape genuinely supports more
+    than one visual beat (a journey, a before/after, two things in
+    relationship to each other) — never manufacture a sequence just for
+    variety, and never at the expense of a strong single-object candidate
+    the story equally supports. See rule 8 for how a sequence stays
+    concrete, and rule 6 — every part of a sequence is still bound by
+    NO INVENTION, not just the candidate as a whole.
 
 2. PERSONAL PRIORITY — Prioritise personal artefacts, new material created for
 the project, specific people, places and objects, then broader symbolism, then
@@ -52,7 +69,11 @@ type. These drive deterministic downstream question eligibility — classify
 honestly rather than guessing toward a particular downstream path.
 
 6. NO INVENTION — Do not add age, hair, skin texture, clothing, existing
-tattoos, jewellery, props, decorative symbols or invented scenery.
+tattoos, jewellery, props, decorative symbols or invented scenery. Applies to
+every part of an illustrative-sequence candidate individually, not just the
+candidate as a whole — a sequence is not license to add scene-setting detail
+(a room, weather, a time of day) that isn't in the story just to fill out a
+panel.
 
 7. CONTRADICTIONS — Note any design contradictions from §13.2 you can already
 see (e.g. an exact artefact with no uploaded reference) as plain descriptions
@@ -76,6 +97,28 @@ category name for information you do not have yet.
   idea the client has explicitly chosen not to tie to a literal object —
   concreteness is about whether the visual idea itself is real, not about
   whether it is literal or abstract in style.
+  An illustrative-sequence candidate (rule 1's third mode) is one candidate
+  with one description naming the whole cohesive small sequence — never
+  split across multiple visual_candidates entries, and never given its own
+  schema shape; write it as ordinary prose that names each part in turn.
+  The same concreteness bar applies to EVERY part individually, not just to
+  the sequence as a whole: "a series of meaningful moments from the
+  relationship" is exactly the kind of category-not-proposition this rule
+  already forbids, just spread across several beats instead of one.
+  BAD (a sequence described only in the abstract): "a few panels showing
+  the arc of the friendship over time."
+  BETTER (each part a real, specific proposition): "Three small linked
+  panels, no border between them: a figure standing at a fork in a path;
+  the same figure's hand resting on a compass; the figure walking forward
+  alone, path behind now faded." Format is open to whatever actually suits
+  the story — linked panels, polaroid-style fragments, a morph/collage
+  blending two forms into one, a still scene with the person only implied
+  by what they left behind, or a figure integrated directly into its
+  environment are all legitimate; do not default to panels every time. The
+  story's own arc stays open to interpretation rather than narrating one
+  specific event you weren't told — the sequence should evoke a
+  relationship or passage of time the story actually supports, not invent
+  a scene-by-scene plot.
   personal_meaning does not need description's same literal concreteness —
   a real, honestly abstract emotional truth is a legitimate answer — but it
   must be grounded in a specific detail from the client's own story or from

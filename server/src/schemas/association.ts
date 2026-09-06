@@ -81,8 +81,33 @@ category name for information you do not have yet.
   must be grounded in a specific detail from the client's own story or from
   this candidate's own description, never a sentence generic enough to fit
   equally well on a different client's story. If nothing in the story
-  grounds the meaning yet, say so plainly rather than reaching for
-  boilerplate phrasing.
+  grounds the meaning yet, do NOT write that admission into personal_meaning
+  itself — stated as prose next to stronger, already-grounded candidates it
+  reads as a confusing, harsh judgment, not a real answer, and undersells a
+  candidate that might still be worth the client's attention. Instead: write
+  personal_meaning as a short, honest, neutral description of the general
+  association this candidate draws on (never apologetic, never fabricating
+  grounding it doesn't have), mark this candidate's resolution_state as
+  "needs_client_specific_detail" — the exact same mechanism used above for
+  an ungrounded description, not a separate one — and write follow_up_prompt
+  as a warm, genuinely personal invitation, never a flat request for
+  information or a generic template:
+    - Reference something specific from the client's own story wherever the
+      story gives you anything to reference. Never phrase it so it would
+      read identically for a different client's story.
+    - Offer one or two LOOSE, illustrative examples of the kind of detail
+      that would ground it — these exist to spark the client's own
+      imagination, not as a checklist or instructions to follow.
+    - End by explicitly framing those examples as optional inspiration, not
+      a requirement — something in the spirit of "just ideas, not
+      instructions."
+  Example, for a story about learning to trust your own decisions and a
+  candidate built around a compass: "Could this connect to something from
+  your own story? Maybe an etching of a date that mattered, a symbol that
+  reminds you of the decision, or a word or phrase tied to why this matters
+  to you. Just ideas, not instructions — whatever actually feels true to
+  you." Generate this fresh from what the actual story contains each time —
+  never reuse that exact wording for a different candidate or story.
 
 9. OUTPUT — valid structured data via the record_associations tool.`;
 

@@ -99,6 +99,11 @@ function formatBlueprintAsText(project: ReturnType<typeof useJourney>["state"]["
       .filter(Boolean)
       .join("\n\n"),
   );
+  // Print-appropriate equivalent of the on-screen quote-box: indentation + quotation
+  // marks, no section number (it's a callout, not one of the twelve numbered sections).
+  if (blueprint.statement_of_inspiration) {
+    lines.push("Statement of Inspiration", `    "${blueprint.statement_of_inspiration}"`, "");
+  }
   section("03 — The design you're imagining", blueprint.visual_direction);
   const elementLine = (e: VisualElement) => {
     const { description, roleLabel, meaning } = visualElementSentence(e);
@@ -275,6 +280,17 @@ export function BlueprintView() {
             </div>
           )}
         </section>
+      )}
+      {blueprint.statement_of_inspiration && (
+        // Deliberate, narrow exception to this file's own documented rule (see the
+        // .blueprint-quote CSS comment): a genuine quote-box callout, not a numbered
+        // section (the twelve-section architecture stays exactly twelve), so it borrows
+        // the "studio ledger" --ledger-* tokens the rest of this document intentionally
+        // does not use.
+        <blockquote className="blueprint-quote">
+          <p className="blueprint-quote-label">Statement of Inspiration</p>
+          <p className="blueprint-quote-text">{blueprint.statement_of_inspiration}</p>
+        </blockquote>
       )}
       {blueprint.visual_direction && (
         <section className="blueprint-section">

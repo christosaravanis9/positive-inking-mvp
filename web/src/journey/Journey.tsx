@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { getNextScreen, type ScreenId } from "@positive-inking/engine";
 import { useJourney } from "./JourneyProvider";
 import { deriveProgress } from "./deriveProgress";
+import { screenOrdinal, snapshotProgressFlags } from "./resumeTracking";
 import { GLOBAL_ERROR_EVENT, type GlobalErrorDetail } from "../globalErrors";
 import { reportScreenReached } from "../instrumentation/analytics";
 import { Welcome } from "../screens/Welcome";
@@ -64,7 +65,7 @@ const SCREEN_COMPONENTS: Record<ScreenId, () => JSX.Element | null> = {
 const HIDE_UNDERSTANDING_PANEL: ReadonlySet<ScreenId> = new Set(["welcome", "blueprint", "working_notes"]);
 
 export function Journey() {
-  const { state } = useJourney();
+  const { state, patchUI } = useJourney();
   const [globalError, setGlobalError] = useState<GlobalErrorDetail | null>(null);
   const previousScreenRef = useRef<{ screen: ScreenId; enteredAt: number } | null>(null);
 
@@ -86,6 +87,18 @@ export function Journey() {
     const now = Date.now();
     reportScreenReached(screen, previous?.screen ?? null, previous ? now - previous.enteredAt : null, state.project.journey_mode);
     previousScreenRef.current = { screen, enteredAt: now };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen]);
+
+  // "Resume where you left off" (2026-09-06 proposal, approved) -- the high-water
+  // mark this effect maintains, read by UnderstandingPanel.tsx via resumeTracking.ts.
+  // Forward-only: never moves backward when a panel row or Back/Edit affordance
+  // sends the journey to an earlier screen (that's the whole point -- the
+  // affordance needs something to resume *to*).
+  useEffect(() => {
+    if (screenOrdinal(screen) > screenOrdinal(state.ui.furthestScreenReached)) {
+      patchUI({ furthestScreenReached: screen, furthestScreenFlags: snapshotProgressFlags(state.ui) });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen]);
 

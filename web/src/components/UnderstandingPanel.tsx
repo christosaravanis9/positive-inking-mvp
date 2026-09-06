@@ -1,5 +1,8 @@
 import { Fragment } from "react";
+import { getNextScreen } from "@positive-inking/engine";
 import { useJourney } from "../journey/JourneyProvider";
+import { deriveProgress } from "../journey/deriveProgress";
+import { resumableFlagKey } from "../journey/resumeTracking";
 import { deriveUnderstandingRows, UNDERSTANDING_PANEL_EMPTY_COPY, UNDERSTANDING_PANEL_FOOTER_COPY } from "../journey/understandingPanel";
 
 /**
@@ -21,6 +24,16 @@ import { deriveUnderstandingRows, UNDERSTANDING_PANEL_EMPTY_COPY, UNDERSTANDING_
 export function UnderstandingPanel({ variant }: { variant: "rail" | "details" }) {
   const { state, patchUI } = useJourney();
   const rows = deriveUnderstandingRows(state.project);
+
+  // "Resume where you left off" (2026-09-06 proposal, approved) -- only ever
+  // offered in the one unambiguous case resumableFlagKey checks for; see
+  // resumeTracking.ts for why every other case deliberately shows nothing.
+  const resumeKey = resumableFlagKey(state.ui, getNextScreen(deriveProgress(state)));
+  const resumeButton = resumeKey && (
+    <button type="button" className="understood-resume" onClick={() => patchUI({ [resumeKey]: true })}>
+      Resume where you left off
+    </button>
+  );
 
   const rowList = (
     <dl className="understood-rows">
@@ -64,6 +77,7 @@ export function UnderstandingPanel({ variant }: { variant: "rail" | "details" })
       <details className="understood-mobile sites-tokens">
         <summary>What we've understood</summary>
         {body}
+        {resumeButton}
       </details>
     );
   }
@@ -72,6 +86,7 @@ export function UnderstandingPanel({ variant }: { variant: "rail" | "details" })
     <aside className="understood-rail sites-tokens">
       <h2 className="understood-heading">What we've understood</h2>
       {body}
+      {resumeButton}
       <p className="understood-footer">{UNDERSTANDING_PANEL_FOOTER_COPY}</p>
     </aside>
   );

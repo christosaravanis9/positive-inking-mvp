@@ -108,8 +108,8 @@ async function currentHeading(page) {
 
 /**
  * Full-mode journey order after Discovery succeeds: MeaningReflection
- * ("Here is what we heard.") -> IntentionConfirmation ("Your tattoo is
- * about...") -> Screen 7. Both intermediate screens are pure client-side
+ * ("Here is what we heard.") -> IntentionConfirmation ("Statement of
+ * Inspiration") -> Screen 7. Both intermediate screens are pure client-side
  * confirmations (no model call), so this only needs UI interaction, not
  * further fixture wiring.
  */
@@ -119,7 +119,7 @@ async function advanceThroughReflectionAndIntention(page) {
   // (Story.tsx patches selected_themes from the Discovery result before this
   // screen mounts) -- Continue is already enabled; no chip click needed.
   await page.click("button:text-is('Continue')");
-  await page.waitForSelector("text=Your tattoo is about...", { timeout: 10000 });
+  await page.waitForSelector("text=Statement of Inspiration", { timeout: 10000 });
   await page.click("button:text-is('Continue')");
 }
 

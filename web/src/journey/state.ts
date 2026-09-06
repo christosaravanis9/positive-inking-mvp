@@ -3,6 +3,7 @@ import {
   type ProjectState,
   type ArtisticDimensionKey,
   type CompositionQuestionKey,
+  type ScreenId,
 } from "@positive-inking/engine";
 import type { VisualCandidate, BlueprintData } from "../api/types";
 
@@ -108,7 +109,54 @@ export interface UIState {
   consecutiveFailures: number;
 
   blueprint: BlueprintData | null;
+
+  /**
+   * "Resume where you left off" (2026-09-06 proposal, approved). The furthest
+   * screen this journey has ever reached (a high-water mark -- never moves
+   * backward when the panel or a Back/Edit affordance sends the journey to
+   * an earlier screen), plus a snapshot of the progress-gating flags
+   * (`ProgressFlags`, journey/resumeTracking.ts) at the moment it was
+   * reached. Both are updated together, only forward, by Journey.tsx's
+   * screen-change effect. See resumeTracking.ts for how these two are used
+   * to decide whether a safe one-click "resume" is actually available.
+   */
+  furthestScreenReached: ScreenId;
+  furthestScreenFlags: ProgressFlags | null;
 }
+
+/**
+ * The subset of UIState that actually gates `getNextScreen` (mirrors
+ * `JourneyProgress`'s own UI-owned fields in deriveProgress.ts --
+ * `journey_mode` and `clarificationRequired` are excluded because they come
+ * from ProjectState/derived data, never from a backward-navigation
+ * editUiPatch, so they can never be the one flag "Resume" needs to restore).
+ */
+export const PROGRESS_FLAG_KEYS = [
+  "pastWelcome",
+  "viewpointSelected",
+  "discoveryCompleted",
+  "clarificationShown",
+  "lowConfidenceCorrectionNeeded",
+  "lowConfidenceCorrectionDone",
+  "themesSelected",
+  "intentionConfirmed",
+  "imageDescribed",
+  "provenanceCaptured",
+  "elementsDiscovered",
+  "creativeControlSet",
+  "roughScaleSet",
+  "compositionFlowDone",
+  "styleReferenceAsked",
+  "artisticFlowDone",
+  "avoidancesAsked",
+  "placementDone",
+  "designConfirmed",
+  "blueprintReady",
+  "manualPathActive",
+] as const satisfies readonly (keyof UIState)[];
+
+export type ProgressFlagKey = (typeof PROGRESS_FLAG_KEYS)[number];
+export type ProgressFlags = Pick<UIState, ProgressFlagKey>;
 
 export interface JourneyState {
   project: ProjectState;
@@ -171,6 +219,8 @@ export function createInitialJourneyState(): JourneyState {
       error: null,
       consecutiveFailures: 0,
       blueprint: null,
+      furthestScreenReached: "welcome",
+      furthestScreenFlags: null,
     },
   };
 }

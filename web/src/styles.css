@@ -501,6 +501,39 @@ input[type="text"] {
   margin: 0 0 8px;
 }
 
+/**
+ * Statement of Inspiration quote-box (item 4, 2026-09-06). A genuine callout, not one of
+ * the twelve numbered sections above, so it's the one deliberate exception to this file's
+ * "no --ledger-* color here" rule (see the big comment above .blueprint-header) --
+ * borrowing the "studio ledger" palette for one warm, intentional pull-quote rather than
+ * migrating the whole document to it.
+ */
+.blueprint-quote {
+  margin: 8px 0 28px;
+  padding: 2px 0 2px 24px;
+  border-left: 3px solid var(--ledger-red);
+  break-inside: avoid;
+}
+
+.blueprint-quote-label {
+  font-family: var(--text-label-family);
+  font-weight: var(--text-label-weight);
+  font-size: var(--text-label-size);
+  letter-spacing: var(--text-label-tracking);
+  text-transform: var(--text-label-transform);
+  color: var(--ledger-muted);
+  margin: 0 0 8px;
+}
+
+.blueprint-quote-text {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 19px;
+  line-height: 1.55;
+  color: var(--ledger-ink);
+  margin: 0;
+}
+
 .theme-chips {
   display: flex;
   flex-wrap: wrap;
@@ -1148,6 +1181,37 @@ input[type="text"] {
 }
 .understood-row-edit:focus-visible {
   outline: 2px solid var(--ledger-red);
+  outline-offset: 2px;
+}
+
+/**
+ * "Resume where you left off" (2026-09-06 proposal, approved). Only ever
+ * rendered when resumeTracking.ts's resumableFlagKey() finds the one
+ * unambiguous case -- backed up by exactly one step, nothing re-answered
+ * since. Styled as a real, findable action (unlike .understood-row-edit's
+ * deliberately understated inline-link treatment) since this is the one
+ * piece of the panel that performs a state change beyond navigation.
+ */
+.understood-resume {
+  display: block;
+  width: 100%;
+  font-family: var(--text-button-family);
+  font-weight: var(--text-button-weight);
+  font-size: var(--text-button-size);
+  color: var(--ledger-white);
+  background: var(--ledger-red);
+  border: none;
+  border-radius: 4px;
+  padding: 10px 14px;
+  margin: 18px 0 0;
+  cursor: pointer;
+  text-align: center;
+}
+.understood-resume:hover {
+  opacity: 0.9;
+}
+.understood-resume:focus-visible {
+  outline: 2px solid var(--ledger-ink);
   outline-offset: 2px;
 }
 

@@ -4,6 +4,7 @@ import { createEmptyProjectState } from "@positive-inking/engine";
 import { JourneyProvider } from "../journey/JourneyProvider";
 import { createInitialJourneyState, type JourneyState } from "../journey/state";
 import { savePersistedState } from "../journey/persistence";
+import { snapshotProgressFlags } from "../journey/resumeTracking";
 import { UnderstandingPanel } from "./UnderstandingPanel";
 import { UNDERSTANDING_PANEL_EMPTY_COPY, UNDERSTANDING_PANEL_FOOTER_COPY } from "../journey/understandingPanel";
 
@@ -124,6 +125,78 @@ describe("UnderstandingPanel", () => {
       // Nothing else about ui state was touched -- no invented invalidation logic.
       expect(stored.ui.pastWelcome).toBe(true);
       expect(stored.project.user_viewpoint).toBe("past"); // the confirmed answer itself is untouched, only the gate flips
+    });
+  });
+
+  describe("Resume where you left off (2026-09-06 proposal)", () => {
+    function seedFurthestReached(): JourneyState {
+      const state = createInitialJourneyState();
+      state.project = { ...state.project, ...createEmptyProjectState(state.project.project_id, state.project.created_at), journey_mode: "attraction" };
+      state.ui = {
+        ...state.ui,
+        pastWelcome: true,
+        viewpointSelected: true,
+        imageDescribed: true,
+        provenanceCaptured: true,
+        elementsDiscovered: true,
+        creativeControlSet: true,
+      };
+      state.ui.furthestScreenReached = "creative_control";
+      state.ui.furthestScreenFlags = snapshotProgressFlags(state.ui);
+      return state;
+    }
+
+    it("shows the affordance and restores the one flag that changed, after backing up exactly one step", () => {
+      const state = seedFurthestReached();
+      state.ui.elementsDiscovered = false; // simulates clicking the "Visual material" panel row
+      savePersistedState(state);
+      render(
+        <JourneyProvider>
+          <UnderstandingPanel variant="rail" />
+        </JourneyProvider>,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Resume where you left off" }));
+
+      const stored = JSON.parse(localStorage.getItem("positive-inking:journey-state:v1")!);
+      expect(stored.ui.elementsDiscovered).toBe(true);
+    });
+
+    it("shows nothing once the journey has already reached (or passed) its furthest point", () => {
+      const state = seedFurthestReached(); // no divergence from the snapshot at all
+      savePersistedState(state);
+      render(
+        <JourneyProvider>
+          <UnderstandingPanel variant="rail" />
+        </JourneyProvider>,
+      );
+
+      expect(screen.queryByRole("button", { name: "Resume where you left off" })).toBeNull();
+    });
+
+    it("shows nothing when more than one flag has diverged -- real invalidation or genuine re-answering, never silently undone", () => {
+      const state = seedFurthestReached();
+      state.ui.elementsDiscovered = false;
+      state.ui.creativeControlSet = false;
+      savePersistedState(state);
+      render(
+        <JourneyProvider>
+          <UnderstandingPanel variant="rail" />
+        </JourneyProvider>,
+      );
+
+      expect(screen.queryByRole("button", { name: "Resume where you left off" })).toBeNull();
+    });
+
+    it("shows nothing before any high-water mark has ever been recorded", () => {
+      seedState({});
+      render(
+        <JourneyProvider>
+          <UnderstandingPanel variant="rail" />
+        </JourneyProvider>,
+      );
+
+      expect(screen.queryByRole("button", { name: "Resume where you left off" })).toBeNull();
     });
   });
 });

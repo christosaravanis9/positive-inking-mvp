@@ -342,6 +342,33 @@ describe("BlueprintView -- twelve-section restructure (Sites migration spec §7)
     expect(headings.at(-1)).toBe("Readiness");
   });
 
+  it("renders statement_of_inspiration as a quote-box callout, not a thirteenth numbered section", () => {
+    seedBlueprintState({});
+    render(
+      <JourneyProvider>
+        <BlueprintView />
+      </JourneyProvider>,
+    );
+
+    screen.getByText("Statement of Inspiration");
+    screen.getByText("A piece of my daughter, carried with me.");
+    // Not one of the twelve numbered h3 sections -- a callout has no heading role.
+    expect(screen.queryByRole("heading", { name: "Statement of Inspiration" })).toBeNull();
+  });
+
+  it("omits the quote-box callout entirely when statement_of_inspiration is empty", () => {
+    const state = seedBlueprintState({});
+    state.ui.blueprint = { ...state.ui.blueprint!, statement_of_inspiration: "" };
+    savePersistedState(state);
+    render(
+      <JourneyProvider>
+        <BlueprintView />
+      </JourneyProvider>,
+    );
+
+    expect(screen.queryByText("Statement of Inspiration")).toBeNull();
+  });
+
   it("section 05 (Composition and arrangement) shows a deterministic fact line with no raw stored token", () => {
     seedBlueprintState({ project: { composition_type: "Framed scene", composition_background: "immersive", design_density: "full" } });
     render(

@@ -112,10 +112,25 @@ covered) were illegible under a dark OS/browser preference.** Fixed by
 removing the app's automatic dark-mode CSS override entirely and declaring
 `color-scheme: light` -- the whole app (already a deliberately light-only
 "studio ledger" design with no dark token variants anywhere) is now
-light-only end to end, not just this one panel. See the latest session log
+light-only end to end, not just this one panel. See that session's log
 entry for why `color-scheme: light` alone would not have been sufficient.
-418 unit tests pass across engine/server/web; typecheck and build are
-clean across all three workspaces.
+**A follow-up round (2026-09-06) shipped five more live-feedback items**:
+the "Your tattoo is about..." screen is now "Statement of Inspiration"
+(with a new subtitle); a weakly-grounded Association candidate's
+`personal_meaning` now routes through the same `resolution_state`/
+`follow_up_prompt` mechanism `description` already used, generating a
+warm, story-specific invitation instead of the model's own confusing
+self-critique appearing as visible prose; the Blueprint's Statement of
+Inspiration finally renders at all (it was a real, silently-unwired schema
+field before this) as a genuine quote-box callout in both the on-screen
+Blueprint and its plain-text export; Screen 7 now states outright that
+selection is multi-select; and the "Resume where you left off" panel
+navigation fix proposed last session is now built and live. Two items from
+that same round were investigated and reported but deliberately NOT
+built — a three-mode Association candidate expansion, and Screen 7
+per-candidate re-roll — see "Open decisions" below and the latest session
+log entry for both. 431 unit tests pass across engine/server/web;
+typecheck and build are clean across all three workspaces.
 
 **Design:** a new "studio ledger" visual direction (warm parchment
 background, serif headline, ember-accented selection/marginalia, no card
@@ -175,23 +190,20 @@ to compare terminal output by hand.
 **In progress:** nothing actively mid-change right now.
 
 **Open decisions waiting on you:**
-- **Association candidate grounding — should a weakly-grounded
-  `personal_meaning` route through the existing `resolution_state`/
-  `follow_up_prompt` mechanism instead of being written as prose?**
-  Investigated after a live example where the model's own admission of
-  ungrounded meaning ("No grounding yet in this story...") was shown
-  verbatim to the user, undistinguished from strong candidates in the same
-  list. Proposed approach is in the latest session log entry. **No prompt
-  wording has been changed** — awaiting your sign-off.
-- **Understanding panel "Resume where you left off" — proposed, not
-  built.** The panel's rows are backward-only by design; going back and
-  then wanting to return to the furthest point reached currently requires
-  re-clicking Continue on the row's own screen (and, in the common case,
-  nothing further) or, in the multi-flag-invalidated case, genuinely
-  re-answering. Full proposed mechanism (a high-water-mark screen tracker
-  plus a single-flag-diff affordance, deliberately not full forward/backward
-  navigation) is in the latest session log entry. **Not implemented** —
-  awaiting your sign-off.
+- **Three-mode Association candidate expansion (literal object / pure
+  abstraction / illustrative sequential storytelling) — investigated,
+  report only, nothing implemented.** Full findings, the recommended
+  prompt-only approach (no schema change), and example candidate text for
+  all three modes (including all 5 Mode C panel/sequence examples) are in
+  the latest session log entry. **Do not implement without a follow-up
+  confirmation**, per your own instruction.
+- **Screen 7 per-candidate individual re-roll — investigated, two
+  approaches proposed, neither built.** Both require genuinely new state
+  (either a small per-candidate async-tracking hook plus a server request
+  extension for "one alternative, avoiding X/Y/Z", or a simpler
+  client-only reserve-pool swap with no new server call). Full comparison
+  in the latest session log entry — **awaiting your choice of approach**
+  before any of it is built.
 - **Meaning-depth gate prompt wording — real-model verification still
   needed from you.** The new Discovery prompt item (§ MEANING DEPTH) asks
   the model to classify a story as thin only when the stated reason is
@@ -284,11 +296,10 @@ to compare terminal output by hand.
   a genuine new regression worth re-opening.
 
 **Known, deliberately deferred issues (not lost, just not this chapter's scope):**
-- **Statement of Inspiration visual formatting** (quote-style typography)
-  **and overall Blueprint premium polish** — deliberately deferred to a
-  later, dedicated polish pass, not current work. (Distinct from Statement
-  of Inspiration's *content*, which this session's item #2 fixed — see
-  below; this note is about typography/visual treatment only.)
+- **Overall Blueprint premium polish** beyond the Statement of Inspiration
+  quote-box treatment (now shipped — see the latest session log entry) —
+  deliberately deferred to a later, dedicated polish pass, not current
+  work.
 - **Free-text input + suggestion chips on binary confirmation screens**
   ("Here's what that suggests" style screens, e.g. `StyleReference.tsx`'s
   resolution step) — currently only right/try-again, no way to add
@@ -342,6 +353,230 @@ here for you to decide scope on, matching how other open decisions in
 this document are tracked.
 
 ## Session log
+
+### 2026-09-06 (later same day) — Five live-feedback items shipped, two investigated and reported (not built), plus the previously-proposed panel navigation fix now built
+
+A follow-up round on the same day as the dark-mode panel fix below. Item 2
+of this round replaces the *simpler* version from the investigation
+earlier that day (a static generic tag) with a personalized, per-candidate
+approach based on further live feedback that the simpler version read as
+confusing and harsh — this entry supersedes that plan, not the fix itself.
+
+**1. FIXED: "Your tattoo is about..." renamed to "Statement of
+Inspiration".** `IntentionConfirmation.tsx`'s heading changed, plus a new
+subtitle: "Worth remembering for when someone asks why you got it." No
+content or logic changed — this screen still shows
+`project.statement_of_intention` and the same Continue/Edit buttons it
+always did.
+
+**2. FIXED: weak-candidate flagging now routes through the existing
+`resolution_state`/`follow_up_prompt` mechanism instead of writing a
+judgment as prose.** Builds directly on the investigation from earlier
+today (see below): rule 8's `personal_meaning` clause previously told the
+model "if nothing grounds the meaning yet, say so plainly" with no
+instruction on *where* that honesty should go, so the model wrote its
+admission straight into the user-facing `personal_meaning` text (the exact
+"No grounding yet in this story..." example from the investigation).
+`server/src/schemas/association.ts`'s rule 8 now instructs: when
+`personal_meaning` isn't grounded, do NOT write that into
+`personal_meaning` itself — write it as a short, honest, neutral
+description instead, mark `resolution_state: "needs_client_specific_detail"`
+(the exact mechanism `description` already used, not a new one), and write
+`follow_up_prompt` as a warm, per-candidate invitation that: references
+something specific from the client's own story wherever possible, offers
+one or two LOOSE illustrative examples framed as inspiration rather than
+instructions, and explicitly says so ("just ideas, not instructions").
+The prompt includes one worked example (the compass/self-trust story from
+your own message) and explicitly tells the model never to reuse that exact
+wording for a different candidate or story. No UI change was needed —
+`ElementsDiscovery.tsx` already renders `follow_up_prompt` as an inline
+marginalia prompt whenever `resolution_state` is
+`needs_client_specific_detail` (added for `description`'s own concreteness
+gate); this only extends which cases route into that same display. Because
+this sandbox has no real `ANTHROPIC_API_KEY`, the actual model-generated
+wording could not be observed here — only the prompt text change, and that
+the existing `follow_up_prompt` rendering mechanism still works correctly
+end to end (verified live, see below). **Run `npm run diagnose-model` (or
+the app itself) with a real key against a story with at least one
+plausible-but-thin candidate to confirm the generated invitations read
+warm and specific, not generic, before treating this as fully settled.**
+
+**3. INVESTIGATED (report only, NOT implemented, per your explicit
+instruction): expanding Association's candidate range to three modes**
+(literal object / pure abstraction / illustrative sequential storytelling).
+
+Is there a structural cap? Partly, but it's a prompt-level bias, not a hard
+schema wall. Rule 1 (ASSOCIATIONS) and rule 8 (CONCRETENESS)'s own
+BAD/BETTER examples are ALL single-object propositions ("a small
+hand-drawn motif...", "a new mark made by overlapping..."), which biases
+the model toward one-object candidates even though nothing in the schema
+actually prevents more. Two things already exist that make a genuinely
+lightweight fix possible: `visual_candidates` is already an array (the
+model can already propose several related candidates in one response,
+which the UI already lets the client multi-select), and
+`compositionFlow.ts`'s `reading_direction`/`density` questions already
+activate off `element_count > 1` — a multi-element composition already has
+real deterministic question support downstream, today, with no schema
+change.
+
+Two ways to represent Mode C were considered:
+- **(a) Multiple related candidates, tied together by a new grouping
+  field** (e.g. `sequence_group_id`) — real per-panel structure, but needs
+  new schema fields, new UI grouping logic in `ElementsDiscovery.tsx`, and
+  touches `rankVisualCandidates`.
+- **(b) One candidate whose `description` names the whole small sequence
+  as one cohesive multi-part proposition** (e.g. "Three small linked
+  panels: [panel 1]; [panel 2]; [panel 3]"), with rule 8's concreteness bar
+  extended to apply per-panel *inside* that one string rather than only to
+  the description as a whole. **Recommended** — zero schema/UI/ranking
+  changes, purely a rule 8 extension, and the existing single-VisualElement
+  composition dimensions apply to it exactly as they do today for any
+  other candidate.
+
+Example candidate text per mode (illustrating format variety, both
+character-driven and environment-driven approaches, and — per your
+instruction — the story arc deliberately left open rather than narrating
+one specific depicted event; every example still needs to trace to
+something the actual client's story supports, same as any other
+candidate):
+- **Mode A (literal object, existing, unchanged):** "A small hand-drawn
+  compass rose, its needle pointing toward a specific date etched at the
+  rim."
+- **Mode B (pure abstraction, existing via `new_materialisation`,
+  unchanged):** "A new mark made by overlapping the outlines of both your
+  initials, deliberately not resembling any literal object."
+- **Mode C (illustrative sequence, the gap this investigates) — one
+  example per requested format:**
+  1. *Comic-strip panels, character-based:* "Three small linked panels, no
+     border between them: a figure standing at a fork in a path; the same
+     figure's hand resting on a compass; the figure walking forward alone,
+     path behind now faded."
+  2. *Polaroid-style environment fragments:* "Two overlapping
+     polaroid-style frames: one showing a worn kitchen table's edge, the
+     other a half-open door letting in light — no figure in either,
+     environment carrying the memory."
+  3. *Morphed collage/montage:* "A single form that reads as a compass
+     rose from one angle and a folded letter from another, the two shapes
+     blended at their edges rather than shown separately."
+  4. *Still scene with implied character:* "An empty chair beside a
+     window, coat still hung on its back — the person suggested only by
+     what they left behind."
+  5. *Character + environment integrated:* "A figure mid-step on a porch,
+     one hand trailing along a railing worn smooth in one particular
+     spot."
+
+Mode A's existing grounding requirement is unchanged by this proposal —
+the same concreteness bar just gets applied per-panel/fragment for Mode C
+rather than only to the description as a whole, so a sequence doesn't get
+a pass on rigor just because it's dressed up as art direction.
+`rankVisualCandidates`'s existing six-dimension weighting needs no change;
+a well-grounded Mode C candidate should score naturally on
+`visual_potential`/`originality` without special-casing.
+**Nothing here has been implemented — awaiting your follow-up
+confirmation before touching the prompt or schema.**
+
+**4. FIXED: Blueprint's Statement of Inspiration now renders as a quote
+box — and, separately, now renders at all.** Investigating this surfaced a
+real, previously-unnoticed gap: `blueprint.statement_of_inspiration` is a
+required field on the Blueprint model's own output schema
+(`server/src/schemas/blueprint.ts`), and its *content* was already fixed
+in an earlier session (2026-09-02, "drew from aesthetics instead of
+story/why") — but nothing in `BlueprintView.tsx` had ever actually
+rendered it, on-screen or in the plain-text export. Fixed both at once:
+added a `<blockquote className="blueprint-quote">` callout, positioned
+right after "02 — Your intention" (deliberately NOT a 13th numbered
+section — the twelve-section architecture stays exactly twelve; this is a
+pull-quote callout, matching how a magazine treats one), styled with the
+"studio ledger" `--ledger-*` tokens (left border rule in `--ledger-red`,
+italic serif text in `--ledger-ink`) — the one deliberate, explicitly-
+scoped exception to this file's own documented rule that the Blueprint
+stays on the app's ordinary `--fg`/`--muted`/etc. tokens (see the comment
+above `.blueprint-quote` in `styles.css`). The plain-text export gets the
+same content as an indented, quoted line instead. Framing matches item 1
+above ("why you got it").
+
+**5. INVESTIGATED (report only, NOT built): per-candidate individual
+re-roll on Screen 7.** Your own instruction was to report the approach
+first if it needs new state beyond what already exists — it does, on both
+approaches considered, so neither was built:
+- **(a) Real re-roll via a new server round-trip.** Ask the model for
+  exactly one fresh alternative, given the story and a list of descriptions
+  to avoid (the ones already shown). Needs: a new optional request field
+  (`avoid_descriptions`, or similar) and prompt extension on the server,
+  PLUS new client-side state — `useAsyncAction` (the one sanctioned
+  async-action hook, `web/src/journey/useAsyncAction.ts`) tracks exactly
+  one in-flight action per hook instance by design (its whole purpose is
+  serializing re-entrancy/staleness for a single action), so re-rolling
+  candidate index 2 independently of index 0 needs a new, keyed variant of
+  that same guard discipline — a real but small new piece of
+  infrastructure, not a one-line change.
+- **(b) Client-only reserve pool, no new server call.** Request a few more
+  candidates than are shown on the initial fetch (already a single
+  `visual_candidates` array response), keep the unshown ones as a
+  client-side reserve, and "re-roll" swaps the current candidate for the
+  next unused one in rank order — fully synchronous, so it never touches
+  the async/staleness guards at all. Trade-off: a finite pool per fetch
+  (needs a graceful "no more alternatives for this one" state), and it
+  surfaces an existing lower-ranked idea rather than generating something
+  new. **Recommended** as the lightweight default given the explicit ask
+  to fit this in "without disrupting the async/staleness guards" — (a) is
+  the more genuine feature if you'd rather have it.
+Both would still need the discoverability text your instruction asked
+for (e.g. "Not quite right? Re-roll for a different idea." near each
+candidate); not yet written pending which approach you pick.
+**Awaiting your choice of approach before any of it is built.**
+
+**FIXED (approved last session, now built): "Resume where you left off"
+panel navigation fix.** Implements the proposal from earlier today's first
+entry exactly as specced: `web/src/journey/resumeTracking.ts` (new) tracks
+`furthestScreenReached`/`furthestScreenFlags` (new `UIState` fields,
+`state.ts`) as a high-water mark, updated forward-only by `Journey.tsx`'s
+existing screen-change effect (the same one that already fires
+`reportScreenReached` — this needed no new effect timing, just one more
+alongside it). `resumableFlagKey()` returns the one flag to restore only
+in the single unambiguous case: exactly one progress-gating flag has
+diverged from the snapshot, and it diverged in the one direction an actual
+backward click ever produces (`true` → `false`, never the reverse).
+Anything else — zero divergence (already caught up), more than one flag
+diverged (real invalidation logic, or genuine re-answering already
+happened) — shows nothing, falling back to today's ordinary click-through
+on purpose. `UnderstandingPanel.tsx` renders "Resume where you left off"
+in both the rail and mobile variants when `resumableFlagKey()` finds a
+match; clicking it just restores that one flag via the same `patchUI`
+mechanism every other panel row already uses. No existing screen's own
+Back/Edit call sites needed touching. Confirmed live: backed up via the
+"Visual material" panel row, the affordance appeared, and clicking it
+correctly jumped straight to "Who should shape the final design?" (the
+CreativeControl screen the journey had already reached), not back through
+every intermediate screen's own Continue button.
+
+**Also included (approved separately): Screen 7 multi-select
+discoverability subtitle.** Confirmed current behavior already is
+multi-select (`ElementsDiscovery.tsx` renders one independent checkbox per
+candidate, `<input type="checkbox" className="ledger-seal-input">` — no
+radio-group exclusivity anywhere). Added: "Select as many as feel right —
+you can choose more than one." right above the candidate list, shown only
+once candidates exist.
+
+**Verification:** typecheck, full test suite (431 tests — up from 418;
+new coverage: `resumeTracking.test.ts`, new "Resume where you left off"
+tests in `UnderstandingPanel.test.tsx`, new Blueprint quote-box tests in
+`BlueprintView.test.tsx`), and build all pass for every implemented item
+(1, 2, 4, the multi-select subtitle, and the navigation fix — items 3 and
+5 were investigated and reported only, per instruction, and are not
+included in this count). Live Playwright verification against the real
+dev stack (real server + fake Anthropic double + real Vite) for every
+implemented item, with screenshots: the renamed Statement of Inspiration
+screen with its new subtitle; the Screen 7 multi-select subtitle; the
+"Resume where you left off" affordance appearing after backing up exactly
+one step via the panel, then correctly jumping forward past the
+intervening screen on click; and the Blueprint's quote-box callout
+rendering both its label and the actual `statement_of_inspiration` text
+from the fixture, positioned between "02 — Your intention" and "03 — The
+design you're imagining" with no thirteenth numbered section introduced.
+Item 2's prompt-wording change itself could not be observed against a real
+model in this sandbox (no `ANTHROPIC_API_KEY` configured here) — only that
+its existing rendering mechanism still works correctly end to end.
 
 ### 2026-09-06 — Three live-production findings: dark-mode panel text fixed, Association grounding investigated (report only), panel navigation friction proposed (report only)
 

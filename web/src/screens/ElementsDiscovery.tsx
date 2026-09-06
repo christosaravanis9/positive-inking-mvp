@@ -546,6 +546,7 @@ export function ElementsDiscovery() {
       <h2 className="ledger-headline">Let us find what could represent it.</h2>
       <AsyncError onRetry={fetchAssociations} />
       {fetching && <ModelWaitIndicator label="Finding personal and visual directions..." />}
+      {hasCandidates && <p className="supporting">Select as many as feel right — you can choose more than one.</p>}
       {hasCandidates && (
         <div className="ledger-list">
           {visibleCandidateIndices.map((i) => {

@@ -1,5 +1,19 @@
+/* This app is a deliberately light-only "studio ledger" design -- most
+   visibly in .sites-tokens (below), whose --ledger-* palette is hardcoded
+   with no dark variant at all. It was never actually built to support dark
+   mode: the block this replaced flipped --bg/--fg dark under
+   prefers-color-scheme, but that's a straight OS-preference media query --
+   it fires regardless of this element's own color-scheme value, so
+   "color-scheme: light" alone would NOT have stopped it. The real bug was
+   that flip itself running one layer (the root tokens) with no matching
+   counterpart in the ledger tokens: .understood-rail sets no background of
+   its own, so it showed the now-dark body background through, while its
+   text (.understood-rows dd) stayed the light-only --ledger-ink literal --
+   near-black text on a near-black background. Declaring color-scheme: light
+   and removing the dark override fixes it at the source for every element
+   built against these tokens, not just this one panel. */
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
   --bg: #faf8f5;
   --fg: #1c1a17;
   --muted: #6b6459;
@@ -10,33 +24,19 @@
   /* Text-selection highlight -- literal copies of the "studio ledger" palette's
      --ledger-red/--ledger-white values (see .sites-tokens below), not the scoped
      tokens themselves: those are deliberately confined to .sites-tokens-scoped
-     elements only (avoiding the --accent/--muted collision documented there), but
-     this pair doesn't collide with anything and reads with strong contrast against
-     both this light theme and the dark one below, so it's used globally as one
-     consistent selection color rather than needing a separate dark-mode override. */
+     elements only (avoiding the --accent/--muted collision documented there).
+     Now that the app is light-only end to end, this is just the one consistent
+     selection color, not a dark-mode-safe fallback. */
   --selection-bg: #8e2f2a;
   --selection-fg: #fffdf8;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #16140f;
-    --fg: #f2ede4;
-    --muted: #a89f8f;
-    --accent: #e2795f;
-    --border: #3a3529;
-    --error-bg: #3a1712;
-    --error-fg: #ffb4a3;
-  }
-}
-
-/* Bug: with no ::selection rule at all, the browser's default (a blue highlight)
-   was used everywhere -- against the dark-mode background above (--bg: #16140f)
-   that reads as illegible dark-blue-on-near-black, most noticeably in the "What
-   we've understood" panel (.understood-rail), which sets no background/color of
-   its own and inherits these root tokens directly. Global, not panel-scoped, since
-   the underlying cause (no rule existed) affects text selection anywhere in the app. */
+/* Originally fixed a bug where, with no ::selection rule at all, the browser's
+   default (a blue highlight) read as illegible dark-blue-on-near-black under
+   the dark-mode background this file used to apply automatically (see the
+   :root comment above -- that automatic dark mode is gone now, but this rule
+   is still worth keeping explicit rather than relying on the browser default). */
 ::selection {
   background: var(--selection-bg);
   color: var(--selection-fg);

@@ -105,9 +105,17 @@ CompositionBackground dead end (found 2026-09-04) is now fixed**: both
 screens auto-finalize when their flow is already fully resolved on
 render, not only via their own `answer()` click handler -- confirmed
 live to also resolve the "Edit Composition" panel re-trap as a side
-effect, with no separate change needed. 418 unit tests pass across
-engine/server/web; typecheck and build are clean across all three
-workspaces.
+effect, with no separate change needed. **A first live production deploy
+surfaced a second, distinct dark-mode bug (2026-09-06): the understanding
+panel's row *values* (not the selection highlight, which 0f00fee already
+covered) were illegible under a dark OS/browser preference.** Fixed by
+removing the app's automatic dark-mode CSS override entirely and declaring
+`color-scheme: light` -- the whole app (already a deliberately light-only
+"studio ledger" design with no dark token variants anywhere) is now
+light-only end to end, not just this one panel. See the latest session log
+entry for why `color-scheme: light` alone would not have been sufficient.
+418 unit tests pass across engine/server/web; typecheck and build are
+clean across all three workspaces.
 
 **Design:** a new "studio ledger" visual direction (warm parchment
 background, serif headline, ember-accented selection/marginalia, no card
@@ -167,6 +175,23 @@ to compare terminal output by hand.
 **In progress:** nothing actively mid-change right now.
 
 **Open decisions waiting on you:**
+- **Association candidate grounding — should a weakly-grounded
+  `personal_meaning` route through the existing `resolution_state`/
+  `follow_up_prompt` mechanism instead of being written as prose?**
+  Investigated after a live example where the model's own admission of
+  ungrounded meaning ("No grounding yet in this story...") was shown
+  verbatim to the user, undistinguished from strong candidates in the same
+  list. Proposed approach is in the latest session log entry. **No prompt
+  wording has been changed** — awaiting your sign-off.
+- **Understanding panel "Resume where you left off" — proposed, not
+  built.** The panel's rows are backward-only by design; going back and
+  then wanting to return to the furthest point reached currently requires
+  re-clicking Continue on the row's own screen (and, in the common case,
+  nothing further) or, in the multi-flag-invalidated case, genuinely
+  re-answering. Full proposed mechanism (a high-water-mark screen tracker
+  plus a single-flag-diff affordance, deliberately not full forward/backward
+  navigation) is in the latest session log entry. **Not implemented** —
+  awaiting your sign-off.
 - **Meaning-depth gate prompt wording — real-model verification still
   needed from you.** The new Discovery prompt item (§ MEANING DEPTH) asks
   the model to classify a story as thin only when the stated reason is
@@ -317,6 +342,187 @@ here for you to decide scope on, matching how other open decisions in
 this document are tracked.
 
 ## Session log
+
+### 2026-09-06 — Three live-production findings: dark-mode panel text fixed, Association grounding investigated (report only), panel navigation friction proposed (report only)
+
+Three items from the first live production deploy, all explicitly scoped by
+you as "report before implementing" for two of the three.
+
+**1. FIXED: illegible dark-mode text in the "What we've understood" panel.**
+Distinct from the earlier `::selection` fix (0f00fee) — that only covered
+the text-*highlight* color; this was the normal rendered text color of the
+panel's own content. Root cause, confirmed by reading the CSS then
+live-verified (Chromium's `colorScheme: 'dark'` emulation — this sandbox's
+Playwright install has no WebKit binary, so a literal Safari session
+couldn't be launched here, but the bug turned out to be a pure CSS
+media-query/cascade issue, not a WebKit-specific rendering quirk, so
+Chromium's emulation reproduces it identically): `.understood-rail` sets no
+background/color of its own, so it showed the `body` background through —
+and `body { background: var(--bg) }` flipped dark under
+`@media (prefers-color-scheme: dark)`. Meanwhile `.understood-rows dd` (the
+actual answer values) use the hardcoded `--ledger-ink` (`#171614`) from the
+"studio ledger" `.sites-tokens` palette, which has no dark variant at all —
+so under a dark OS/browser preference, the panel's row values rendered
+near-black text on a near-black background (`rgb(23,22,20)` on
+`rgb(22,20,15)`), while row labels/heading (`--ledger-red`, a saturated
+color) stayed visible-ish, exactly matching the reported symptom (headings
+visible, values invisible).
+
+**Correction to the fix you suggested:** `color-scheme: light` alone would
+**not** have fixed this. `color-scheme` only affects the browser's default
+styling of native form controls/scrollbars/canvas — it does not gate
+whether `@media (prefers-color-scheme: dark)` matches; that media query
+reflects the OS/browser preference regardless of the page's own
+`color-scheme` value. The actual bug was this app's *own* dark-mode CSS
+override for `--bg`/`--fg`/etc. running with no matching counterpart in the
+"studio ledger" tokens. Since the whole design (Screen 7's "studio ledger"
+direction, the understanding panel, all `.sites-tokens` consumers) is
+already deliberately light-only with zero dark variants anywhere, the fix
+was to remove that automatic dark-mode override entirely and set
+`color-scheme: light` (the complementary, correct use of that property once
+there genuinely is no dark mode) — making the whole app consistently
+light, not just this one panel. This also forecloses the same class of bug
+recurring anywhere else two token systems (root vs. ledger) meet.
+`web/src/styles.css`: `:root`'s `@media (prefers-color-scheme: dark)` block
+removed, `color-scheme: light dark` → `color-scheme: light`.
+
+**Verification:** typecheck, full test suite (418 tests, unchanged — this
+was a CSS-only fix, no test files touched), and build all pass. Live
+Playwright reproduction against the real dev stack (real server + fake
+Anthropic double + real Vite, per this project's established pattern),
+forcing `colorScheme: 'dark'` at the browser-context level: before the fix,
+`.understood-rows dd`'s computed color (`rgb(23,22,20)`) was read back
+against a computed panel/body background of `rgb(22,20,15)` — functionally
+invisible, screenshot confirms it; after the fix, body background stays
+`rgb(250,248,245)` (the light `--bg`) even under forced dark-scheme
+emulation, and the same screenshot shows all three row values ("Past", the
+story excerpt, "family") fully legible. **Could not verify against the
+actual production URL** — this sandbox's egress proxy rejects
+`positive-inking-mvp.onrender.com` (organization policy; the same
+limitation hit during the Render deploy investigation two sessions ago),
+and separately, production is still crash-looping pending the Start
+Command fix from that investigation, so it wouldn't be serving this build
+yet regardless. The dev-stack reproduction above is the best available
+substitute evidence, matching the rigor used for the original `::selection`
+fix.
+
+**2. INVESTIGATED (report only, no prompt change made): some Association
+candidates read as generic/boilerplate rather than resonant.** Your live
+example: the model wrote a `personal_meaning` that read as its own
+meta-admission ("No grounding yet in this story... boilerplate rather than
+drawn from the wearer's actual account") sitting in the same list as
+genuinely specific candidates, with no visual distinction from them.
+
+Root cause: this is rule 8 (CONCRETENESS, `server/src/schemas/association.ts`)
+working as designed for *content* — the prompt's `personal_meaning` clause
+(the "Option C" grounding extension from 2026-09-02) says: "If nothing in
+the story grounds the meaning yet, say so plainly rather than reaching for
+boilerplate phrasing." The model did exactly that — but the instruction
+never says *where* that honesty should go. It has an existing, purpose-built
+place to go: `resolution_state: "needs_client_specific_detail"` +
+`follow_up_prompt`, the exact mechanism `description`'s own concreteness
+gate already uses, which the UI already renders distinctly (Screen 7 shows
+an inline follow-up-question marginalia label under any candidate marked
+this way — `ElementsDiscovery.tsx` line ~566). Instead, the model wrote its
+admission directly into `personal_meaning` itself, which is rendered
+verbatim to the user (`<span className="ledger-candidate-meaning">`) — so
+the "say so plainly" honesty became a different flavor of exactly the noise
+rule 8 exists to prevent: text that isn't a real answer, undistinguished
+from the candidates that are.
+
+Two things do NOT already gate this: `rankVisualCandidates` (engine/src/
+visualRanking.ts) orders candidates by six model-scored numeric dimensions
+only (personal_relevance, story_relevance, originality, genericity,
+visual_potential, reference_availability) — none of them reads
+`resolution_state`/groundedness, so a weakly-grounded candidate isn't
+reliably pushed down even if it should be. `suppressGeneratedSymbolicSuggestions`
+(the one existing exclusion mechanism, §9.7) filters by `source_category`
++ `interpretation_confidence` only, not by grounding.
+
+**Proposed approach (not implemented, no prompt wording touched):** extend
+rule 8's `personal_meaning` clause to route an ungrounded meaning through
+the *same* `resolution_state`/`follow_up_prompt` mechanism `description`
+already uses, instead of writing the admission as prose: when nothing
+grounds the meaning, set `resolution_state: "needs_client_specific_detail"`
+with a `follow_up_prompt` that would ground it (e.g. "What does this
+actually mean to you?"), and keep `personal_meaning` itself as a real,
+honest, unresolved-but-not-apologetic placeholder — mirroring exactly how
+`description` already handles this same situation. This keeps the
+candidate offered (the user may still want it and can resolve it with one
+answer) rather than silently excluding something they might have chosen,
+while finally giving it the same visible "needs one more detail" treatment
+strong candidates don't get, instead of sitting undistinguished among them.
+A harder alternative (exclude/never offer a candidate with an
+under-grounded meaning) was considered and not recommended — it risks
+hiding a candidate whose `description` alone might still be worth the
+client's attention, and there's no existing precedent for outright
+exclusion keyed on content quality (only on category + confidence).
+**Awaiting your sign-off before touching the prompt.**
+
+**3. PROPOSED (report only, not implemented): "Resume where you left off"
+for the understanding panel's backward-only navigation.** Confirmed real:
+`web/src/journey/understandingPanel.ts`'s `editUiPatch` on every row clears
+exactly one boolean gating flag (e.g. `elementsDiscovered: false`) to send
+the journey back to that row's source screen — there is no "furthest screen
+reached" tracked anywhere today; `screen = getNextScreen(deriveProgress(state))`
+(`Journey.tsx`) is purely a live derivation from the current flags, with no
+history.
+
+Investigated whether the existing flag design already resolves this for
+free in most cases: it partly does — since a backward click only clears the
+*one* flag for its own row, every screen further ahead than the row you
+edited keeps its own flag `true` and its own answer data untouched, so once
+you re-answer just the row you went back to, `getNextScreen` walks straight
+past every still-`true` downstream flag in one render — no separate "resume"
+mechanism needed there. Two things break this: (a) real invalidation logic
+(`ElementsDiscovery.tsx`'s confirm(), §14's new-idea loop) that legitimately
+clears specific downstream answers when a change actually affects them —
+correctly forcing real re-answering, which "resume" must never try to
+bypass; and (b) simply wanting to bail out of a look-back *before*
+re-answering anything, which is exactly your reported friction — right now
+that still requires clicking Continue on the row's own screen at least once
+to re-trigger the flag-skip, and Blueprint's own "Change something" clears
+two flags at once (`blueprintReady` + `designConfirmed`), which won't
+resolve to a single-step case either.
+
+**Proposed mechanism**, sized to your explicit scope (not full
+forward+backward navigation — just getting back to the furthest point
+already reached):
+- Track a **high-water mark**: `furthestScreenReached: ScreenId`, updated
+  in `Journey.tsx`'s existing screen-change `useEffect` (the same one that
+  already fires `reportScreenReached` on every screen transition) whenever
+  the newly-derived `screen`'s ordinal position in `SCREEN_IDS` exceeds the
+  stored one. Since a single journey only ever visits one of the two
+  mutually-exclusive early-screen branches (full mode vs.
+  attraction/expert), raw array-index comparison stays monotonic within any
+  one journey — confirmed by reading `engine/src/screenFlow.ts`.
+- Alongside it, snapshot the **progress-gating flags** (the ~13 booleans
+  `deriveProgress` reads, not all of `UIState` and none of `ProjectState`)
+  at the same moment the high-water mark advances.
+- On every render, diff the live flags against that snapshot. If **exactly
+  one** flag differs (the live one is `false` where the snapshot says
+  `true`) — which is precisely the shape of "I clicked one panel row and
+  haven't touched anything since" — show a small "Resume where you left
+  off" affordance (understanding panel footer area is the natural spot,
+  same place as the existing "Nothing here is fixed..." note) that simply
+  restores that one flag (`patchUI({ [thatKey]: true })`), which by
+  construction reproduces the exact pre-navigation state and lets
+  `getNextScreen` snap straight back. If **more than one** flag differs —
+  which only happens once real invalidation logic has actually fired, or
+  the user has genuinely started re-answering something — deliberately show
+  nothing and fall back to today's normal click-through; extending this to
+  the multi-flag case would mean rebuilding real forward+backward
+  navigation, explicitly out of scope.
+- This needs no changes to any existing screen's own Back/Edit button
+  call-sites — it's entirely new derived state plus one small affordance,
+  same shape as the auto-finalize `useEffect` pattern just shipped for
+  ArtisticDirection/CompositionBackground.
+- **Compatibility check requested:** this is pure synchronous bookkeeping
+  over booleans already in `UIState` — no network calls, nothing that
+  touches `runFetchAssociations`/`guard.isStale()` or any other async
+  invariant, and no interaction with the auto-finalize fix beyond both
+  keying off the same `screen`-change effect in `Journey.tsx`.
+**Awaiting your sign-off before building any of this.**
 
 ### 2026-09-05 — Fixed the ArtisticDirection/CompositionBackground dead end: auto-finalize a flow already resolved on render
 

@@ -67,6 +67,14 @@ const IDEA_FIDELITY_OPTIONS: { value: ElementFidelity; label: string }[] = [
  */
 const DETAIL_SEPARATOR = " — specifically, ";
 
+/**
+ * Per-candidate re-roll's visible cap (2026-09-07). Everything ranked beyond
+ * this position in the already-fetched candidate list becomes that fetch's
+ * reserve pool -- see rerollSlot() below. Matches the density this screen's
+ * "studio ledger" layout has always comfortably shown.
+ */
+const VISIBLE_CANDIDATE_COUNT = 3;
+
 function extractDetailAnswer(candidateDescription: string, confirmedDescription: string): string {
   const prefix = candidateDescription + DETAIL_SEPARATOR;
   return confirmedDescription.startsWith(prefix) ? confirmedDescription.slice(prefix.length) : "";
@@ -212,7 +220,70 @@ export function ElementsDiscovery() {
   // passes through either function.
   const indexedCandidates = state.ui.associationCandidates.map((c, i) => ({ ...c, i }));
   const rankedAndFiltered = suppressGeneratedSymbolicSuggestions(rankVisualCandidates(indexedCandidates), state.project.interpretation_confidence);
-  const visibleCandidateIndices = rankedAndFiltered.map((c) => c.i);
+
+  // Per-candidate re-roll (client-only reserve-pool approach, 2026-09-07 --
+  // see docs/PROJECT_STATUS.md for the full reasoning this was chosen over a
+  // real server round-trip). No new server call and no new async/staleness
+  // guard: candidates beyond the visible cap are already sitting in the one
+  // Association response already fetched -- rerollSlot() only ever swaps
+  // which already-returned candidate a slot shows, synchronously.
+  // slotOverrides is keyed by SLOT POSITION (0..VISIBLE_CANDIDATE_COUNT-1),
+  // not by candidate index, because a slot's occupant changes on re-roll
+  // while its position on screen does not.
+  const defaultTopIndices = rankedAndFiltered.slice(0, VISIBLE_CANDIDATE_COUNT).map((c) => c.i);
+  const reservePool = rankedAndFiltered.slice(VISIBLE_CANDIDATE_COUNT);
+  const [slotOverrides, setSlotOverrides] = useState<Record<number, number>>(() => {
+    // Guarantee a candidate already confirmed as a visual_elements entry stays
+    // visible on a fresh mount (e.g. navigating back to this screen via the
+    // panel), even if it was originally a re-rolled-in reserve candidate that
+    // now falls outside the default top-N by rank -- what the client already
+    // chose must never silently disappear.
+    const confirmedOutsideTop = state.ui.associationCandidates
+      .map((_, i) => i)
+      .filter((i) => !defaultTopIndices.includes(i) && state.project.visual_elements.some((e) => e.id === `candidate-${i}`));
+    if (confirmedOutsideTop.length === 0) return {};
+    const overrides: Record<number, number> = {};
+    confirmedOutsideTop.forEach((idx, k) => {
+      if (k < defaultTopIndices.length) overrides[k] = idx;
+    });
+    return overrides;
+  });
+  const [reserveCursor, setReserveCursor] = useState(() => {
+    // Keep in step with the slotOverrides seed above: skip past every reserve
+    // candidate that seed already placed on screen, so the next real re-roll
+    // click can never hand out a duplicate of something already shown.
+    let cursor = 0;
+    for (const idx of Object.values(slotOverrides)) {
+      const pos = reservePool.findIndex((c) => c.i === idx);
+      if (pos !== -1 && pos + 1 > cursor) cursor = pos + 1;
+    }
+    return cursor;
+  });
+  const canRerollMore = reserveCursor < reservePool.length;
+
+  function rerollSlot(slot: number) {
+    if (reserveCursor >= reservePool.length) return;
+    const outgoingIndex = slotOverrides[slot] ?? defaultTopIndices[slot];
+    const next = reservePool[reserveCursor]!;
+    setSlotOverrides((prev) => ({ ...prev, [slot]: next.i }));
+    setReserveCursor((c) => c + 1);
+    // A re-rolled-away candidate must also be deselected -- `selected` keys off
+    // the original candidate index, not slot position, so without this the
+    // swapped-out candidate would still silently confirm even though it's no
+    // longer shown. Re-rolling a candidate the client had chosen is exactly
+    // "I don't want this one anymore," so this is the correct default, not a
+    // surprising side effect.
+    if (outgoingIndex !== undefined) {
+      setSelected((prev) => {
+        if (!prev.has(outgoingIndex)) return prev;
+        const next2 = new Set(prev);
+        next2.delete(outgoingIndex);
+        return next2;
+      });
+    }
+  }
+
+  const visibleCandidateIndices = defaultTopIndices.map((i, slot) => slotOverrides[slot] ?? i);
 
   // §14.2: only offered when there is exactly one already-confirmed element to
   // possibly replace -- this build has no explicit "set hierarchy to primary"
@@ -549,7 +620,7 @@ export function ElementsDiscovery() {
       {hasCandidates && <p className="supporting">Select as many as feel right — you can choose more than one.</p>}
       {hasCandidates && (
         <div className="ledger-list">
-          {visibleCandidateIndices.map((i) => {
+          {visibleCandidateIndices.map((i, slot) => {
             const candidate = state.ui.associationCandidates[i]!;
             return (
               <div key={i} className={`ledger-candidate${selected.has(i) ? " selected" : ""}`}>
@@ -562,6 +633,13 @@ export function ElementsDiscovery() {
                     <span className="ledger-candidate-meaning">{candidate.personal_meaning}</span>
                   </span>
                 </label>
+                {canRerollMore ? (
+                  <button type="button" className="ledger-candidate-reroll" onClick={() => rerollSlot(slot)}>
+                    Not quite right? Try another idea
+                  </button>
+                ) : (
+                  reserveCursor > 0 && <span className="ledger-candidate-reroll-exhausted">No more alternatives to offer right now</span>
+                )}
                 {selected.has(i) && (
                   <div className="ledger-marginalia">
                     {candidate.resolution_state === "needs_client_specific_detail" && (

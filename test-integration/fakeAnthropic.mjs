@@ -125,6 +125,34 @@ function associationInput() {
         genericity: 2,
         reference_availability: 2,
       },
+      // Reserve material (2026-09-07, per-candidate re-roll): scored lower on
+      // personal/story relevance and originality than the three above, so
+      // rankVisualCandidates always places these beyond VISIBLE_CANDIDATE_COUNT --
+      // this is what lets a live journey actually exercise rerollSlot().
+      {
+        description: "a small linework paw print, rendered simply",
+        personal_meaning: "a straightforward nod to the bond with your dog",
+        source_category: "public_artefact",
+        resolution_state: "concrete",
+        personal_relevance: 5,
+        story_relevance: 5,
+        visual_potential: 5,
+        originality: 3,
+        genericity: 7,
+        reference_availability: 6,
+      },
+      {
+        description: "a folded paper crane resting in an open palm",
+        personal_meaning: "something given and something received, held gently",
+        source_category: "artistic_symbol",
+        resolution_state: "concrete",
+        personal_relevance: 4,
+        story_relevance: 4,
+        visual_potential: 6,
+        originality: 4,
+        genericity: 6,
+        reference_availability: 6,
+      },
     ],
     place_role: "none",
     place_role_reasoning: "No place named in the story.",

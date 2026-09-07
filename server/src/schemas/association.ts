@@ -39,6 +39,12 @@ preferred by default over what the story calls for:
     the story equally supports. See rule 8 for how a sequence stays
     concrete, and rule 6 — every part of a sequence is still bound by
     NO INVENTION, not just the candidate as a whole.
+Propose enough candidates for the client to meaningfully compare and revisit
+later — typically 4 to 8 total, more when the story genuinely supports
+several distinct strong ideas, fewer only when it doesn't. Never pad the
+count with weak filler just to hit a number; concreteness (rule 8) and
+grounding still apply to every single one, no exceptions for the ones
+further down the list.
 
 2. PERSONAL PRIORITY — Prioritise personal artefacts, new material created for
 the project, specific people, places and objects, then broader symbolism, then

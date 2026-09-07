@@ -11,7 +11,7 @@ describe("model route timeouts", () => {
     for (const route of MODEL_ROUTES) {
       const ms = MODEL_ROUTE_TIMEOUT_DEFAULTS_MS[route];
       expect(ms).toBeGreaterThan(0);
-      expect(ms).toBeLessThanOrEqual(40000);
+      expect(ms).toBeLessThanOrEqual(45000);
     }
   });
 
@@ -42,7 +42,7 @@ describe("model route timeouts", () => {
       style_reference: 12000,
       discovery: 20000,
       association: 40000,
-      blueprint: 30000,
+      blueprint: 45000,
     });
   });
 });

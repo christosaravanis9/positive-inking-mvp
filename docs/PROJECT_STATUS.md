@@ -130,15 +130,18 @@ three-mode Association candidate expansion (literal object / pure
 abstraction / illustrative sequential storytelling) proposed in that round
 is now approved and shipped too** — `server/src/schemas/association.ts`'s
 rule 1/6/8 extended, zero schema/UI change, verified live with an example
-candidate in all three modes. Screen 7 per-candidate re-roll got a
-recommendation (client-only reserve-pool swap) rather than a build — see
-"Open decisions" below. **A real production incident investigated in the
-same round**: a live Blueprint call timed out at 30003ms against its
-30000ms budget; production's own `[model-timing]` logs (already
-unconditionally emitted, no new instrumentation needed) confirm this
-wasn't a one-off — the manual retry that followed succeeded at 27507ms,
-still within ~2.5s of the same ceiling. A budget raise is recommended,
-awaiting your sign-off — see "Open decisions." 431 unit tests pass across
+candidate in all three modes. **Both remaining recommendations from that
+round are now approved and shipped too (2026-09-07):** Screen 7 candidates
+can now be individually re-rolled — the recommended client-only
+reserve-pool swap, no new server call, no new async/staleness guard —
+with clear per-candidate discoverability text and a graceful "no more
+alternatives" state once a slot's reserve runs out; and Blueprint's
+model-call budget is raised 30000ms → 45000ms, following the real
+production evidence (a real timeout at 30003ms, a manual retry at
+27507ms, both within ~2.5s of the old ceiling — see
+`docs/timeout-matrix.md`'s "Real production incident" section for the
+full local-vs-production gap analysis). Automatic retry-on-timeout was
+deliberately NOT added, as recommended. 437 unit tests pass across
 engine/server/web; typecheck and build are clean across all three
 workspaces.
 
@@ -200,30 +203,6 @@ to compare terminal output by hand.
 **In progress:** nothing actively mid-change right now.
 
 **Open decisions waiting on you:**
-- **Screen 7 per-candidate individual re-roll — recommendation given,
-  not built.** Recommend the client-only reserve-pool swap over a real
-  server round-trip: it cannot violate the async/staleness guards (it
-  isn't async at all), adds zero new production model-call volume at a
-  moment (see the Blueprint timeout item below) when that volume is
-  already worth watching, and is a much smaller, more reviewable change.
-  Full reasoning in the latest session log entry. **Awaiting your
-  approval of this recommendation** before building anything.
-- **Production Blueprint timeout (30003ms, real incident) — real
-  production data pulled from Render's own logs, no fix applied yet.**
-  The exact incident and its manual retry are both in production's
-  `[model-timing]` log (unconditionally emitted, no new instrumentation
-  needed): the timeout landed at 30003ms against the 30000ms budget, and
-  the retry succeeded at 27507ms — both real samples sit within ~2.5s of
-  the ceiling, not "comfortable margin" as `docs/timeout-matrix.md`
-  assumed when Blueprint's budget was last reviewed. Recommend raising
-  the Blueprint budget (same precedent as Association's own earlier
-  30000→40000 raise) as the primary fix; recommend AGAINST adding
-  automatic retry-on-timeout for now, since that reverses a deliberate,
-  documented design choice (`model_timeout` is intentionally not treated
-  as a transient fault, unlike `model_http_error`) and doubles worst-case
-  wait time and API cost per timeout. Full data and reasoning in the
-  latest session log entry. **Awaiting your decision on the new budget
-  number** before touching `modelTimeouts.ts`.
 - **Meaning-depth gate prompt wording — real-model verification still
   needed from you.** The new Discovery prompt item (§ MEANING DEPTH) asks
   the model to classify a story as thin only when the stated reason is
@@ -373,6 +352,94 @@ here for you to decide scope on, matching how other open decisions in
 this document are tracked.
 
 ## Session log
+
+### 2026-09-07 — Both pending recommendations approved and shipped: per-candidate re-roll, and the Blueprint timeout budget raise
+
+Two approvals from the same thread as the prior entry, both now built and
+verified.
+
+**APPROVAL 1 — SHIPPED: per-candidate individual re-roll (the recommended
+client-only reserve-pool swap).** `web/src/screens/ElementsDiscovery.tsx`:
+
+- The Association prompt (`server/src/schemas/association.ts`, rule 1)
+  gained one instruction: propose "typically 4 to 8" candidates total when
+  the story genuinely supports that many distinct strong ideas, never
+  padded with weak filler — this is what gives the reserve pool real
+  material; without it, most real responses would have nothing to
+  re-roll into.
+- Screen 7 now shows only the top `VISIBLE_CANDIDATE_COUNT` (3) ranked
+  candidates by default; everything ranked beyond that, from the *same*
+  already-fetched Association response, becomes that fetch's reserve pool.
+  `slotOverrides` (keyed by SLOT POSITION, not candidate index, since a
+  slot's occupant changes on re-roll while its screen position doesn't)
+  and a shared `reserveCursor` track which reserve candidate each re-roll
+  click hands out next, in rank order. **No new server call, no new
+  async/staleness guard** — `rerollSlot()` is a synchronous local state
+  update, exactly the property this approach was chosen for.
+- **Two correctness details the naive version would have missed**, both
+  now covered by dedicated tests:
+  1. Re-rolling a candidate the client had already selected also
+     deselects it — `selected` is keyed by original candidate index, not
+     slot, so without this the swapped-out candidate would silently stay
+     "confirmed" despite no longer being shown.
+  2. `slotOverrides`/`reserveCursor`'s `useState` initializers seed
+     themselves from `state.project.visual_elements` on mount: if a
+     candidate the client already confirmed was originally a re-rolled-in
+     reserve item (now ranked outside the default top 3), it stays
+     visible on a fresh mount (e.g. navigating back to this screen via
+     the panel) instead of silently reverting to the default ranking and
+     hiding something the client already chose.
+- Discoverability text: "Not quite right? Try another idea" renders under
+  every visible candidate that still has reserve material behind it,
+  styled as an understated inline link matching
+  `.understood-row-edit`'s own restraint (no button chrome). Once the
+  reserve is exhausted, every remaining candidate instead shows "No more
+  alternatives to offer right now" — never a dead, permanently-disabled
+  button.
+- `test-integration/fakeAnthropic.mjs`'s Association fixture now returns
+  5 candidates (the existing 3 from the three-mode fixture, scored
+  highest, plus 2 more scored lower) so a live journey has real reserve
+  material to exercise.
+
+**Verification:** typecheck, full test suite (437 tests, up from 431 —
+6 new tests in `ElementsDiscovery.test.tsx` covering the default cap,
+the swap itself, the deselect-on-reroll fix, reserve exhaustion, the
+no-reserve-at-all case, and the remount-seeding fix), and build all pass.
+Live Playwright verification against the real dev stack: exactly 3
+candidates shown by default with the reserve candidate hidden; selecting
+then re-rolling the first candidate swapped it for the next-ranked
+reserve item and correctly deselected it; re-rolling twice more exhausted
+the reserve and replaced the affordance with the graceful exhausted-state
+message on every remaining candidate. Screenshots confirm all three
+states match the design.
+
+**APPROVAL 2 — SHIPPED: Blueprint's model-call budget raised 30000ms →
+45000ms**, per the real production evidence gathered in the prior entry
+(a real timeout at 30003ms, a manual retry at 27507ms, both within ~2.5s
+of the old ceiling). `engine/src/modelTimeouts.ts`'s
+`MODEL_ROUTE_TIMEOUT_DEFAULTS_MS.blueprint` updated (now the highest
+ceiling in the matrix, surpassing Association's 40000ms), plus
+`.env.example`'s commented example. `docs/timeout-matrix.md` gained a new
+"Real production incident" section carrying the full log excerpt, the
+reasoning for why this is a genuine local-vs-production gap (real output
+*volume* — a real Blueprint's twelve sections vs. a short local
+diagnostic fixture — not network/infra drift, since throughput stayed
+consistent across all three real production calls sampled), and an
+explicit note for future timeout work in that doc: a local
+`diagnose-model` run against a short fixture measures best-case output
+volume, not the real distribution production traffic produces. **As
+approved, automatic retry-on-timeout was NOT added** — the doc's existing
+"Retry policy" section (a `model_timeout` is intentionally not treated as
+a transient fault) is called out explicitly as the reason, unchanged.
+
+**Verification:** typecheck, full test suite (`engine/test/
+modelTimeouts.test.ts` updated: the "matches the documented timeout
+matrix" assertion and the "never excessively high" ceiling both now
+reflect 45000ms), and build all pass. One server-side test flake
+(`modelClient.test.ts`'s real-timer-based timeout assertion, off by 1ms)
+was observed and confirmed unrelated to this change — reran clean, same
+as it would have before this session's edits; nothing in this round
+touches that test's own logic.
 
 ### 2026-09-06 (later still) — Three-mode Association expansion shipped; re-roll recommendation given; a real production Blueprint timeout confirmed from live logs, not a one-off
 

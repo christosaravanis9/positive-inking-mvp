@@ -30,7 +30,7 @@ the heavy route or was needlessly generous for the light one.
 | `style_reference` | 12000ms | 22000ms | A closed classification against a fixed 7-dimension vocabulary (`RESOLVABLE_STYLE_DIMENSIONS`), at most 7 `{dimension, value}` pairs plus two short text fields. More judgement than pure extraction (recognising a named style/artist and deciding what it does and doesn't settle), so a small step above the floor. Default `maxTokens`. |
 | `discovery` | 20000ms | 30000ms | The largest field count of any route (14+ string/array fields — themes, personal people/places/objects/events/memories/phrases, open threads, a clarification decision, two confidence scores) but every field is short; this is semantic extraction and a judgement call (whether to clarify), not long-form generation. Default `maxTokens`. Raised from 16000ms — see "Revised from real diagnostic data" below. |
 | `association` | 40000ms | 50000ms | The heaviest structured schema in the app: an array of candidate visual elements, each with `description`, `personal_meaning`, `source_category`, `resolution_state`, an optional `follow_up_prompt`, and 6 numeric ranking scores, plus top-level classification flags and a `contradictions_noticed[]` list. The route explicitly raises `maxTokens` to 4096 (double every other route) — the same signal used here to justify the largest timeout ceiling. This is the route that timed out in the reported incident, twice. Raised from 30000ms — see "Revised from real diagnostic data" below. |
-| `blueprint` | 30000ms | 40000ms | Fewer top-level fields than Association, but the most prose-heavy generation in the app: up to ~10 written sections (story/why, visual direction, artistic direction, placement, design considerations, statement of inspiration, artist brief). Also explicitly raises `maxTokens` to 4096. Generation *volume*, not field count, drives latency here, which is why it sits close to Association's ceiling rather than down with the simple routes. Not touched by the revision below — comfortable margin in the one real run so far. |
+| `blueprint` | 45000ms | 55000ms | Fewer top-level fields than Association, but the most prose-heavy generation in the app: up to ~10 written sections (story/why, visual direction, artistic direction, placement, design considerations, statement of inspiration, artist brief). Also explicitly raises `maxTokens` to 4096. Generation *volume*, not field count, drives latency here, which is why it sits close to Association's ceiling rather than down with the simple routes. Raised from 30000ms — see "Real production incident" below; this is now the highest ceiling in the matrix. |
 
 Defaults live in `engine/src/modelTimeouts.ts` (`MODEL_ROUTE_TIMEOUT_DEFAULTS_MS`),
 the one place both `server/` and `web/` import from, so the two sides of the
@@ -40,7 +40,7 @@ timeout — comfortably above typical network/Express overhead, and asserted
 directly in `engine/test/modelTimeouts.test.ts` rather than left as an
 unchecked convention.
 
-No route is unlimited: the highest ceiling (40s server / 50s client) is
+No route is unlimited: the highest ceiling (45s server / 55s client) is
 still a hard bound, not a fallback to "wait indefinitely."
 
 ## Overriding a route's budget
@@ -54,7 +54,7 @@ MODEL_TIMEOUT_PROVENANCE_MS=10000
 MODEL_TIMEOUT_ASSOCIATION_MS=40000
 MODEL_TIMEOUT_AVOIDANCE_MS=10000
 MODEL_TIMEOUT_STYLE_REFERENCE_MS=12000
-MODEL_TIMEOUT_BLUEPRINT_MS=30000
+MODEL_TIMEOUT_BLUEPRINT_MS=45000
 ```
 
 The old single `MODEL_REQUEST_TIMEOUT_MS` no longer exists — it applied one
@@ -259,3 +259,70 @@ not enough to establish a precise, stable ceiling. If real-world Sonnet 5
 traffic later shows a stage running close to or over its budget, that's a
 signal to gather more samples and revisit, the same way Association's
 30000ms → 40000ms change above was originally justified.
+
+## Real production incident (2026-09-06): Blueprint raised 30000ms → 45000ms
+
+Exactly the signal the caveat above named: a real live journey against the
+deployed Render production service hit `[model-timing] stage=blueprint
+outcome=model_timeout` at the 30000ms ceiling. Unlike every prior incident
+in this document, no new diagnostic run was needed to investigate it —
+`server/src/modelTiming.ts`'s `[model-timing]` log is unconditionally
+emitted in every environment, including production, so the actual incident
+was already sitting in Render's own log history. Pulled directly from
+there (read-only `list_logs` query, no live-service change):
+
+```
+[model-timing] stage=blueprint attempt=1 outcome=model_timeout elapsed_ms=30003 budget_ms=30000
+  (2026-09-06T22:52:52Z)
+[model-timing] stage=blueprint attempt=1 outcome=success elapsed_ms=27507 budget_ms=30000 input_tokens=2550 output_tokens=2576 output_tokens_per_sec=93.6
+  (2026-09-06T22:56:59Z -- the manual retry that followed)
+```
+
+Both real samples landed within ~2.5s of the ceiling. The same production
+window also carried real `discovery` (10.5-10.6s, budget 20000ms) and
+`association` (20.5s, budget 40000ms) samples, both comfortably inside
+budget — Blueprint is the one outlier, not a sign of across-the-board
+production slowness.
+
+**This is a genuine local-vs-production gap, not a re-confirmation of the
+Model migration section's 18456ms local figure above.** Throughput stayed
+consistent across all three real production calls sampled that day
+(~90-110 tok/sec — 100.8, 97.7, 93.6 — no outlier), which rules out
+network/infra drift as the cause. What differs is real output *volume*:
+the successful production Blueprint call generated 2576 output tokens
+against a real, detailed journey's full twelve-section content, versus
+whichever smaller output volume the local diagnostic run's short generic
+fixture (`server/scripts/diagnostics.ts`'s `FIXTURE_BLUEPRINT_SUMMARY`)
+happened to produce. At ~94-100 tok/sec, a real Blueprint needing just a
+few hundred more output tokens than this one did — plausible for a richer
+real story — pushes back over 30s. **The lesson for future timeout work in
+this doc: a local `diagnose-model` run against a short fixture measures
+best-case output volume, not the real distribution production traffic
+actually produces** — worth remembering before treating any future local
+diagnostic run as sufficient on its own for a prose-heavy route like this
+one.
+
+**Fix applied: raised Blueprint's budget 30000ms → 45000ms** (`engine/src/
+modelTimeouts.ts`, `.env.example`), following the same precedent as
+Association's own 30000ms → 40000ms raise earlier in this document — a
+single real timeout is the same shape of evidence that justified that
+change. Blueprint is now the highest ceiling in the matrix (45s server /
+55s client), surpassing Association.
+
+**Deliberately NOT paired with automatic retry-on-timeout.** This was
+considered and rejected: `model_timeout` is intentionally excluded from
+`callModelForStructuredOutput`'s retry set (see "Retry policy" above) — a
+timeout is not a transient fault, so retrying on the same total budget
+would only redo the same slow call, and adding a *fresh*-budget retry
+specifically for this one route would reverse a deliberate, documented
+design choice made for every other route, doubling worst-case client wait
+time and Anthropic API cost per timeout. Giving the one call enough room
+to finish is the simpler fix the real data actually supports; if
+Blueprint continues timing out at 45000ms after this change, that's the
+signal to gather more real samples and reconsider — not to add retry
+logic pre-emptively.
+
+**Caveat, same as every measurement in this document:** two real samples,
+not an average. Both `[model-timing]` lines already exist in production
+without any new code — the next few real Blueprint generations will show
+whether 45000ms carries genuine margin the way this document expects.

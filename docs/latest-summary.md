@@ -1,18 +1,17 @@
-# Summary: three-mode Association expansion shipped; re-roll recommendation given; a real production Blueprint timeout confirmed
+# Summary: both pending recommendations approved and shipped — per-candidate re-roll, and the Blueprint timeout budget raise
 
-**Shipped:** three-mode Association candidate expansion (literal object / pure abstraction / illustrative sequence).
-**Recommended, not implemented:** client-only reserve-pool swap for Screen 7 per-candidate re-roll; raising Blueprint's model-call budget.
+**Shipped:** per-candidate re-roll on Screen 7 (client-only reserve-pool swap); Blueprint's model-call budget raised 30000ms → 45000ms.
 
 ## Shipped
 
-**Three-mode Association expansion.** `server/src/schemas/association.ts`'s rules 1/6/8 extended so a candidate can now be a literal object, a pure abstraction, or a cohesive illustrative sequence (panels, polaroid fragments, morph/collage, still scene, integrated figure) — zero schema/UI change, Mode A's grounding requirement untouched. Verified live: all three modes render in the same candidate list, ranked correctly, selectable via the same single checkbox as any other candidate.
+**Per-candidate re-roll.** Screen 7 shows the top 3 ranked candidates by default; anything ranked beyond that in the same already-fetched Association response becomes that fetch's reserve pool. Re-rolling a candidate swaps it for the next-ranked reserve item — a synchronous local state update, no new server call, no new async/staleness guard. Two correctness details handled: re-rolling a selected candidate deselects it (so a swapped-out candidate can't silently stay "confirmed"), and a re-rolled-in candidate the client already confirmed stays visible across a remount instead of reverting to the default ranking. Discoverability text ("Not quite right? Try another idea") shows under each candidate with reserve left; a graceful "No more alternatives" message replaces it once exhausted. The Association prompt now asks for "typically 4 to 8" candidates so there's real reserve material.
 
-## Recommended, not implemented
+**Blueprint timeout budget raised.** Following the real production evidence (a timeout at 30003ms, a manual retry at 27507ms, both within ~2.5s of the old 30000ms ceiling): `engine/src/modelTimeouts.ts` now sets Blueprint to 45000ms, the highest ceiling in the matrix. `docs/timeout-matrix.md` gained a full write-up of the real-vs-local gap (real output volume, not network drift). Automatic retry-on-timeout was deliberately NOT added, as approved — a `model_timeout` stays intentionally excluded from the retry set.
 
-**Screen 7 per-candidate re-roll: recommend the client-only reserve-pool swap.** It can't violate the async/staleness guards (it isn't async at all — the alternative needs new keyed infrastructure around `useAsyncAction`, the exact area this codebase was already burned once), adds no new production model-call volume at a moment that volume is under scrutiny (see below), and is the smaller, more reviewable change. Awaiting approval before building.
+## Verification
 
-**Production Blueprint timeout: real data found, budget raise recommended.** The app's own `[model-timing]` log is unconditionally emitted in production already — no new instrumentation needed. Pulled the exact incident straight from Render's log history (read-only, no live-service change): the timeout hit 30003ms against a 30000ms budget, and the manual retry succeeded at 27507ms — both within ~2.5s of the ceiling, not "comfortable margin" as previously assumed. Likely cause: real Blueprint output volume (2576 tokens for a real journey) at ~94-100 tokens/sec, not network drift (throughput was consistent across all three real model calls sampled). Recommend raising the budget (same precedent as Association's earlier 30000→40000 raise); recommend against automatic retry-on-timeout, which would reverse a deliberate existing design choice. Awaiting the new budget number.
+Typecheck, full test suite (437 tests, up from 431 — 6 new re-roll tests, `modelTimeouts.test.ts` updated for the new budget), and build all pass. Live Playwright verification with screenshots for the re-roll feature (default state, after one re-roll, exhausted state).
 
 ## Full detail
 
-See `docs/PROJECT_STATUS.md`'s session log: the 2026-09-06 (later still) entry has the complete prompt diff, verification detail, full re-roll reasoning, and the real production log excerpts. "Open decisions waiting on you" carries both pending items.
+See `docs/PROJECT_STATUS.md`'s session log: the 2026-09-07 entry has the complete implementation detail for both approvals, including the two correctness fixes in the re-roll logic and the full timeout-matrix reasoning.

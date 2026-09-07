@@ -922,6 +922,42 @@ input[type="text"] {
   color: var(--ledger-muted);
 }
 
+/**
+ * Per-candidate re-roll (2026-09-07, client-only reserve-pool approach).
+ * Deliberately understated, matching .understood-row-edit's own restraint --
+ * no button chrome, just an inline text affordance with a hover underline,
+ * so it reads as a quiet option rather than competing with the checkbox
+ * for attention.
+ */
+.ledger-candidate-reroll {
+  display: block;
+  margin-top: 8px;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 0.85rem;
+  color: var(--ledger-muted);
+  cursor: pointer;
+  text-align: left;
+}
+.ledger-candidate-reroll:hover {
+  color: var(--ledger-red);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.ledger-candidate-reroll:focus-visible {
+  outline: 2px solid var(--ledger-red);
+  outline-offset: 2px;
+}
+
+.ledger-candidate-reroll-exhausted {
+  display: block;
+  margin-top: 8px;
+  font-size: 0.85rem;
+  color: var(--ledger-ink-faint);
+}
+
 .ledger-marginalia {
   margin-top: var(--space-question-block-top);
   padding-left: 18px;

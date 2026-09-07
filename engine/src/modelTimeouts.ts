@@ -60,14 +60,28 @@ export const MODEL_ROUTES: readonly ModelRoute[] = [
  * (server/src/env.ts's anthropicModel) has since moved to claude-sonnet-5.
  * The numbers above were originally measured against that now-retired
  * dated Sonnet 4.5 release; a real `npm run diagnose-model` run against
- * claude-sonnet-5 has since confirmed comfortable margin on every route
- * (Discovery 9553ms, Association 17403ms, Blueprint 18456ms elapsed --
- * roughly double the old model's throughput, ~87-105 tok/sec vs.
- * ~40-55). Budgets were deliberately left unchanged: every route has
- * 10+ seconds of headroom, so tightening would only add spurious-timeout
- * risk for no benefit. See docs/timeout-matrix.md's "Model migration"
- * section for the full comparison table and the one-sample-per-stage
- * caveat.
+ * claude-sonnet-5 (a small generic local fixture, not a real journey) found
+ * comfortable margin on every route (Discovery 9553ms, Association
+ * 17403ms, Blueprint 18456ms elapsed -- roughly double the old model's
+ * throughput, ~87-105 tok/sec vs. ~40-55).
+ *
+ * UPDATE (2026-09-06, real production data): blueprint raised 30000 ->
+ * 45000ms. A real live journey's Blueprint call (a full twelve-section
+ * document, not the small local fixture above) timed out at 30003ms
+ * against the 30000ms budget; the manual retry succeeded at 27507ms --
+ * both within ~2.5s of the ceiling, pulled straight from production's own
+ * unconditionally-emitted `[model-timing]` log (server/src/modelTiming.ts),
+ * not a new diagnostic run. This is a genuine local-vs-production gap, not
+ * a re-confirmation of the 18456ms local figure above: throughput was
+ * consistent across all three real calls sampled that day (~90-110
+ * tok/sec, no outlier), so the difference is real output *volume* -- a
+ * real Blueprint's twelve written sections need more output tokens than a
+ * short generic fixture does, not slower generation or network drift. See
+ * docs/timeout-matrix.md's "Real production incident" section for the
+ * full log excerpt. Deliberately not paired with automatic
+ * retry-on-timeout (see modelClient.ts -- a timeout is intentionally not
+ * treated as a transient fault); giving the one call enough room to finish
+ * is the simpler fix the data actually supports.
  */
 export const MODEL_ROUTE_TIMEOUT_DEFAULTS_MS: Record<ModelRoute, number> = {
   provenance: 10000,
@@ -75,7 +89,7 @@ export const MODEL_ROUTE_TIMEOUT_DEFAULTS_MS: Record<ModelRoute, number> = {
   style_reference: 12000,
   discovery: 20000,
   association: 40000,
-  blueprint: 30000,
+  blueprint: 45000,
 };
 
 /**

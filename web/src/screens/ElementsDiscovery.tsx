@@ -103,8 +103,19 @@ export function ElementsDiscovery() {
   // state.ui.associationCandidates via patchUI needs the *current* array at
   // resolve-time, not whatever this render's closure captured when the call
   // started -- otherwise a later-resolving slot's append could silently
-  // overwrite an earlier-resolving slot's already-appended candidate. Kept
-  // in sync on every render instead.
+  // overwrite an earlier-resolving slot's already-appended candidate.
+  //
+  // The useEffect sync alone is NOT sufficient (found live, 2026-09-07,
+  // after a report of two slots showing identical text): it only updates
+  // .current after a render commits, which does not happen between two
+  // promise resolutions that land in the same tick (e.g. two per-slot
+  // generation calls that both resolve around the same time). Both would
+  // then read the same stale .current, compute the same newIndex, and the
+  // second patchUI would silently overwrite the first's appended
+  // candidate. Every write site below therefore mutates .current
+  // synchronously and immediately, at the same time as calling patchUI --
+  // the effect remains only as a safety net for when the array changes via
+  // some other path (a fresh fetchAssociations() call, or first mount).
   const associationCandidatesRef = useRef(state.ui.associationCandidates);
   useEffect(() => {
     associationCandidatesRef.current = state.ui.associationCandidates;
@@ -164,6 +175,18 @@ export function ElementsDiscovery() {
   // Tracks how far into the free reserve pool a blank ("no reason given")
   // re-roll has already consumed, shared across every slot so the same
   // reserve candidate is never handed out twice.
+  //
+  // reserveCursorRef is the authoritative value, read-and-incremented
+  // synchronously in submitReroll's blank path; reserveCursor (state) is a
+  // pure display mirror (the "reserve exhausted" hint text below). Found
+  // live, 2026-09-07: reading a plain useState value in that handler is
+  // not safe here -- two different slots' blank re-rolls clicked back to
+  // back, before React re-renders between them, would both read the same
+  // stale reserveCursor, both compute the same nextCandidate, and both
+  // hand the identical candidate to two different slots at once. The ref
+  // is mutated immediately, so the second call always sees the first's
+  // increment regardless of render timing.
+  const reserveCursorRef = useRef(0);
   const [reserveCursor, setReserveCursor] = useState(0);
   const [rerollPromptOpenSlots, setRerollPromptOpenSlots] = useState<Set<number>>(new Set());
   const [whyDraft, setWhyDraft] = useState<Record<number, string>>({});
@@ -200,6 +223,7 @@ export function ElementsDiscovery() {
         if (reservePos !== -1 && reservePos + 1 > cursor) cursor = reservePos + 1;
       });
     });
+    reserveCursorRef.current = cursor;
     setReserveCursor(cursor);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasCandidates]);
@@ -372,9 +396,13 @@ export function ElementsDiscovery() {
     // async/staleness guard: the candidate is already sitting in the one
     // Association response already fetched.
     if (!reason) {
-      if (reserveCursor >= reservePool.length) return; // exhausted -- never auto-upgrades to a real call
-      const nextCandidate = reservePool[reserveCursor]!;
-      setReserveCursor((c) => c + 1);
+      // Read-and-increment the ref synchronously and immediately -- see its
+      // declaration comment for why the reserveCursor state value alone is
+      // not safe to read here.
+      if (reserveCursorRef.current >= reservePool.length) return; // exhausted -- never auto-upgrades to a real call
+      const nextCandidate = reservePool[reserveCursorRef.current]!;
+      reserveCursorRef.current += 1;
+      setReserveCursor(reserveCursorRef.current);
       appendToHistory(slot, nextCandidate.i);
       return;
     }
@@ -393,7 +421,12 @@ export function ElementsDiscovery() {
         const newCandidate = result.visual_candidates[0];
         if (!newCandidate) return;
         const newIndex = associationCandidatesRef.current.length;
-        patchUI({ associationCandidates: [...associationCandidatesRef.current, newCandidate] });
+        // Mutate the ref itself synchronously, immediately -- see the ref's
+        // own declaration comment for why relying on the mirroring effect
+        // alone is not safe here.
+        const nextCandidates = [...associationCandidatesRef.current, newCandidate];
+        associationCandidatesRef.current = nextCandidates;
+        patchUI({ associationCandidates: nextCandidates });
         appendToHistory(slot, newIndex);
       },
       "Finding another idea for this slot",

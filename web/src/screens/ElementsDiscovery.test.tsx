@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import { createEmptyProjectState } from "@positive-inking/engine";
 import { JourneyProvider } from "../journey/JourneyProvider";
 import { createInitialJourneyState, type JourneyState } from "../journey/state";
@@ -506,5 +506,42 @@ describe("ElementsDiscovery -- Keep / Build upon / Not this one, non-destructive
     expect(kept.reference_required).toBe(false);
     expect(kept.reference_status).toBe("not_needed");
     expect(builtUpon.fidelity).toBe("interpretive");
+  });
+
+  it("two different slots' blank re-rolls dispatched in the same tick (before either re-renders) never hand out the same reserve candidate -- the reserveCursor race reported live", () => {
+    seedRerollState(); // 5 visible + 2 reserve: Candidate 5 and Candidate 6
+    render(
+      <JourneyProvider>
+        <ElementsDiscovery />
+      </JourneyProvider>,
+    );
+
+    // Open both slots' Why panels first (each is its own independent click).
+    fireEvent.click(screen.getAllByRole("button", { name: "Not this one" })[0]!);
+    fireEvent.click(screen.getAllByRole("button", { name: "Not this one" })[1]!);
+
+    // Grab both buttons as real DOM element references BEFORE clicking --
+    // both clicks below are batched into one synchronous pass with no
+    // render committed between them, so a fresh getAllByRole() call inside
+    // that pass would still see the pre-click DOM and could return the
+    // same element twice.
+    const [submitSlot0, submitSlot1] = screen.getAllByRole("button", { name: "Show me something else" });
+
+    // Dispatch BOTH blank submissions inside one act() call -- this batches
+    // both onClick handlers into a single synchronous pass with no render
+    // committed in between, exactly reproducing "two rapid clicks before
+    // React catches up." Before the fix, both read the same stale
+    // reserveCursor closure value and both slots ended up showing the
+    // identical candidate (confirmed live, then here).
+    act(() => {
+      fireEvent.click(submitSlot0!);
+      fireEvent.click(submitSlot1!);
+    });
+
+    screen.getByText("Candidate 5");
+    screen.getByText("Candidate 6");
+    // The critical assertion: never the same reserve candidate shown twice.
+    expect(screen.queryAllByText("Candidate 5").length).toBe(1);
+    expect(screen.queryAllByText("Candidate 6").length).toBe(1);
   });
 });

@@ -158,9 +158,18 @@ when the selected fidelity needs one, and re-running the
 gap Screen 11 alone could no longer cover once fidelity refinement
 moved after it in the fixed screen order. See the latest session log
 entry for the full design, the real async-seeding bug the live browser
-check caught and fixed, and verification detail. 448 unit tests pass
-across engine/server/web; typecheck and build are clean across all
-three workspaces.
+check caught and fixed, and verification detail. **A follow-up review of
+that round's own screenshots caught two more real gaps, both now fixed**:
+Keep/Build upon/Not this one had no actual CSS color differentiation
+(class names existed, the rules never got written); and a genuine
+same-tick collision risk in both the reserve-pool cursor and the
+real-generation candidate index — two different slots' rapid actions
+landing in the same tick could read the same stale value and collide —
+fixed with synchronously-mutated refs as the source of truth, confirmed
+with a regression test that fails against the pre-fix code and a live
+same-tick double-click reproduction in a real browser. See the latest
+session log entry. 449 unit tests pass across engine/server/web;
+typecheck and build are clean across all three workspaces.
 
 **Design:** a new "studio ledger" visual direction (warm parchment
 background, serif headline, ember-accented selection/marginalia, no card
@@ -377,6 +386,74 @@ here for you to decide scope on, matching how other open decisions in
 this document are tracked.
 
 ## Session log
+
+### 2026-09-07 (later still) — Two real gaps in the just-shipped Screen 7 redesign, caught by review of the live screenshots themselves, not just the description
+
+A review of the previous round's own sent screenshots caught two things
+its prose claimed but its images didn't actually show, plus asked a
+sharper question about the reserve-pool mechanism than the round had
+tested. Both real; both fixed and re-verified live.
+
+**1. Keep/Build upon/Not this one had no color differentiation at all.**
+The design (and this file's own session log) described green/orange/
+neutral-red, but the JSX only ever added the CSS *class names*
+(`.ledger-decision-keep`/`.ledger-decision-build-upon`/
+`.ledger-decision-not-this-one`) — no matching rules were ever written in
+`styles.css`. All three buttons fell through to the generic `button {
+background: var(--accent) }` default (the same maroon), confirmed by
+`grep`ping `styles.css` for those class names and finding nothing before
+the fix. Fixed with two new tokens (`--ledger-keep: #3f6b48`,
+`--ledger-build-upon: #a15b1f` — muted to match the parchment palette,
+deliberately new rather than reusing the base 8-token palette's "one red,
+not a second one" rule, since this is a different semantic) and outline/
+filled pill rules mirroring `.ledger-fidelity-pill`'s own active-state
+convention. Verified live: `getComputedStyle` on the three buttons
+returns `rgb(63,107,72)` (green) / `rgb(161,91,31)` (orange) /
+`rgb(109,104,95)` (neutral grey) — three distinct colors, screenshotted.
+
+**2. A real same-tick collision risk in both the reserve-pool cursor and
+the real-generation candidate index — root-caused and fixed, not just
+asserted safe.** The specific report (two slots showing identical text)
+had already been root-caused and fixed in the previous round (the
+`useState`-lazy-initializer/async-mount-seeding bug) and stayed fixed —
+but the question of whether the reserve-pool mechanism itself
+*guarantees* uniqueness across slots exposed a second, genuinely
+different bug that round's testing never exercised: `submitReroll`'s
+blank ("no reason") path read `reserveCursor` — a value that only
+updates via React's state/render cycle — directly in a synchronous event
+handler. Two different slots' blank re-rolls dispatched close enough
+together to land in the same tick (no render committed between them)
+would both read the same stale `reserveCursor`, both compute the same
+`reservePool[reserveCursor]`, and both hand the identical reserve
+candidate to two different slots. The real-generation path had the
+mirror-image flaw: `associationCandidatesRef` was kept in sync only via a
+`useEffect`, which does not run between two promise resolutions handled
+back to back in the same tick — two per-slot generation calls resolving
+close together could both read the same stale `.current.length`, both
+compute the same `newIndex`, and the second's `patchUI` would silently
+overwrite the first's already-appended candidate. Confirmed the first of
+these is real by writing a regression test, running it against the
+pre-fix code (fails: "found multiple elements" for the duplicated
+candidate — the same failure signature the live report described), then
+against the fix (passes). Fixed both the same way: a `useRef` holds the
+authoritative value, read-and-incremented (or mutated) synchronously and
+immediately at the point of use; the `useState`/effect versions remain
+only as display mirrors / safety nets for paths that don't hit this race
+(a fresh fetch, first mount). Re-verified live in a real browser (not
+just the unit test's `act()` batching): two native `.click()` calls
+dispatched inside one `page.evaluate()` — bypassing Playwright's own
+per-action actionability waits, genuinely reproducing "two rapid clicks
+before React catches up" — on two different slots' "Show me something
+else" buttons, both blank. Result: two distinct candidates ("a small
+linework paw print" / "a folded paper crane"), not a duplicate;
+screenshotted.
+
+**Verification.** New regression test in `ElementsDiscovery.test.tsx`
+(now 19 tests, was 18) specifically for the reserve-pool race, proven
+meaningful by confirming it fails against the pre-fix code and passes
+against the fix. Typecheck/build clean; 448→449 tests pass across
+engine (165)/server (65)/web (219). Live browser re-verification for
+both issues, screenshotted, as above.
 
 ### 2026-09-07 (even later) — Screen 7 redesign + Screen 13 fidelity/reference relocation: Parts 2-4 implemented, verified, and a real async-seeding bug found live and fixed
 

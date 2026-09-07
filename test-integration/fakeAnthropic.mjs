@@ -178,11 +178,12 @@ function associationInput(text = "") {
       },
       // Mode C -- illustrative sequence (the 2026-09-06 expansion this fixture now
       // covers): one candidate, one description naming a cohesive small sequence,
-      // each part concrete on its own -- the exact worked example from rule 8 itself.
+      // each part concrete on its own -- the exact worked example from rule 8 itself
+      // (rule 9's plain-register rewrite, 2026-09-07, later still).
       {
         description:
-          "Three small linked panels, no border between them: a figure standing at a fork in a path; the same figure's hand resting on a compass; the figure walking forward alone, path behind now faded.",
-        personal_meaning: "traces the moment of choosing to trust your own judgment",
+          "Three small linked panels, no border between them: a figure at a fork in the path. A hand resting on a compass. The figure walking on alone, the path now faded behind them.",
+        personal_meaning: "Imagine each panel a little softer than the last, fading toward the third — echoing how sure the choice feels the further you walk from it.",
         source_category: "new_materialisation",
         resolution_state: "concrete",
         personal_relevance: 9,
@@ -193,10 +194,13 @@ function associationInput(text = "") {
         reference_availability: 2,
       },
       // Filler material so ranking always fills the default top 5 (existing,
-      // unchanged in shape by the 2026-09-07 redesign).
+      // unchanged in shape by the 2026-09-07 redesign). Rewritten to rule 9's
+      // plain register (2026-09-07, later still) -- the exact before/after
+      // pattern from that rule, on-story for a dog named Scout instead of a
+      // generic keepsake.
       {
-        description: "a small carved wooden charm",
-        personal_meaning: "a keepsake carried the way a talisman is carried",
+        description: "A drawing you made of Scout as a kid, kept exactly as you drew it — not cleaned up, not neater.",
+        personal_meaning: "This is the actual drawing, not a symbol standing in for the memory.",
         source_category: "personal_artefact",
         resolution_state: "concrete",
         personal_relevance: 6,

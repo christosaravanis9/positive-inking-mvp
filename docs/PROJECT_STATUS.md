@@ -400,6 +400,74 @@ this document are tracked.
 
 ## Session log
 
+### 2026-09-07 (later than that) — Simplified Association's candidate wording (description/personal_meaning) app-wide to the same plain-words house standard already set for static screen copy
+
+A standard for static screen copy (headings/subtext/placeholders) had been
+set earlier — simple, common words, direct address, never corporate,
+clinical, or literary — but never extended to the AI-generated candidate
+`description`/`personal_meaning` text itself, which is where most of what
+a client actually reads lives. Real output was landing far more elaborate
+than intended: "A miniature reproduction of a specific childhood drawing
+the client made, rendered in their own original linework rather than
+restyled or 'improved' -- kept deliberately rough/childlike as it was
+originally drawn."
+
+**Investigation.** Read `server/src/schemas/association.ts`'s
+`ASSOCIATION_SYSTEM_PROMPT` in full. Root cause: the prompt gave content
+requirements (concreteness, personal grounding) but never a wording/
+register instruction anywhere -- so specificity and elaborateness were
+conflating by default. Two things were specifically modeling the
+elaborate voice: (1) rule 8's own illustrative-sequence example used
+long embedded clauses and semicolons ("a figure standing at a fork in a
+path; **the same figure's hand resting on** a compass..."), the most
+detailed style sample in the prompt; (2) no length or connective
+guidance existed anywhere, so the model had nothing telling it "rather
+than," "as it was originally," and similar formal connectives were the
+wrong register. Confirmed no real tension with rule 8: concreteness
+requires a real visual *proposition*, not vague category language --
+nothing about that requires long, qualified sentences. "Your own
+childhood drawing, kept exactly as you drew it" is exactly as concrete
+as the elaborate version, just said once, directly. Checked for a
+literal "Artist suggestion:" label the report referenced (from an
+earlier task outside this session's visible history) -- not found
+anywhere in the repo; the closest analogs are the already-compliant
+`follow_up_prompt` example (left unchanged) and the Build-upon
+refinement instruction in `association.ts`'s route, which is a
+model-directed process instruction, not verbatim output, and inherits
+the fix automatically since the same system prompt governs that call
+too.
+
+**Fix, reported and approved before implementing.** Two changes to
+`ASSOCIATION_SYSTEM_PROMPT`, both pure prompt text -- no schema, type,
+or routing change:
+- Rewrote rule 8's own sequence example to the plain register (periods
+  instead of semicolons, shorter verbs), since it's the model's main
+  style reference for that mode -- same three beats, same specificity.
+- Added new rule 9 (WORDING), renumbering OUTPUT to rule 10: plain
+  common words, short direct sentences; avoid a formal connective where
+  a plain word or a new sentence says the same thing; an inviting verb
+  ("Imagine...") to carry exploratory framing instead of a disclaimer
+  sentence; `description` in as few words as the specificity needs;
+  `personal_meaning` roughly 20-30 words, one concrete detail plus one
+  plain echo, never a second clause justifying the first. Carries the
+  real before/after example verbatim as calibration, plus a second
+  calibration built from the "Imagine the first third... echoing..."
+  pattern applied to a technique-based idea. Explicit throughout: this
+  changes sentence length and word choice only, never content.
+
+**Verification.** Typecheck/tests/build clean, 455 tests unchanged (a
+prompt-text-only change has nothing new to unit-test). This sandbox has
+no real `ANTHROPIC_API_KEY`, so real model compliance with the new
+prompt cannot be verified live -- stated plainly rather than glossed
+over. What *was* verified live: `test-integration/fakeAnthropic.mjs`'s
+Association fixtures were rewritten to the new register (one literal-
+object candidate now literally uses the report's own before/after
+example, on-story for Scout the dog; the sequence candidate matches
+rule 8's rewritten example and a new "Imagine..."-pattern
+personal_meaning) and a real browser journey through Story → Discovery
+→ Screen 7 confirmed all three modes render correctly in the new plain
+register with no rendering regression, screenshotted.
+
 ### 2026-09-07 (even later still) — "Build upon" given real functionality (direct-edit refinement), plus a fresh color re-confirmation and a stale-decision bug fixed along the way
 
 Real user testing found the previous round's fix insufficient: Keep and

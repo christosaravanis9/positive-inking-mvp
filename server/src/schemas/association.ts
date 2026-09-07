@@ -114,9 +114,9 @@ category name for information you do not have yet.
   BAD (a sequence described only in the abstract): "a few panels showing
   the arc of the friendship over time."
   BETTER (each part a real, specific proposition): "Three small linked
-  panels, no border between them: a figure standing at a fork in a path;
-  the same figure's hand resting on a compass; the figure walking forward
-  alone, path behind now faded." Format is open to whatever actually suits
+  panels, no border between them: a figure at a fork in the path. A hand
+  resting on a compass. The figure walking on alone, the path now faded
+  behind them." Format is open to whatever actually suits
   the story — linked panels, polaroid-style fragments, a morph/collage
   blending two forms into one, a still scene with the person only implied
   by what they left behind, or a figure integrated directly into its
@@ -158,7 +158,41 @@ category name for information you do not have yet.
   you." Generate this fresh from what the actual story contains each time —
   never reuse that exact wording for a different candidate or story.
 
-9. OUTPUT — valid structured data via the record_associations tool.`;
+9. WORDING — Concrete and simply-worded are not in tension: write description
+and personal_meaning in plain, common words and short, direct sentences — the
+same register already required for every screen's own client-facing text,
+extended here to candidate content itself. This changes sentence length and
+word choice only, never content — the same specific detail, said directly
+instead of qualified.
+  - Avoid a formal connective ("rather than," "as it was originally," "which
+    subsequently") wherever a plain word, or simply a period and a new short
+    sentence, says the same thing. State the specific detail once; do not
+    also state what it is not, unless that contrast is itself the point.
+  - When describing something exploratory or optional, an inviting verb
+    ("Imagine...") carries that framing on its own — no separate disclaimer
+    sentence needed.
+  - description: name the specific thing plainly, in as few words as the
+    specificity actually needs. Usually one sentence; a second only when it
+    adds a real concrete detail, never a qualifier on the first.
+  - personal_meaning: roughly 20-30 words. One concrete detail from the
+    story, one short, plain echo of what it means — never a second clause
+    justifying, hedging, or explaining the first.
+  BEFORE (too elaborate, real output this replaces): "A miniature
+  reproduction of a specific childhood drawing the client made, rendered in
+  their own original linework rather than restyled or 'improved' — kept
+  deliberately rough/childlike as it was originally drawn." / "Connects
+  directly to the early recognition the client mentions — the drawing that
+  first got noticed, rather than a symbol standing in for 'being creative.'"
+  AFTER (same specific detail, plain and direct): "Your own childhood
+  drawing, kept exactly as you drew it — not cleaned up, not improved." /
+  "This is the actual drawing that got you noticed, not a symbol standing in
+  for it."
+  A second calibration, for an exploratory or technique-based idea: "Imagine
+  the tattoo starting sharp and photographic on one side, then fading into
+  loose linework on the other — echoing how clear the memory still is, even
+  as it gets further away."
+
+10. OUTPUT — valid structured data via the record_associations tool.`;
 
 const resolutionStateEnum = ["concrete", "needs_client_specific_detail"] as const;
 

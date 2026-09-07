@@ -203,6 +203,14 @@ to compare terminal output by hand.
 **In progress:** nothing actively mid-change right now.
 
 **Open decisions waiting on you:**
+- **Screen 7 redesign + reference-photo relocation to Screen 13 —
+  investigated, NOT implemented.** Full findings, a real sequencing bug
+  this redesign would silently introduce if built as literally described,
+  the proposed Screen 13 dropdown option set, and a real tension between
+  Part 2's "Why" reason and last night's just-shipped reserve-pool re-roll
+  decision are all in the latest session log entry. **Parts 2-4 are not
+  built** — awaiting your read on the sequencing fix and the Why/generation
+  tension before any of it is implemented.
 - **Meaning-depth gate prompt wording — real-model verification still
   needed from you.** The new Discovery prompt item (§ MEANING DEPTH) asks
   the model to classify a story as thin only when the stated reason is
@@ -352,6 +360,165 @@ here for you to decide scope on, matching how other open decisions in
 this document are tracked.
 
 ## Session log
+
+### 2026-09-07 (later) — Screen 7 redesign + reference-photo relocation to Screen 13: Part 1 investigated, Part 3 proposed, nothing implemented
+
+Per explicit instruction: investigate first, report Part 1's findings and
+Part 3's proposed dropdown options, and do not implement Parts 2-4 without
+a read on what the investigation found.
+
+**PART 1 — WHERE fidelity/reference STATE ACTUALLY LIVES.**
+`VisualElement.fidelity: ElementFidelity` (`"exact" | "closely_based_on" |
+"interpretive" | "open"`, `engine/src/types.ts`) is the one field driving
+everything; `reference_required`/`reference_status` sit alongside it on
+the same record. The actual uploaded file lives separately in
+`UIState.referenceAssets` (keyed by element id); consent/attestation
+metadata lives in `ProjectState.consent_records` (`ConsentRecord[]`, also
+keyed by element id via `reference_id`). All three are currently produced
+in exactly one place: `ElementsDiscovery.tsx`'s `confirm()`, via four
+helper functions private to that file (`NEEDS_REFERENCE`,
+`statusFromDraft`, `draftToConsentRecord`, `draftFromExisting`).
+
+**Everywhere `fidelity` is read downstream:**
+- `engine/src/referenceChecklist.ts` — `buildReferenceChecklist()` filters
+  on `fidelity === "exact" || "closely_based_on"` to decide which
+  elements need a reference at all; `classifyReferenceFeatureKind()` also
+  reads it to help set the reference's importance tier.
+- `web/src/journey/deriveConceptSignals.ts` — `has_exact_fidelity_element`
+  (`some(fidelity === "exact")`) feeds `ConceptSignals`.
+- `web/src/screens/ArtisticDirection.tsx` (Screen 11) — reads
+  `hasExactFidelityElement` to gate `fidelityTreatmentRequired()` (the
+  "how faithful should the reproduction be?" micro-question,
+  `engine/src/fidelity.ts`), and separately reads
+  `some(fidelity === "interpretive" || "open")` for one artistic-dimension
+  eligibility flag.
+- `web/src/journey/blueprintSummary.ts` — writes
+  `${description} (${hierarchy}, ${humanize(fidelity)})` into the prose
+  `confirmed_project_summary` the Blueprint Writer model actually sees,
+  plus a separate `Fidelity treatment: ...` line when
+  `project.fidelity_treatment` is set. `server/src/schemas/blueprint.ts`'s
+  prompt instructs the model to reproduce that fidelity-treatment
+  instruction verbatim — it only ever sees this as prose, never a
+  structured field.
+- `web/src/inspector/EngineInspector.tsx` — dev-only display, not
+  load-bearing.
+
+**A real sequencing bug this redesign would silently introduce, if built
+exactly as described.** `engine/src/screenFlow.ts`'s fixed order runs
+`elements_discovery` (7) → ... → `artistic_direction` (11) → ... →
+`design_confirmation` (13) — Screen 11 runs and finalizes
+`fidelity_treatment` BEFORE Screen 13 exists in the flow. Screen 7's new
+Keep/Build-upon control only ever writes the coarse `closely_based_on`/
+`interpretive` values (deferring `exact`/`open` to Screen 13's dropdown,
+per Part 3 below) — which means `hasExactFidelityElement` reads `false`
+by the time Screen 11 runs, every time, for every journey. The
+`fidelity_treatment` question (today's ONLY trigger for it) would never
+fire in the normal forward flow again, even for a client whose element
+genuinely needs literal handwriting/signature/drawing reproduction. The
+existing §14 new-idea invalidation mechanism
+(`engine/src/newIdea.ts`'s `computeInvalidatedQuestions`) doesn't cover
+this either — it only re-opens `composition_type`/`density`/`realism`/
+`background_decision`, never `fidelity_treatment`. Without a deliberate
+fix, this is a genuine Blueprint-correctness regression, not just a
+relocated UI control.
+
+**Proposed fix:** re-run the exact same already-exported, pure
+`fidelityTreatmentRequired()`/`FIDELITY_TREATMENT_OPTIONS`
+(`engine/src/fidelity.ts` — zero engine changes needed) from Screen 13
+too, triggered whenever its new dropdown sets an element to `exact` and
+`project.fidelity_treatment` is still empty. (Noted in passing, not
+proposed as something to fix now: `ArtisticDirection.tsx` already
+hardcodes `"handwriting"` as the element-kind argument to that function
+regardless of the element's real kind — a pre-existing simplification;
+Screen 13's new call site should presumably match that same behavior for
+consistency, but this is a separate, smaller question from the
+sequencing bug itself.)
+
+**DesignConfirmation.tsx (Screen 13) current structure.** A flat
+`<dl className="summary-list">` of already-computed top-level fields
+(Main subject / Supporting details / Composition / Treatment /
+Placement / Creative control / Avoid / Still needed / Open decisions) —
+it does NOT currently list each individual `visual_element` with its own
+row. Adding a genuine per-candidate dropdown means a real new section:
+looping over `project.visual_elements` (every element that reached this
+screen was, by definition, Kept or Built-upon at Screen 7 — nothing else
+survives to `visual_elements`) with its own inline controls, not editing
+an existing `<dd>`.
+
+**ReferenceAttachment.tsx reuse — confirmed clean, no duplication
+needed.** It's a pure, self-contained, purely presentational component
+(`value`/`onChange`/`elementDescription` props only) with exactly ONE
+current call site (`ElementsDiscovery.tsx`). `Placement.tsx` and
+`StyleReference.tsx` each have their OWN separate, independent upload
+implementations — they only mention "mirrors ReferenceAttachment.tsx" in
+a comment about sharing the same file-size cap value, never the actual
+component — confirmed genuinely unrelated and untouched by this
+investigation, exactly as instructed. Relocating/reusing the real
+component from Screen 13 is clean; its supporting helpers
+(`NEEDS_REFERENCE`, `statusFromDraft`, `draftToConsentRecord`,
+`draftFromExisting`) need extracting out of `ElementsDiscovery.tsx` into
+a shared module (e.g. `web/src/journey/referenceDraft.ts`) so Screen 13
+can use them without copying logic.
+
+**State-shape change plan.** No new fields needed anywhere in
+`VisualElement`/`ProjectState`/`ConsentRecord` — every field this needs
+already exists with the right shape; only WHICH SCREEN sets/finalizes
+each one changes. Screen 7's `confirm()`: Keep → `fidelity:
+"closely_based_on"`, Build upon → `fidelity: "interpretive"`, and
+`reference_required: false` / `reference_status: "not_needed"`
+unconditionally (deferred) — no `ConsentRecord`/`referenceAssets` writes
+from Screen 7 at all anymore. Screen 13 gets new local component state
+mirroring `ElementsDiscovery`'s existing `fidelityByIndex`/
+`referenceByIndex` pattern, keyed by element id instead of candidate
+index (Screen 13 only ever sees already-finalized `visual_elements`, not
+raw candidates), seeded via the same (relocated) `draftFromExisting`.
+
+**PART 3 — proposed Screen 13 dropdown options.** Reuse the exact same
+four pre-existing `ElementFidelity` values rather than inventing new
+ones — this is what keeps `referenceChecklist.ts`, `blueprintSummary.ts`,
+and the fidelity-treatment gate all working unchanged, since they're
+already built around exactly these four:
+- **"Exactly as-is"** (`exact`) — needs a reference photo; triggers the
+  fidelity-treatment micro-question inline for handwriting/signature/
+  drawing elements (the sequencing fix above).
+- **"Closely based on this"** (`closely_based_on`) — needs a reference
+  photo. Pre-selected default for anything marked "Keep."
+- **"Interpreted by the artist"** (`interpretive`) — no reference
+  needed. Pre-selected default for anything marked "Build upon."
+- **"Open — artist's call"** (`open`) — no reference needed.
+
+Screen 7's Keep/Build-upon becomes the starting point this dropdown
+defaults to, not a separate question asked twice — the coarse choice at
+selection time, the deliberate final execution-fidelity call once the
+whole design is assembled at Screen 13, same two underlying values
+either way unless the client actively moves the dropdown.
+
+**A real tension Part 2 surfaces with last night's already-shipped
+decision.** Part 2 asks that a typed "Why" reason "get fed into the
+re-roll's generation request" — reusing Story.tsx's `depth_prompt`
+pattern (compose a richer input string, call the SAME endpoint again).
+But last night's approved decision 2 specifically chose the client-only
+reserve-pool swap over a real server round-trip *because* it can't touch
+the async/staleness guards — a reserve pool holds candidates generated
+up front from the original story, with no way to incorporate a
+per-candidate dismissal reason after the fact. Honoring "feeds into
+generation" literally means the Why-driven path needs a real per-slot
+model call after all (a new optional `avoid_descriptions`/
+`dismissal_reasons` field on the Association request, a small prompt
+addition, and a keyed async-tracking hook for slots that can
+independently be mid-generation) — while a plain re-roll with no reason
+typed can keep using the existing free, instant reserve-pool swap. The
+non-destructive pager unifies both cleanly under one per-slot
+`history[]` + `historyIndex` (paging back is always free — it's just
+re-showing an already-generated entry; only advancing past the end when
+a Why is given costs a real call). This is more machinery than the pure
+reserve-pool swap, on the Why-driven path specifically — flagging it
+plainly rather than either quietly skipping "feeds into generation" or
+building it without your read on the tradeoff first.
+
+**Nothing in Parts 2-4 has been implemented.** Awaiting your response on
+the sequencing fix and the Why/generation tension before writing any
+code.
 
 ### 2026-09-07 — Both pending recommendations approved and shipped: per-candidate re-roll, and the Blueprint timeout budget raise
 

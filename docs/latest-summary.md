@@ -1,17 +1,23 @@
-# Summary: both pending recommendations approved and shipped — per-candidate re-roll, and the Blueprint timeout budget raise
+# Summary: Screen 7 redesign investigated (Part 1) and Screen 13 dropdown proposed (Part 3) — nothing implemented
 
-**Shipped:** per-candidate re-roll on Screen 7 (client-only reserve-pool swap); Blueprint's model-call budget raised 30000ms → 45000ms.
+Per explicit instruction: report before implementing Parts 2-4.
 
-## Shipped
+## Part 1 findings
 
-**Per-candidate re-roll.** Screen 7 shows the top 3 ranked candidates by default; anything ranked beyond that in the same already-fetched Association response becomes that fetch's reserve pool. Re-rolling a candidate swaps it for the next-ranked reserve item — a synchronous local state update, no new server call, no new async/staleness guard. Two correctness details handled: re-rolling a selected candidate deselects it (so a swapped-out candidate can't silently stay "confirmed"), and a re-rolled-in candidate the client already confirmed stays visible across a remount instead of reverting to the default ranking. Discoverability text ("Not quite right? Try another idea") shows under each candidate with reserve left; a graceful "No more alternatives" message replaces it once exhausted. The Association prompt now asks for "typically 4 to 8" candidates so there's real reserve material.
+`VisualElement.fidelity` (4 values: exact/closely_based_on/interpretive/open) drives `reference_required`/`reference_status` (same record), `ConsentRecord[]` (separate array), and `UIState.referenceAssets` (uploaded files) — all currently produced in one place, `ElementsDiscovery.tsx`'s `confirm()`, via four private helper functions. Downstream readers: `referenceChecklist.ts` (which elements need a reference), `deriveConceptSignals.ts` (`has_exact_fidelity_element`), `ArtisticDirection.tsx`/Screen 11 (gates the "how faithful?" fidelity-treatment question), `blueprintSummary.ts` (feeds the Blueprint model as prose).
 
-**Blueprint timeout budget raised.** Following the real production evidence (a timeout at 30003ms, a manual retry at 27507ms, both within ~2.5s of the old 30000ms ceiling): `engine/src/modelTimeouts.ts` now sets Blueprint to 45000ms, the highest ceiling in the matrix. `docs/timeout-matrix.md` gained a full write-up of the real-vs-local gap (real output volume, not network drift). Automatic retry-on-timeout was deliberately NOT added, as approved — a `model_timeout` stays intentionally excluded from the retry set.
+**A real sequencing bug the redesign would silently introduce:** Screen 11 (ArtisticDirection) runs *before* Screen 13 and is the only trigger for the fidelity-treatment question today. If Screen 7 only ever writes the coarse closely_based_on/interpretive values (deferring exact/open to Screen 13), that question would never fire again for any real journey — a genuine Blueprint-correctness regression, not just a moved UI control. Proposed fix: re-run the same existing `fidelityTreatmentRequired()` check from Screen 13 too, when its dropdown sets "exact."
 
-## Verification
+DesignConfirmation.tsx (Screen 13) currently has no per-element rows at all — adding the dropdown is a real new section. `ReferenceAttachment.tsx` is confirmed cleanly reusable (one call site today, pure component) — its supporting helpers need extracting into a shared module. No new type fields needed anywhere; only which screen sets them changes.
 
-Typecheck, full test suite (437 tests, up from 431 — 6 new re-roll tests, `modelTimeouts.test.ts` updated for the new budget), and build all pass. Live Playwright verification with screenshots for the re-roll feature (default state, after one re-roll, exhausted state).
+## Part 3 proposed dropdown
 
-## Full detail
+Reuse the same 4 existing `ElementFidelity` values (not new ones): "Exactly as-is" (needs reference), "Closely based on this" (needs reference, default for "Keep"), "Interpreted by the artist" (default for "Build upon"), "Open — artist's call". Screen 7's choice is the starting default, not a duplicate question.
 
-See `docs/PROJECT_STATUS.md`'s session log: the 2026-09-07 entry has the complete implementation detail for both approvals, including the two correctness fixes in the re-roll logic and the full timeout-matrix reasoning.
+## A tension worth flagging
+
+Part 2 asks that a "Why" reason feed into the re-roll's generation — but last night's approved reserve-pool re-roll was chosen specifically to avoid a real server round-trip. Honoring "feeds into generation" literally needs a real per-slot model call after all (just for the Why-driven path; a plain re-roll stays free). The non-destructive pager can unify both under one per-slot history list.
+
+## Status
+
+Nothing in Parts 2-4 implemented. Full detail in `docs/PROJECT_STATUS.md`'s latest session log entry.

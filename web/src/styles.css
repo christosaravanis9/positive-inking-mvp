@@ -1004,6 +1004,19 @@ input[type="text"] {
   font-style: italic;
 }
 
+/* 2026-09-07 (later) -- "Build upon"'s direct-edit box. A bare
+   border-bottom (like .ledger-lined-input's single-line inputs) reads as
+   an empty rule under multiple lines of pre-filled text, not an editable
+   field -- a full outline plus resize handle makes clear this is an
+   editable box, not just a fact being displayed. */
+.ledger-lined-textarea {
+  border: 1px solid var(--ledger-line);
+  border-radius: 4px;
+  padding: 8px;
+  resize: vertical;
+  font-family: var(--font-sans);
+}
+
 .ledger-fidelity-row {
   margin-bottom: 4px;
 }

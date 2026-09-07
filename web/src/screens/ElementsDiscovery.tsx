@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useJourney } from "../journey/JourneyProvider";
 import { useAsyncAction, useKeyedAsyncAction } from "../journey/useAsyncAction";
-import { requestAssociations, requestAssociationAlternative } from "../api/association";
+import { requestAssociations, requestAssociationAlternative, requestAssociationRefinement } from "../api/association";
 import { AsyncError } from "../components/AsyncError";
 import { ModelWaitIndicator } from "../components/ModelWaitIndicator";
 import { ReferenceAttachment, emptyReferenceDraft, type ReferenceDraft } from "../components/ReferenceAttachment";
@@ -95,7 +95,14 @@ function extractDetailAnswer(candidateDescription: string, confirmedDescription:
 export function ElementsDiscovery() {
   const { state, patchProject, patchUI } = useJourney();
   const { run: runFetchAssociations, pending: fetching } = useAsyncAction();
-  const { run: runReroll, isPending: isRerollPending } = useKeyedAsyncAction();
+  // Shared by both per-slot model calls: the Why-driven "Not this one"
+  // re-roll AND "Build upon"'s direct-edit refinement (2026-09-07, later).
+  // Both are real per-slot calls with the same cost/concurrency model, so
+  // they share one keyed hook instance rather than parallel plumbing --
+  // only one of the two can ever be in flight for a given slot at once,
+  // which is exactly the right constraint (a slot has one candidate at a
+  // time either way).
+  const { run: runSlotAction, isPending: isSlotActionPending } = useKeyedAsyncAction();
 
   // Concurrency-safety (2026-09-07): two per-slot Why-generation calls can be
   // in flight at once (useKeyedAsyncAction explicitly allows different keys
@@ -190,6 +197,12 @@ export function ElementsDiscovery() {
   const [reserveCursor, setReserveCursor] = useState(0);
   const [rerollPromptOpenSlots, setRerollPromptOpenSlots] = useState<Set<number>>(new Set());
   const [whyDraft, setWhyDraft] = useState<Record<number, string>>({});
+  // "Build upon"'s direct-edit text (2026-09-07, later) -- keyed by
+  // CANDIDATE index (like detailByIndex), not slot, since it belongs to
+  // whichever specific candidate is being edited; lazily defaults to that
+  // candidate's own current description wherever read, so a freshly
+  // Built-upon candidate always starts pre-filled, never blank.
+  const [buildUponDraft, setBuildUponDraft] = useState<Record<number, string>>({});
   const historySeededRef = useRef(false);
   useEffect(() => {
     if (historySeededRef.current || !hasCandidates) return;
@@ -409,7 +422,7 @@ export function ElementsDiscovery() {
 
     // Advancing past the end of history with a reason typed is the one path
     // that costs a real per-slot model call.
-    void runReroll(
+    void runSlotAction(
       slot,
       async (guard) => {
         const hist = history[slot] ?? [defaultTopIndices[slot]!];
@@ -430,6 +443,40 @@ export function ElementsDiscovery() {
         appendToHistory(slot, newIndex);
       },
       "Finding another idea for this slot",
+    );
+  }
+
+  /**
+   * "Build upon"'s direct-edit refinement (2026-09-07, later). Unlike
+   * submitReroll's Why-driven path -- which asks the model for something
+   * DIFFERENT because the client rejected what's shown -- this asks the
+   * model to develop exactly the client's own edited text further. The
+   * result REPLACES the slot's current candidate through the same
+   * non-destructive history mechanism "Not this one" uses: appended, not
+   * overwritten, so the pre-edit version stays reachable via the pager.
+   * The new candidate inherits the "build_upon" decision automatically --
+   * it's the same idea, refined, not a fresh candidate needing a fresh
+   * decision.
+   */
+  function submitBuildUponEdit(slot: number, index: number) {
+    const candidate = state.ui.associationCandidates[index]!;
+    const edit = (buildUponDraft[index] ?? candidate.description).trim();
+    if (!edit || edit === candidate.description.trim()) return; // nothing to refine -- never a wasted call
+    void runSlotAction(
+      slot,
+      async (guard) => {
+        const result = await requestAssociationRefinement(confirmedMeaningText(), knownPersonalMaterial(), candidate.description, edit);
+        if (guard.isStale()) return;
+        const refined = result.visual_candidates[0];
+        if (!refined) return;
+        const newIndex = associationCandidatesRef.current.length;
+        const nextCandidates = [...associationCandidatesRef.current, refined];
+        associationCandidatesRef.current = nextCandidates;
+        patchUI({ associationCandidates: nextCandidates });
+        appendToHistory(slot, newIndex);
+        setDecisionByIndex((prev) => ({ ...prev, [newIndex]: "build_upon" }));
+      },
+      "Refining this idea",
     );
   }
 
@@ -515,34 +562,45 @@ export function ElementsDiscovery() {
     const candidateConsentRecords: ConsentRecord[] = [];
     const referenceAssets: Record<string, { dataUrl: string; fileName: string }> = {};
 
-    const fromCandidates: VisualElement[] = Object.entries(decisionByIndex).map(([key, decision]) => {
-      const i = Number(key);
-      const candidate = state.ui.associationCandidates[i]!;
-      const id = `candidate-${i}`;
-      const detailAnswer = detailByIndex[i]?.trim();
-      const description = detailAnswer ? `${candidate.description}${DETAIL_SEPARATOR}${detailAnswer}` : candidate.description;
-      const concreteness = candidate.resolution_state === "concrete" || detailAnswer ? "concrete" : "unresolved_placeholder";
-      const defaultFidelity: ElementFidelity = decision === "keep" ? "closely_based_on" : "interpretive";
-      // Fidelity refinement + reference collection moved to Screen 13
-      // (2026-09-07) -- preserve whatever it already set there rather than
-      // resetting it every time this screen's confirm() runs (which happens
-      // on every Continue click, not just the first ever visit).
-      const existing = state.project.visual_elements.find((e) => e.id === id);
-      return {
-        id,
-        description,
-        personal_meaning: candidate.personal_meaning,
-        source_category: candidate.source_category,
-        hierarchy: existing?.hierarchy ?? "undecided",
-        fidelity: existing?.fidelity ?? defaultFidelity,
-        colour_role: existing?.colour_role ?? "undecided",
-        reference_required: existing?.reference_required ?? false,
-        reference_status: existing?.reference_status ?? "not_needed",
-        origin: "system_suggestion",
-        user_selected: true,
-        concreteness,
-      };
-    });
+    // Only a candidate CURRENTLY occupying a slot ever confirms -- a
+    // decision made on a candidate a slot has since re-rolled or refined
+    // away from (decisionByIndex is keyed by candidate index and is never
+    // cleared on its own) must never silently produce a ghost element for
+    // something no longer shown. Found while building "Build upon"'s
+    // edit-and-replace flow (2026-09-07, later): the pre-redesign code had
+    // an explicit "deselect on reroll" step this rewrite dropped; filtering
+    // to what's actually visible here is the more robust fix -- correct
+    // regardless of which of the several ways a slot's occupant can change.
+    const fromCandidates: VisualElement[] = Object.entries(decisionByIndex)
+      .filter(([key]) => visibleCandidateIndices.includes(Number(key)))
+      .map(([key, decision]) => {
+        const i = Number(key);
+        const candidate = state.ui.associationCandidates[i]!;
+        const id = `candidate-${i}`;
+        const detailAnswer = detailByIndex[i]?.trim();
+        const description = detailAnswer ? `${candidate.description}${DETAIL_SEPARATOR}${detailAnswer}` : candidate.description;
+        const concreteness = candidate.resolution_state === "concrete" || detailAnswer ? "concrete" : "unresolved_placeholder";
+        const defaultFidelity: ElementFidelity = decision === "keep" ? "closely_based_on" : "interpretive";
+        // Fidelity refinement + reference collection moved to Screen 13
+        // (2026-09-07) -- preserve whatever it already set there rather than
+        // resetting it every time this screen's confirm() runs (which happens
+        // on every Continue click, not just the first ever visit).
+        const existing = state.project.visual_elements.find((e) => e.id === id);
+        return {
+          id,
+          description,
+          personal_meaning: candidate.personal_meaning,
+          source_category: candidate.source_category,
+          hierarchy: existing?.hierarchy ?? "undecided",
+          fidelity: existing?.fidelity ?? defaultFidelity,
+          colour_role: existing?.colour_role ?? "undecided",
+          reference_required: existing?.reference_required ?? false,
+          reference_status: existing?.reference_status ?? "not_needed",
+          origin: "system_suggestion",
+          user_selected: true,
+          concreteness,
+        };
+      });
 
     const fromIdeas: VisualElement[] = addedIdeas.map((idea, i) => {
       const id = `idea-${i}`;
@@ -708,7 +766,7 @@ export function ElementsDiscovery() {
             const pos = historyPos[slot] ?? 0;
             const canPageBack = pos > 0;
             const canPageForward = pos < hist.length - 1;
-            const rerolling = isRerollPending(slot);
+            const slotActionPending = isSlotActionPending(slot);
             const whyOpen = rerollPromptOpenSlots.has(slot);
             const reserveExhausted = reserveCursor >= reservePool.length;
             return (
@@ -737,6 +795,7 @@ export function ElementsDiscovery() {
                     type="button"
                     className={`ledger-decision-pill ledger-decision-keep${decision === "keep" ? " active" : ""}`}
                     onClick={() => decide(i, "keep")}
+                    disabled={slotActionPending}
                   >
                     Keep
                   </button>
@@ -744,15 +803,21 @@ export function ElementsDiscovery() {
                     type="button"
                     className={`ledger-decision-pill ledger-decision-build-upon${decision === "build_upon" ? " active" : ""}`}
                     onClick={() => decide(i, "build_upon")}
+                    disabled={slotActionPending}
                   >
                     Build upon
                   </button>
-                  <button type="button" className="ledger-decision-pill ledger-decision-not-this-one" onClick={() => notThisOne(slot)} disabled={rerolling}>
+                  <button
+                    type="button"
+                    className="ledger-decision-pill ledger-decision-not-this-one"
+                    onClick={() => notThisOne(slot)}
+                    disabled={slotActionPending}
+                  >
                     Not this one
                   </button>
                 </div>
 
-                {rerolling && <p className="supporting">Finding another idea for this slot...</p>}
+                {slotActionPending && <p className="supporting">Working on this idea...</p>}
 
                 {whyOpen && (
                   <div className="ledger-marginalia">
@@ -779,6 +844,29 @@ export function ElementsDiscovery() {
                     </div>
                   </div>
                 )}
+
+                {decision === "build_upon" &&
+                  (() => {
+                    const draft = buildUponDraft[i] ?? candidate.description;
+                    const unchanged = draft.trim() === candidate.description.trim() || draft.trim().length === 0;
+                    return (
+                      <div className="ledger-marginalia">
+                        <label className="reference-field">
+                          <span>Edit this idea directly — your changes go back to the model to develop it further</span>
+                          <textarea
+                            className="ledger-lined-input ledger-lined-textarea"
+                            rows={3}
+                            value={draft}
+                            onChange={(e) => setBuildUponDraft((prev) => ({ ...prev, [i]: e.target.value }))}
+                            disabled={slotActionPending}
+                          />
+                        </label>
+                        <button type="button" onClick={() => submitBuildUponEdit(slot, i)} disabled={slotActionPending || unchanged}>
+                          Refine this idea
+                        </button>
+                      </div>
+                    );
+                  })()}
 
                 {decision && candidate.resolution_state === "needs_client_specific_detail" && (
                   <div className="ledger-marginalia">

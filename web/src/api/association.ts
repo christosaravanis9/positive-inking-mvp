@@ -40,3 +40,31 @@ export async function requestAssociationAlternative(
   );
   return result.data;
 }
+
+/**
+ * "Build upon"'s direct-edit refinement (2026-09-07, later) -- the client
+ * has edited a candidate's own text and wants the model to develop exactly
+ * that idea further, not propose something different. A genuinely
+ * different ask from requestAssociationAlternative above (that one is
+ * "the client rejected this, give me something else"); same endpoint, same
+ * full AssociationData response shape, no schema change -- the caller only
+ * ever reads visual_candidates[0].
+ */
+export async function requestAssociationRefinement(
+  confirmedMeaningOrProvenance: string,
+  knownPersonalMaterial: string[],
+  originalDescription: string,
+  userEdit: string,
+): Promise<AssociationData> {
+  const result = await postJson<{ data: AssociationData }>(
+    "/api/associations",
+    {
+      confirmed_meaning_or_provenance: confirmedMeaningOrProvenance,
+      known_personal_material: knownPersonalMaterial,
+      refine_original_description: originalDescription,
+      refine_user_edit: userEdit,
+    },
+    clientTimeoutForRoute("association"),
+  );
+  return result.data;
+}

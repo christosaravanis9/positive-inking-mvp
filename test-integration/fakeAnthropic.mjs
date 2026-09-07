@@ -79,6 +79,41 @@ function provenanceInput(rawStoryText) {
 }
 
 function associationInput(text = "") {
+  // "Build upon"'s direct-edit refinement (2026-09-07, later) posts a
+  // distinct "the client wants to develop... further" instruction carrying
+  // the client's own edit verbatim (see server/src/routes/association.ts)
+  // -- branching on it here, and echoing the edit back with a visible
+  // marker, lets a real browser journey clearly see the refined result is
+  // genuinely built from what the client typed, not a generic alternative.
+  const refineMatch = text.match(/The client's own edit or addition to it: "([^"]*)"/);
+  if (refineMatch) {
+    const edit = refineMatch[1];
+    return {
+      visual_candidates: [
+        {
+          description: `${edit}, refined: cleaner lines, more deliberate composition`,
+          personal_meaning: "developed further from the client's own edit, not a fresh alternative",
+          source_category: "personal_artefact",
+          resolution_state: "concrete",
+          personal_relevance: 8,
+          story_relevance: 8,
+          visual_potential: 7,
+          originality: 7,
+          genericity: 2,
+          reference_availability: 4,
+        },
+      ],
+      place_role: "none",
+      place_role_reasoning: "No place named in the story.",
+      spatial_language_present: false,
+      has_text_or_handwriting: false,
+      has_likeness: false,
+      text_is_primary: false,
+      likeness_is_primary: false,
+      primary_element_type: "object",
+      contradictions_noticed: [],
+    };
+  }
   // Screen 7's Why-driven per-slot re-roll (2026-09-07) posts a distinct
   // "propose exactly one fresh alternative" instruction (see
   // server/src/routes/association.ts) -- branching on it here lets a real

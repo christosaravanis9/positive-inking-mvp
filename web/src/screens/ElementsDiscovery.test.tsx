@@ -545,3 +545,178 @@ describe("ElementsDiscovery -- Keep / Build upon / Not this one, non-destructive
     expect(screen.queryAllByText("Candidate 6").length).toBe(1);
   });
 });
+
+/**
+ * "Build upon" direct-edit refinement (2026-09-07, later). Real user
+ * testing found Keep/Build-upon differing only by color and Screen 13
+ * default wasn't enough -- "Build upon" needed to actually DO something:
+ * let the client edit the candidate's own text and send that edit back to
+ * the model to develop further, replacing the slot's candidate through the
+ * same non-destructive history mechanism "Not this one" already uses.
+ */
+function refinementResponseFixture(description: string) {
+  return {
+    data: {
+      visual_candidates: [candidateFixture({ description, personal_meaning: `Meaning for ${description}` })],
+      place_role: "none",
+      place_role_reasoning: "",
+      spatial_language_present: false,
+      has_text_or_handwriting: false,
+      has_likeness: false,
+      text_is_primary: false,
+      likeness_is_primary: false,
+      primary_element_type: "object",
+      contradictions_noticed: [],
+    },
+  };
+}
+
+describe("ElementsDiscovery -- 'Build upon' direct-edit refinement", () => {
+  it("clicking Build upon reveals a textarea pre-filled with the candidate's current description, not blank", () => {
+    seedRerollState();
+    render(
+      <JourneyProvider>
+        <ElementsDiscovery />
+      </JourneyProvider>,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Build upon" })[0]!);
+    const textarea = screen.getByRole("textbox", { name: /Edit this idea directly/ }) as HTMLTextAreaElement;
+    expect(textarea.value).toBe("Candidate 0");
+  });
+
+  it("the Refine button stays disabled until the text actually changes from the original -- never a wasted call on an unedited submission", () => {
+    seedRerollState();
+    render(
+      <JourneyProvider>
+        <ElementsDiscovery />
+      </JourneyProvider>,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Build upon" })[0]!);
+    const refineButton = screen.getByRole("button", { name: "Refine this idea" }) as HTMLButtonElement;
+    expect(refineButton.disabled).toBe(true);
+
+    const textarea = screen.getByRole("textbox", { name: /Edit this idea directly/ });
+    fireEvent.change(textarea, { target: { value: "Candidate 0" } }); // re-typed the same text
+    expect(refineButton.disabled).toBe(true);
+
+    fireEvent.change(textarea, { target: { value: "Candidate 0, but rougher and more hand-drawn" } });
+    expect(refineButton.disabled).toBe(false);
+  });
+
+  it("submitting an edit sends both the original description and the edit to the model, replaces the slot's candidate, and carries the Build-upon decision forward", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => refinementResponseFixture("Candidate 0, but rougher") });
+    vi.stubGlobal("fetch", fetchMock);
+    seedRerollState();
+    render(
+      <JourneyProvider>
+        <ElementsDiscovery />
+      </JourneyProvider>,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Build upon" })[0]!);
+    fireEvent.change(screen.getByRole("textbox", { name: /Edit this idea directly/ }), {
+      target: { value: "Candidate 0, but rougher" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Refine this idea" }));
+    await screen.findByText("Candidate 0, but rougher");
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("/api/associations");
+    const body = JSON.parse(init.body);
+    expect(body.refine_original_description).toBe("Candidate 0");
+    expect(body.refine_user_edit).toBe("Candidate 0, but rougher");
+    expect(body.avoid_descriptions).toBeUndefined();
+    expect(body.dismissal_reason).toBeUndefined();
+
+    // The refined candidate replaces the slot (non-destructively -- pager below)
+    // and is itself already marked Build upon, with no extra click needed.
+    expect(screen.queryByText("Candidate 0")).toBeNull();
+    screen.getByText("2/2");
+    expect(screen.getAllByRole("button", { name: "Build upon" })[0]!.className).toContain("active");
+
+    vi.unstubAllGlobals();
+  });
+
+  it("the pre-edit candidate remains reachable by paging back after a refinement -- nothing is discarded", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => refinementResponseFixture("Candidate 0, but rougher") });
+    vi.stubGlobal("fetch", fetchMock);
+    seedRerollState();
+    render(
+      <JourneyProvider>
+        <ElementsDiscovery />
+      </JourneyProvider>,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Build upon" })[0]!);
+    fireEvent.change(screen.getByRole("textbox", { name: /Edit this idea directly/ }), {
+      target: { value: "Candidate 0, but rougher" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Refine this idea" }));
+    await screen.findByText("Candidate 0, but rougher");
+
+    fireEvent.click(screen.getByRole("button", { name: "Previous alternative for this slot" }));
+    screen.getByText("Candidate 0");
+    screen.getByText("1/2");
+
+    vi.unstubAllGlobals();
+  });
+
+  it("confirming after a refinement produces exactly one visual_element for that slot, not a ghost entry for the pre-edit candidate too", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => refinementResponseFixture("Candidate 0, but rougher") });
+    vi.stubGlobal("fetch", fetchMock);
+    seedRerollState();
+    render(
+      <JourneyProvider>
+        <ElementsDiscovery />
+      </JourneyProvider>,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Build upon" })[0]!);
+    fireEvent.change(screen.getByRole("textbox", { name: /Edit this idea directly/ }), {
+      target: { value: "Candidate 0, but rougher" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Refine this idea" }));
+    await screen.findByText("Candidate 0, but rougher");
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    const stored = JSON.parse(localStorage.getItem("positive-inking:journey-state:v1")!);
+    const matchingElements = stored.project.visual_elements.filter((e: { description: string }) =>
+      e.description.startsWith("Candidate 0"),
+    );
+    expect(matchingElements.length).toBe(1);
+    expect(matchingElements[0].description).toBe("Candidate 0, but rougher");
+    expect(matchingElements[0].fidelity).toBe("interpretive");
+
+    vi.unstubAllGlobals();
+  });
+
+  it("Keep and Not this one are disabled while a refinement is in flight for that slot", async () => {
+    let resolveFetch!: (value: unknown) => void;
+    const fetchMock = vi.fn().mockReturnValue(new Promise((resolve) => (resolveFetch = resolve)));
+    vi.stubGlobal("fetch", fetchMock);
+    seedRerollState();
+    render(
+      <JourneyProvider>
+        <ElementsDiscovery />
+      </JourneyProvider>,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Build upon" })[0]!);
+    fireEvent.change(screen.getByRole("textbox", { name: /Edit this idea directly/ }), {
+      target: { value: "Candidate 0, but rougher" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Refine this idea" }));
+
+    expect((screen.getAllByRole("button", { name: "Keep" })[0]! as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getAllByRole("button", { name: "Not this one" })[0]! as HTMLButtonElement).disabled).toBe(true);
+    screen.getByText("Working on this idea...");
+
+    resolveFetch({ ok: true, json: async () => refinementResponseFixture("Candidate 0, but rougher") });
+    await screen.findByText("Candidate 0, but rougher");
+    vi.unstubAllGlobals();
+  });
+});

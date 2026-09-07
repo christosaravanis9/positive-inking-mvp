@@ -167,9 +167,22 @@ real-generation candidate index — two different slots' rapid actions
 landing in the same tick could read the same stale value and collide —
 fixed with synchronously-mutated refs as the source of truth, confirmed
 with a regression test that fails against the pre-fix code and a live
-same-tick double-click reproduction in a real browser. See the latest
-session log entry. 449 unit tests pass across engine/server/web;
-typecheck and build are clean across all three workspaces.
+same-tick double-click reproduction in a real browser. **"Build upon"
+then got real functionality**: real user testing found it needed to
+actually DO something beyond a color/default distinction from Keep, so
+it now opens an editable textarea pre-filled with the candidate's own
+text, and submitting an edit sends it to the model as a refinement
+request (reusing the same per-slot keyed mechanism and cost model as
+the Why-driven "Not this one" re-roll, with a distinct "develop this
+further, don't propose something different" prompt framing) that
+replaces the slot's candidate non-destructively — the pre-edit version
+stays reachable via the pager, same as a re-roll. Building it surfaced
+and fixed one more real bug: `confirm()` was reading stale decisions for
+candidates a slot had since moved on from, which would have produced a
+ghost extra element after a refinement. See the latest session log
+entry for the full design and verification. 455 unit tests pass across
+engine/server/web; typecheck and build are clean across all three
+workspaces.
 
 **Design:** a new "studio ledger" visual direction (warm parchment
 background, serif headline, ember-accented selection/marginalia, no card
@@ -386,6 +399,99 @@ here for you to decide scope on, matching how other open decisions in
 this document are tracked.
 
 ## Session log
+
+### 2026-09-07 (even later still) — "Build upon" given real functionality (direct-edit refinement), plus a fresh color re-confirmation and a stale-decision bug fixed along the way
+
+Real user testing found the previous round's fix insufficient: Keep and
+Build upon differed only by color and by Screen 13's fidelity default --
+Build upon didn't actually DO anything different from Keep. Per the
+user's own spec, Build upon now lets the client directly edit a
+candidate's text and sends that edit back to the model to develop
+further, at the same real-per-slot-call cost already established for the
+Why-driven "Not this one" re-roll (explicitly approved by the user).
+
+**Plan (reported before implementing, per instruction).** Investigated
+the exact Why-driven mechanism first: `useKeyedAsyncAction` (per-slot
+re-entrancy/staleness), `/api/associations`' existing
+`avoid_descriptions`/`dismissal_reason` fields and the userMessage
+branch that frames the request as "the client rejected this, propose
+something different." Confirmed this framing is wrong for Build upon --
+the client is developing an idea they already want, not rejecting one --
+so the plan was: reuse the same route, same keyed hook, same
+non-destructive history mechanism, but add a distinct
+`refine_original_description`/`refine_user_edit` field pair and a new
+userMessage branch explicitly telling the model this is refinement, not
+rejection ("do not propose something different... do not ignore, water
+down, or override what they specifically wrote").
+
+**Implementation, exactly as planned:**
+- `server/src/routes/association.ts`: `refine_original_description`/
+  `refine_user_edit` added to the request schema (present together or
+  not at all, mutually exclusive with `avoid_descriptions`/
+  `dismissal_reason` in practice); a new userMessage branch checked
+  first, framed as development-not-rejection. No response schema change.
+- `web/src/api/association.ts`: new `requestAssociationRefinement()`,
+  mirroring `requestAssociationAlternative()`.
+- `ElementsDiscovery.tsx`: the keyed async hook is now named
+  `runSlotAction`/`isSlotActionPending` (was `runReroll`/
+  `isRerollPending`) since it now serves two real per-slot calls, not
+  one. New `buildUponDraft: Record<candidateIndex, string>` state --
+  keyed by candidate index like `detailByIndex`, not slot, so each
+  candidate's own in-progress edit survives independently of which slot
+  currently shows it. Whenever a candidate is marked Build upon, an
+  editable textarea appears pre-filled with its own current description
+  (never blank); the "Refine this idea" submit button stays disabled
+  until the text actually differs from the original, so an unedited
+  submission is never a wasted model call. Submitting goes through
+  `runSlotAction` exactly like the Why-driven path: the refined
+  candidate is appended to `associationCandidates` (same
+  synchronously-mutated-ref pattern from the last round's concurrency
+  fix) and pushed onto that slot's `history` -- non-destructive, so the
+  pre-edit version stays reachable via the pager -- and the new
+  candidate is automatically marked Build upon too (it's the same idea
+  refined, not a fresh one needing a fresh decision). Keep and Not this
+  one are disabled on a slot while its refinement is in flight.
+
+**A real, adjacent bug found and fixed while building this.**
+`confirm()` read every entry in `decisionByIndex` unconditionally --
+but a slot's occupant can change (re-roll or, now, refinement) without
+ever clearing the OLD candidate index's decision, since
+`decisionByIndex` is keyed by candidate index, not slot. The pre-2026-
+09-07 code had an explicit "deselect on reroll" step this session's
+Screen 7 rewrite dropped; without it, confirming after a refinement
+produced TWO visual_elements for one slot -- the refined one actually
+shown, plus a ghost entry for the pre-edit candidate the client never
+still sees. Confirmed real by temporarily reverting the fix and
+re-running the new regression test: it fails with exactly "expected 2
+to be 1." Fixed by filtering `confirm()`'s candidate list to only
+indices currently occupying a visible slot -- correct regardless of
+*how* a slot's occupant changed, more robust than clearing on every
+individual call site.
+
+**Color re-confirmation.** The report described Keep/Build-upon/Not
+this one as "reported as fully implemented but appeared visually
+identical (all maroon)" -- re-ran a fresh, independent live-browser
+check (new process, new screenshots, not reusing the prior round's
+files) and confirmed the fix from that round is genuinely present and
+working: `getComputedStyle` on the three buttons returns three distinct
+colors (`rgb(63,107,72)` green / `rgb(161,91,31)` orange /
+`rgb(109,104,95)` neutral grey), screenshotted with Keep shown active
+(filled solid green) alongside the other two.
+
+**Verification.** 6 new regression tests (pre-filled textarea, submit
+disabled until genuinely edited, real refinement request + slot
+replacement + decision carried forward, pre-edit version reachable via
+the pager, Keep/Not-this-one disabled mid-flight, and the stale-decision
+fix confirmed meaningful by reverting it and watching the new test
+fail). Typecheck/build clean; 449→455 tests pass across engine
+(165)/server (65)/web (225, up from 219). Live browser check (real
+server + Vite + a fake-Anthropic double extended to echo the client's
+own edit back with a visible "refined:" marker, so the result is
+verifiably built from what was typed, not a generic alternative):
+pre-filled textarea → edited text enables Refine → submitting replaces
+the slot with the refined candidate (pager now `2/2`, already marked
+Build upon) → paging back reaches the exact pre-edit candidate.
+Screenshots taken at each step.
 
 ### 2026-09-07 (later still) — Two real gaps in the just-shipped Screen 7 redesign, caught by review of the live screenshots themselves, not just the description
 

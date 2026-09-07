@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { createEmptyProjectState } from "@positive-inking/engine";
 import { JourneyProvider } from "../journey/JourneyProvider";
@@ -92,7 +92,7 @@ describe("ElementsDiscovery -- Continue disabled with no stated reason (live-tes
 
     const continueButton = screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement;
     expect(continueButton.disabled).toBe(true);
-    screen.getByText("Select at least one starting point above, or add a new idea that becomes a design element, to continue.");
+    screen.getByText("Keep or build upon at least one starting point above, or add a new idea that becomes a design element, to continue.");
   });
 
   it("states the reason without referring to candidates when none were ever offered", () => {
@@ -205,27 +205,32 @@ describe("ElementsDiscovery -- core invariant: a real visual element is always r
 });
 
 /**
- * Per-candidate re-roll (2026-09-07, client-only reserve-pool approach --
- * approved as decision 2's recommended fix over a real server round-trip,
- * specifically because it needs no new async/staleness guard: candidates
- * beyond the visible cap are already sitting in the one Association
- * response already fetched, so a re-roll is a synchronous local swap).
+ * Screen 7 redesign (2026-09-07): the old selection-radio + 4-button
+ * fidelity row + text-link re-roll is replaced by one 3-state control per
+ * candidate (Keep / Build upon / Not this one), 5 visible by default, and a
+ * non-destructive per-slot history + pager -- "Not this one" either reveals
+ * an already-generated later candidate for that slot for free, or -- only
+ * once nothing further has been generated for it -- opens a "Why?" input.
+ * Submitting that blank stays on the free client-only reserve-pool swap;
+ * submitting a real reason is the one path that costs a real per-slot model
+ * call (requestAssociationAlternative). Nothing already shown for a slot is
+ * ever discarded -- paging back through it is always free.
  */
-function rankedCandidateFixtures(): VisualCandidate[] {
+function rankedCandidateFixtures(count: number): VisualCandidate[] {
   // Descending scores so rankVisualCandidates' order matches array order
-  // exactly -- index 0-2 land in the default visible top 3, 3-4 in reserve.
-  return [0, 1, 2, 3, 4].map((n) =>
+  // exactly -- index 0-4 land in the default visible top 5, the rest reserve.
+  return Array.from({ length: count }, (_, n) =>
     candidateFixture({
       description: `Candidate ${n}`,
       personal_meaning: `Meaning ${n}`,
-      personal_relevance: 1 - n * 0.15,
-      story_relevance: 1 - n * 0.15,
-      originality: 1 - n * 0.15,
+      personal_relevance: 1 - n * 0.1,
+      story_relevance: 1 - n * 0.1,
+      originality: 1 - n * 0.1,
     }),
   );
 }
 
-function seedRerollState(): JourneyState {
+function seedRerollState(count = 7): JourneyState {
   const state = createInitialJourneyState();
   state.project = { ...state.project, ...createEmptyProjectState(state.project.project_id, state.project.created_at) };
   state.ui = {
@@ -237,30 +242,202 @@ function seedRerollState(): JourneyState {
     intentionConfirmed: true,
     imageDescribed: true,
     provenanceCaptured: true,
-    associationCandidates: rankedCandidateFixtures(),
+    associationCandidates: rankedCandidateFixtures(count),
   };
   savePersistedState(state);
   return state;
 }
 
-describe("ElementsDiscovery -- per-candidate re-roll (client-only reserve pool)", () => {
-  it("shows only the top 3 candidates by default, with a re-roll affordance since reserve candidates exist", () => {
+function alternativeResponseFixture(description: string) {
+  return {
+    data: {
+      visual_candidates: [candidateFixture({ description, personal_meaning: `Meaning for ${description}` })],
+      place_role: "none",
+      place_role_reasoning: "",
+      spatial_language_present: false,
+      has_text_or_handwriting: false,
+      has_likeness: false,
+      text_is_primary: false,
+      likeness_is_primary: false,
+      primary_element_type: "object",
+      contradictions_noticed: [],
+    },
+  };
+}
+
+describe("ElementsDiscovery -- Keep / Build upon / Not this one, non-destructive per-slot history", () => {
+  it("shows 5 candidates by default, each with Keep/Build upon/Not this one controls", () => {
     seedRerollState();
     render(
       <JourneyProvider>
         <ElementsDiscovery />
       </JourneyProvider>,
     );
+
+    for (const n of [0, 1, 2, 3, 4]) screen.getByText(`Candidate ${n}`);
+    expect(screen.queryByText("Candidate 5")).toBeNull();
+    expect(screen.queryByText("Candidate 6")).toBeNull();
+    expect(screen.getAllByRole("button", { name: "Keep" }).length).toBe(5);
+    expect(screen.getAllByRole("button", { name: "Build upon" }).length).toBe(5);
+    expect(screen.getAllByRole("button", { name: "Not this one" }).length).toBe(5);
+  });
+
+  it("Keep marks a candidate active; clicking Keep again clears the decision", () => {
+    seedRerollState();
+    render(
+      <JourneyProvider>
+        <ElementsDiscovery />
+      </JourneyProvider>,
+    );
+
+    const keepButtons = screen.getAllByRole("button", { name: "Keep" });
+    fireEvent.click(keepButtons[0]!);
+    expect(keepButtons[0]!.className).toContain("active");
+
+    fireEvent.click(keepButtons[0]!);
+    expect(keepButtons[0]!.className).not.toContain("active");
+  });
+
+  it("Build upon marks a candidate active independently of Keep", () => {
+    seedRerollState();
+    render(
+      <JourneyProvider>
+        <ElementsDiscovery />
+      </JourneyProvider>,
+    );
+
+    const buildButtons = screen.getAllByRole("button", { name: "Build upon" });
+    fireEvent.click(buildButtons[1]!);
+    expect(buildButtons[1]!.className).toContain("active");
+    expect(screen.getAllByRole("button", { name: "Keep" })[1]!.className).not.toContain("active");
+  });
+
+  it("'Not this one' opens a Why input with a concrete example placeholder, not just 'optional'", () => {
+    seedRerollState();
+    render(
+      <JourneyProvider>
+        <ElementsDiscovery />
+      </JourneyProvider>,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Not this one" })[0]!);
+    const input = screen.getByPlaceholderText(/too literal for what I'm going for/);
+    expect(input).toBeTruthy();
+  });
+
+  it("a blank Why submission stays free: swaps in the next reserve candidate non-destructively, with a pager to page back to it", () => {
+    seedRerollState();
+    render(
+      <JourneyProvider>
+        <ElementsDiscovery />
+      </JourneyProvider>,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Not this one" })[0]!);
+    fireEvent.click(screen.getByRole("button", { name: "Show me something else" }));
+
+    // Candidate 0 is not discarded -- it's paged past, not removed.
+    expect(screen.queryByText("Candidate 0")).toBeNull();
+    screen.getByText("Candidate 5"); // next reserve candidate, in rank order
+    screen.getByText("2/2"); // pager now shows two entries for this slot
+
+    fireEvent.click(screen.getByRole("button", { name: "Previous alternative for this slot" }));
+    screen.getByText("Candidate 0"); // paging back is free and non-destructive
+    screen.getByText("1/2");
+
+    fireEvent.click(screen.getByRole("button", { name: "Next alternative for this slot" }));
+    screen.getByText("Candidate 5");
+  });
+
+  it("paging back and forth through history never calls the server", () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    seedRerollState();
+    render(
+      <JourneyProvider>
+        <ElementsDiscovery />
+      </JourneyProvider>,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Not this one" })[0]!);
+    fireEvent.click(screen.getByRole("button", { name: "Show me something else" }));
+    fireEvent.click(screen.getByRole("button", { name: "Previous alternative for this slot" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next alternative for this slot" }));
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it("a Why reason typed past the end of history triggers exactly one real per-slot generation call, feeding the reason and prior descriptions into it", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => alternativeResponseFixture("A hand-forged nail") });
+    vi.stubGlobal("fetch", fetchMock);
+    seedRerollState();
+    render(
+      <JourneyProvider>
+        <ElementsDiscovery />
+      </JourneyProvider>,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Not this one" })[0]!);
+    fireEvent.change(screen.getByPlaceholderText(/too literal for what I'm going for/), {
+      target: { value: "not keen on circles" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Show me something else" }));
+    await screen.findByText("A hand-forged nail");
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("/api/associations");
+    const body = JSON.parse(init.body);
+    expect(body.dismissal_reason).toBe("not keen on circles");
+    expect(body.avoid_descriptions).toEqual(["Candidate 0"]);
+
+    screen.getByText("2/2");
+    vi.unstubAllGlobals();
+  });
+
+  it("exhausting the reserve pool: a blank submission is a no-op and the panel says so instead of silently upgrading to a real call", () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    seedRerollState(6); // 5 visible + exactly 1 reserve candidate
+
+    render(
+      <JourneyProvider>
+        <ElementsDiscovery />
+      </JourneyProvider>,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Not this one" })[0]!);
+    fireEvent.click(screen.getByRole("button", { name: "Show me something else" })); // consumes the one reserve candidate
+    screen.getByText("Candidate 5");
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Not this one" })[0]!); // at end of history again, reserve now exhausted
+    screen.getByText(/No more free alternatives left for this slot/);
+
+    fireEvent.click(screen.getByRole("button", { name: "Show me something else" })); // blank submission -- must not call the model
+    screen.getByText("Candidate 5"); // unchanged
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it("'Never mind' cancels the Why input without changing the slot", () => {
+    seedRerollState();
+    render(
+      <JourneyProvider>
+        <ElementsDiscovery />
+      </JourneyProvider>,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Not this one" })[0]!);
+    fireEvent.change(screen.getByPlaceholderText(/too literal for what I'm going for/), { target: { value: "some reason" } });
+    fireEvent.click(screen.getByRole("button", { name: "Never mind" }));
 
     screen.getByText("Candidate 0");
-    screen.getByText("Candidate 1");
-    screen.getByText("Candidate 2");
-    expect(screen.queryByText("Candidate 3")).toBeNull();
-    expect(screen.queryByText("Candidate 4")).toBeNull();
-    expect(screen.getAllByRole("button", { name: "Not quite right? Try another idea" }).length).toBe(3);
+    expect(screen.queryByPlaceholderText(/too literal for what I'm going for/)).toBeNull();
   });
 
-  it("re-rolling a slot swaps it for the next unused reserve candidate, in rank order", () => {
+  it("does not show a pager when a slot has only ever shown one candidate", () => {
     seedRerollState();
     render(
       <JourneyProvider>
@@ -268,90 +445,25 @@ describe("ElementsDiscovery -- per-candidate re-roll (client-only reserve pool)"
       </JourneyProvider>,
     );
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Not quite right? Try another idea" })[0]!);
-
-    expect(screen.queryByText("Candidate 0")).toBeNull();
-    screen.getByText("Candidate 3"); // the next reserve candidate, not Candidate 4
-    screen.getByText("Candidate 1");
-    screen.getByText("Candidate 2");
-  });
-
-  it("re-rolling a selected candidate also deselects it -- a swapped-out candidate must never silently stay confirmed", () => {
-    seedRerollState();
-    render(
-      <JourneyProvider>
-        <ElementsDiscovery />
-      </JourneyProvider>,
-    );
-
-    const rows = screen.getAllByRole("checkbox");
-    fireEvent.click(rows[0]!); // select "Candidate 0"
-    const stored1 = JSON.parse(localStorage.getItem("positive-inking:journey-state:v1")!);
-    expect(stored1.ui.associationCandidates).toBeDefined(); // sanity: state actually persisted
-
-    fireEvent.click(screen.getAllByRole("button", { name: "Not quite right? Try another idea" })[0]!);
-
-    // Candidate 3 (the replacement) must not appear pre-selected/expanded with
-    // Candidate 0's old marginalia -- re-rolling clears that slot's selection.
-    expect(screen.queryByText("Candidate 0")).toBeNull();
-    const newCheckboxes = screen.getAllByRole("checkbox");
-    expect((newCheckboxes[0] as HTMLInputElement).checked).toBe(false);
-  });
-
-  it("exhausting the reserve pool removes the re-roll affordance and explains why, once all candidates have been re-rolled through", () => {
-    seedRerollState();
-    render(
-      <JourneyProvider>
-        <ElementsDiscovery />
-      </JourneyProvider>,
-    );
-
-    fireEvent.click(screen.getAllByRole("button", { name: "Not quite right? Try another idea" })[0]!); // consumes Candidate 3
-    fireEvent.click(screen.getAllByRole("button", { name: "Not quite right? Try another idea" })[0]!); // consumes Candidate 4, exhausts reserve
-
-    expect(screen.queryByRole("button", { name: "Not quite right? Try another idea" })).toBeNull();
-    expect(screen.getAllByText("No more alternatives to offer right now").length).toBeGreaterThan(0);
-  });
-
-  it("does not show any re-roll affordance when there is no reserve at all (candidate count <= the visible cap)", () => {
-    const state = createInitialJourneyState();
-    state.project = { ...state.project, ...createEmptyProjectState(state.project.project_id, state.project.created_at) };
-    state.ui = {
-      ...state.ui,
-      pastWelcome: true,
-      viewpointSelected: true,
-      discoveryCompleted: true,
-      themesSelected: true,
-      intentionConfirmed: true,
-      imageDescribed: true,
-      provenanceCaptured: true,
-      associationCandidates: [candidateFixture()],
-    };
-    savePersistedState(state);
-    render(
-      <JourneyProvider>
-        <ElementsDiscovery />
-      </JourneyProvider>,
-    );
-
-    expect(screen.queryByRole("button", { name: "Not quite right? Try another idea" })).toBeNull();
-    expect(screen.queryByText("No more alternatives to offer right now")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Previous alternative for this slot" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Next alternative for this slot" })).toBeNull();
   });
 
   it("keeps a re-rolled-in candidate visible after a remount if it was already confirmed as a visual element -- what the client chose must never silently disappear", () => {
     const state = seedRerollState();
-    // Simulate: the client re-rolled slot 0 to "Candidate 3" and confirmed it,
-    // then navigated away and back (a fresh mount, local component state reset).
+    // Simulate: the client re-rolled slot 0 to "Candidate 5" and confirmed it
+    // (Keep), then navigated away and back (a fresh mount, local component
+    // state reset).
     state.project = {
       ...state.project,
       visual_elements: [
         {
-          id: "candidate-3",
-          description: "Candidate 3",
-          personal_meaning: "Meaning 3",
+          id: "candidate-5",
+          description: "Candidate 5",
+          personal_meaning: "Meaning 5",
           source_category: "personal_artefact",
           hierarchy: "undecided",
-          fidelity: "interpretive",
+          fidelity: "closely_based_on",
           colour_role: "undecided",
           reference_required: false,
           reference_status: "not_needed",
@@ -368,8 +480,31 @@ describe("ElementsDiscovery -- per-candidate re-roll (client-only reserve pool)"
       </JourneyProvider>,
     );
 
-    // Candidate 3 stays visible (seeded back into a slot) instead of reverting
-    // to the default top-3 ranking, which would silently hide it.
-    screen.getByText("Candidate 3");
+    // Candidate 5 stays visible (seeded back into a slot's history) instead of
+    // reverting to the default top-5 ranking, which would silently hide it,
+    // and it shows as Kept (matching its persisted "closely_based_on" fidelity).
+    screen.getByText("Candidate 5");
+    expect(screen.getAllByRole("button", { name: "Keep" })[0]!.className).toContain("active");
+  });
+
+  it("confirming Keep/Build-upon choices produces visual_elements with the right default fidelity, and no reference fields set on this screen anymore", () => {
+    seedRerollState();
+    render(
+      <JourneyProvider>
+        <ElementsDiscovery />
+      </JourneyProvider>,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Keep" })[0]!); // Candidate 0 -> closely_based_on
+    fireEvent.click(screen.getAllByRole("button", { name: "Build upon" })[1]!); // Candidate 1 -> interpretive
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    const stored = JSON.parse(localStorage.getItem("positive-inking:journey-state:v1")!);
+    const kept = stored.project.visual_elements.find((e: { id: string }) => e.id === "candidate-0");
+    const builtUpon = stored.project.visual_elements.find((e: { id: string }) => e.id === "candidate-1");
+    expect(kept.fidelity).toBe("closely_based_on");
+    expect(kept.reference_required).toBe(false);
+    expect(kept.reference_status).toBe("not_needed");
+    expect(builtUpon.fidelity).toBe("interpretive");
   });
 });

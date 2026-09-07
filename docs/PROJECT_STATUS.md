@@ -141,9 +141,26 @@ production evidence (a real timeout at 30003ms, a manual retry at
 27507ms, both within ~2.5s of the old ceiling — see
 `docs/timeout-matrix.md`'s "Real production incident" section for the
 full local-vs-production gap analysis). Automatic retry-on-timeout was
-deliberately NOT added, as recommended. 437 unit tests pass across
-engine/server/web; typecheck and build are clean across all three
-workspaces.
+deliberately NOT added, as recommended. **Screen 7 has since been
+substantially redesigned and the reference-photo decision moved to
+Screen 13 (2026-09-07, later the same day):** 5 candidates shown by
+default (up from 3), one 3-state control per candidate (Keep / Build
+upon / Not this one) replacing the old selection radio + 4-button
+fidelity row, and a genuinely non-destructive per-slot history + pager
+— paging back through anything a slot has ever shown is free, and only
+asking for something new past the end of that history with a typed
+reason costs one real per-slot model call (a blank "Not this one" stays
+on the free client-only reserve-pool swap). Screen 13 now lists a
+fidelity dropdown (reusing the same four `ElementFidelity` values) per
+Kept/Built-upon element, surfacing the reference-upload flow inline only
+when the selected fidelity needs one, and re-running the
+`fidelityTreatmentRequired()` check itself — closing a real sequencing
+gap Screen 11 alone could no longer cover once fidelity refinement
+moved after it in the fixed screen order. See the latest session log
+entry for the full design, the real async-seeding bug the live browser
+check caught and fixed, and verification detail. 448 unit tests pass
+across engine/server/web; typecheck and build are clean across all
+three workspaces.
 
 **Design:** a new "studio ledger" visual direction (warm parchment
 background, serif headline, ember-accented selection/marginalia, no card
@@ -360,6 +377,176 @@ here for you to decide scope on, matching how other open decisions in
 this document are tracked.
 
 ## Session log
+
+### 2026-09-07 (even later) — Screen 7 redesign + Screen 13 fidelity/reference relocation: Parts 2-4 implemented, verified, and a real async-seeding bug found live and fixed
+
+Following on directly from the Part 1 investigation/Part 3 proposal below
+(same day): all three open questions were approved as proposed (the
+Screen 13 `fidelityTreatmentRequired()` re-run fix; the Why/generation
+split — paging is always free, only advancing past a slot's history with
+a typed reason costs a real call, a blank re-roll stays free; the 4-value
+dropdown reusing `ElementFidelity` with Keep→`closely_based_on`/Build
+upon→`interpretive` defaults) — Parts 2-4 were then implemented in full.
+
+**Screen 7 (`ElementsDiscovery.tsx`) rebuilt.** `VISIBLE_CANDIDATE_COUNT`
+raised 3→5. The old selection checkbox + 4-button fidelity row +
+text-link re-roll + inline `ReferenceAttachment` are gone; each candidate
+now gets exactly one 3-button row — **Keep** (green-toned, implies
+`closely_based_on`), **Build upon** (implies `interpretive`), **Not this
+one**. Non-destructive history is tracked per SLOT POSITION (not
+candidate index, since a slot's occupant changes on re-roll while its
+screen position doesn't): `history: Record<slot, number[]>` +
+`historyPos: Record<slot, number>`. "Not this one" reveals the next
+already-generated entry for free when one exists (equivalent to paging
+forward); only once nothing further has been generated for that slot does
+it open a "Why?" input (placeholder gives a concrete example, not just
+"optional," per the spec: `e.g. "too literal for what I'm going for" or
+"not keen on circles"`). Submitting it blank pops the next candidate from
+the existing client-only reserve pool (free, synchronous, unchanged
+mechanism); submitting a typed reason calls a new
+`requestAssociationAlternative()` (real round-trip) via a new
+`useKeyedAsyncAction` hook (`web/src/journey/useAsyncAction.ts`) — the
+keyed sibling of the existing `useAsyncAction`, giving each SLOT its own
+independent re-entrancy guard and staleness token instead of one shared
+per screen, so two different slots can each have a generation in flight
+at once without racing each other, while a second click on the SAME slot
+while one is pending is still a no-op. A small `<Prev 2/2 Next>`-style
+pager lets the client page back and forth through everything a slot has
+ever shown, including candidates already passed on — nothing a slot has
+generated is ever discarded. The reference-upload requirement and the
+`ReferenceAttachment` call site are removed from this screen entirely;
+`confirm()` now writes `reference_required: false` /
+`reference_status: "not_needed"` for every Association-sourced element
+(idea-authored elements from "This has given me another idea..." keep
+their own separate, untouched fidelity+reference flow — deliberately out
+of scope, since Part 2 only ever described "candidate" controls).
+`confirm()` also now preserves whatever fidelity/reference state Screen
+13 already set on a re-confirm, rather than resetting it every time this
+screen's Continue is clicked.
+
+**Server (`server/src/routes/association.ts`) extended, not replaced.**
+The request schema gained two optional fields — `avoid_descriptions`
+(string array) and `dismissal_reason` — present together or not at all;
+a plain re-roll with no reason never reaches this route. When present,
+the constructed `userMessage` tells the model exactly what was already
+shown and rejected for this slot and, if given, why, and asks for exactly
+one fresh, distinct alternative. No change to `associationResultSchema`/
+`associationToolInputSchema` — the endpoint still returns the same full
+`AssociationData` shape; the client only ever reads
+`visual_candidates[0]` from it.
+
+**Screen 13 (`DesignConfirmation.tsx`) gained a new per-element section.**
+Looping over every `visual_elements` entry whose id starts with
+`candidate-` (i.e. every Kept/Built-upon Association-sourced element —
+idea-authored elements already picked their own fidelity back on Screen
+7 and are deliberately excluded here), each gets a fidelity `<select>`
+(the same four `ElementFidelity` values, defaulted from whatever Screen 7
+set) and, only when the selected value is in `NEEDS_REFERENCE`
+(`exact`/`closely_based_on`), the real `ReferenceAttachment` +
+consent-checkbox flow inline, right there. Changing the dropdown
+immediately patches that element's `fidelity`/`reference_required`/
+`reference_status` in `project.visual_elements`; changing the reference
+draft immediately patches `consent_records`/`ui.referenceAssets` too —
+both committed straight to project state (this screen has no separate
+"confirm" step of its own before Build). The sequencing-bug fix from
+Part 1: this screen now also computes
+`hasExactFidelityElement = project.visual_elements.some(e => e.fidelity
+=== "exact")` and re-runs `fidelityTreatmentRequired()`/
+`FIDELITY_TREATMENT_OPTIONS` (same engine functions Screen 11 already
+uses, same `"handwriting"` hardcoded element-kind quirk, kept consistent
+rather than fixed as a separate concern) — if it fires and
+`project.fidelity_treatment` is still empty, an inline picker appears and
+"Build my Blueprint" is disabled until one is chosen. This closes the
+real gap Part 1 found: Screen 11 runs before Screen 13 in the fixed
+screen order, so an element that only becomes `exact` fidelity here (a
+choice that no longer exists on Screen 7 at all) would otherwise reach
+the Blueprint with that question never asked.
+
+**A shared `web/src/journey/referenceDraft.ts` module** now holds
+`NEEDS_REFERENCE`/`draftToConsentRecord`/`statusFromDraft`/
+`draftFromExisting`, extracted out of `ElementsDiscovery.tsx` (which
+still uses them for idea-authored elements) so `DesignConfirmation.tsx`
+can reuse the exact same logic rather than duplicating it.
+
+**Part 4 (data model correctness) required no new storage.** There was
+never a second, Screen-7-only copy of fidelity/reference/consent data to
+migrate away from — `VisualElement.fidelity`/`reference_required`/
+`reference_status`, `ProjectState.consent_records`, and
+`UIState.referenceAssets` were always the one and only source of truth;
+only WHICH SCREEN writes to them changed. `blueprintSummary.ts`,
+`referenceChecklist.ts`, and the Readiness components already read
+straight from those same fields, so the Blueprint automatically reflects
+whatever Screen 13 most recently set, with no code change needed there —
+confirmed by the new regression tests reading `project.visual_elements`
+straight out of persisted state after driving the real UI, not by
+inspection alone.
+
+**A real bug found only by the live browser check, not by any unit
+test.** `history`/`historyPos`/`decisionByIndex`/`reserveCursor` were
+originally seeded via `useState`'s lazy initializer, which runs once at
+the component's first mount — but this screen mounts *before*
+`fetchAssociations()`'s request resolves (`associationCandidates` starts
+empty; the fetch happens in a `useEffect` that fires after that first
+render). Every unit test seeded `associationCandidates` synchronously
+before rendering, so this async gap never existed in any of them, and
+all 18 passed against the broken version. Live, though: any slot that
+had never been individually re-rolled kept `history[slot]` permanently
+`undefined`, silently falling back to `defaultTopIndices[slot]`
+*recomputed fresh every render* from the live-mutating candidate array —
+which drifts as ranking changes. Confirmed live: after one Why-driven
+re-roll appended a new candidate that happened to out-rank an existing
+slot's original occupant, that untouched slot silently started showing
+a duplicate of the just-generated candidate instead of its own original
+one (and the real fifth candidate silently fell off the visible list
+entirely). Fixed by moving the seeding into a one-time `useEffect` gated
+on `hasCandidates` (via a ref flag) instead of a `useState` initializer —
+seeds correctly whether candidates arrive asynchronously after mount or
+are already present (e.g. revisiting the screen within the same
+session). Re-verified live after the fix: no duplicate, all 5 slots
+distinct, non-destructive paging confirmed both directions. This is
+exactly the class of bug the "live browser check, not just tests" step
+exists to catch — the regression tests were extended for the
+non-destructive-history/pager/Keep-Build-upon/Why-vs-blank-generation/
+Screen-13-dropdown behaviors, but a synchronous-fetch test fixture could
+never have reproduced this specific timing bug.
+
+**Verification.** Typecheck, full test suite, and build all pass clean
+across engine (165 tests)/server (65 tests)/web (218 tests, up from 202 —
+18 rewritten Screen 7 tests plus 5 new Screen 13 tests replacing/
+extending the old checkbox/text-link-based coverage). Live browser
+check (real server + real Vite + a fake-Anthropic double, since this
+sandbox has no real `ANTHROPIC_API_KEY`) walked the full path end to
+end with screenshots at each step: Screen 7 with 5 candidates → "Not
+this one" opens the Why input with the concrete-example placeholder →
+typing a reason and submitting triggers one real generation call and
+the new candidate appears with a `2/2` pager → paging back restores the
+original candidate for that slot, non-destructively and with no network
+call → Keep on one candidate, Build upon on another → Continue → (fast-
+forwarded past Screens 8-12 by advancing the same real, already-
+persisted journey state's `ui` flags, not by hand-constructing fixture
+data) → Screen 13 shows a fidelity dropdown for each of the two elements
+→ setting one to "Exactly as-is" reveals the reference attachment inline
+and disables "Build my Blueprint" behind the fidelity-treatment gate →
+picking a treatment option clears the gate and persists
+`fidelity_treatment` to real project state. `test-integration/
+fakeAnthropic.mjs`'s Association fixture was extended to 7 candidates (5
+visible + 2 true reserve, up from 5/3) and now returns a distinct,
+recognizable candidate specifically for the "propose exactly one fresh
+alternative" request shape, so a real local journey can actually
+exercise and visibly distinguish a Why-driven re-roll from the reserve
+pool.
+
+**Known, deliberate scope boundary, flagged rather than silently left
+inconsistent:** "This has given me another idea..." (the §3.6 new-idea
+loop) keeps its entire pre-existing fidelity + reference-upload flow
+exactly as it was. Parts 2-4 as specified only ever described changes to
+Association-sourced *candidate* controls; extending the same Keep/Build-
+upon-style treatment to user-authored ideas was never asked for and would
+be scope over-reach here, but the two flows are now visibly asymmetric on
+Screen 7 (candidates: 3 buttons + pager; added ideas: the old 4-button
+fidelity row + inline upload) — worth a deliberate decision in a future
+round if that asymmetry should be closed, not something this round chose
+to fix on its own initiative.
 
 ### 2026-09-07 (later) — Screen 7 redesign + reference-photo relocation to Screen 13: Part 1 investigated, Part 3 proposed, nothing implemented
 

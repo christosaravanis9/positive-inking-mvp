@@ -1,23 +1,27 @@
-# Summary: Screen 7 redesign investigated (Part 1) and Screen 13 dropdown proposed (Part 3) — nothing implemented
+# Summary: Screen 7 redesign + Screen 13 fidelity/reference relocation — implemented, verified, shipped
 
-Per explicit instruction: report before implementing Parts 2-4.
+All three open questions from the Part 1 investigation/Part 3 proposal were approved and Parts 2-4 are now fully implemented, tested, and live-browser-verified.
 
-## Part 1 findings
+## What changed
 
-`VisualElement.fidelity` (4 values: exact/closely_based_on/interpretive/open) drives `reference_required`/`reference_status` (same record), `ConsentRecord[]` (separate array), and `UIState.referenceAssets` (uploaded files) — all currently produced in one place, `ElementsDiscovery.tsx`'s `confirm()`, via four private helper functions. Downstream readers: `referenceChecklist.ts` (which elements need a reference), `deriveConceptSignals.ts` (`has_exact_fidelity_element`), `ArtisticDirection.tsx`/Screen 11 (gates the "how faithful?" fidelity-treatment question), `blueprintSummary.ts` (feeds the Blueprint model as prose).
+**Screen 7 (`ElementsDiscovery.tsx`):** 5 candidates by default (up from 3). Each candidate now gets one 3-button control — **Keep** (→ `closely_based_on`), **Build upon** (→ `interpretive`), **Not this one** — replacing the old selection checkbox + 4-button fidelity row + text-link re-roll. "Not this one" pages forward for free through anything already generated for that slot; only past the end of that history does it open a "Why?" input (concrete-example placeholder, not just "optional"). Blank submission stays on the free client-only reserve-pool swap; a typed reason triggers exactly one real per-slot model call via a new `useKeyedAsyncAction` hook and `requestAssociationAlternative()`. A small pager lets the client page back through every candidate a slot has ever shown — nothing is ever discarded. The reference-upload requirement is gone from this screen entirely.
 
-**A real sequencing bug the redesign would silently introduce:** Screen 11 (ArtisticDirection) runs *before* Screen 13 and is the only trigger for the fidelity-treatment question today. If Screen 7 only ever writes the coarse closely_based_on/interpretive values (deferring exact/open to Screen 13), that question would never fire again for any real journey — a genuine Blueprint-correctness regression, not just a moved UI control. Proposed fix: re-run the same existing `fidelityTreatmentRequired()` check from Screen 13 too, when its dropdown sets "exact."
+**Server (`association.ts`):** extended (not replaced) with optional `avoid_descriptions`/`dismissal_reason`, used only on the Why-driven path; same response schema, same `visual_candidates[0]` contract.
 
-DesignConfirmation.tsx (Screen 13) currently has no per-element rows at all — adding the dropdown is a real new section. `ReferenceAttachment.tsx` is confirmed cleanly reusable (one call site today, pure component) — its supporting helpers need extracting into a shared module. No new type fields needed anywhere; only which screen sets them changes.
+**Screen 13 (`DesignConfirmation.tsx`):** each Kept/Built-upon element now gets a fidelity dropdown (same 4 `ElementFidelity` values), with the reference-upload + consent flow appearing inline only when the selected fidelity needs one. Also re-runs `fidelityTreatmentRequired()` itself — the fix for the real sequencing gap Part 1 found (Screen 11 runs before Screen 13, so an element that only becomes `exact` fidelity here would otherwise skip that question).
 
-## Part 3 proposed dropdown
+**Part 4 (data model):** required no new fields or storage — there was only ever one source of truth (`VisualElement.fidelity`/`reference_required`/`reference_status`, `consent_records`, `referenceAssets`); only which screen writes to it changed. The Blueprint's existing readers (`blueprintSummary.ts`, `referenceChecklist.ts`, Readiness) already read straight from those fields.
 
-Reuse the same 4 existing `ElementFidelity` values (not new ones): "Exactly as-is" (needs reference), "Closely based on this" (needs reference, default for "Keep"), "Interpreted by the artist" (default for "Build upon"), "Open — artist's call". Screen 7's choice is the starting default, not a duplicate question.
+## A real bug the live browser check caught (not any unit test)
 
-## A tension worth flagging
+Per-slot history state was seeded via a `useState` lazy initializer, which runs at first mount — but this screen mounts before the Association fetch resolves. Every unit test seeded candidates synchronously, so none of them hit this; the live check did: an untouched slot silently duplicated a just-generated candidate once ranking shifted. Fixed by moving the seed into a one-time effect gated on candidates actually existing. Re-verified live, fixed.
 
-Part 2 asks that a "Why" reason feed into the re-roll's generation — but last night's approved reserve-pool re-roll was chosen specifically to avoid a real server round-trip. Honoring "feeds into generation" literally needs a real per-slot model call after all (just for the Why-driven path; a plain re-roll stays free). The non-destructive pager can unify both under one per-slot history list.
+## Verification
 
-## Status
+Typecheck/tests/build clean across engine (165)/server (65)/web (218, up from 202). Live browser check (real server + Vite + a fake-Anthropic double) walked the full path with screenshots: 5 candidates → Why-driven re-roll → non-destructive paging back → Keep/Build-upon → Continue → Screen 13 dropdown → reference attachment appears → fidelity_treatment gate blocks then clears Build.
 
-Nothing in Parts 2-4 implemented. Full detail in `docs/PROJECT_STATUS.md`'s latest session log entry.
+## Deliberate scope boundary
+
+"This has given me another idea..." (user-authored ideas) keeps its own unchanged fidelity+reference flow — Parts 2-4 only ever described Association-sourced candidate controls. Flagged as a visible asymmetry for a future round, not silently left inconsistent.
+
+Full detail: `docs/PROJECT_STATUS.md`'s latest session log entry.

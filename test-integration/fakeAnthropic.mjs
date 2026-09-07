@@ -78,7 +78,39 @@ function provenanceInput(rawStoryText) {
   };
 }
 
-function associationInput() {
+function associationInput(text = "") {
+  // Screen 7's Why-driven per-slot re-roll (2026-09-07) posts a distinct
+  // "propose exactly one fresh alternative" instruction (see
+  // server/src/routes/association.ts) -- branching on it here lets a real
+  // browser journey see a genuinely new candidate appear after a re-roll,
+  // instead of the same fixture candidate it already rejected.
+  if (text.includes("Propose exactly one fresh alternative")) {
+    return {
+      visual_candidates: [
+        {
+          description: "a hand-forged nail from the workshop",
+          personal_meaning: "a small, deliberately-made object standing in for the same care",
+          source_category: "personal_artefact",
+          resolution_state: "concrete",
+          personal_relevance: 7,
+          story_relevance: 7,
+          visual_potential: 6,
+          originality: 6,
+          genericity: 3,
+          reference_availability: 4,
+        },
+      ],
+      place_role: "none",
+      place_role_reasoning: "No place named in the story.",
+      spatial_language_present: false,
+      has_text_or_handwriting: false,
+      has_likeness: false,
+      text_is_primary: false,
+      likeness_is_primary: false,
+      primary_element_type: "object",
+      contradictions_noticed: [],
+    };
+  }
   return {
     visual_candidates: [
       // Mode A -- literal object (existing, unchanged by the three-mode expansion).
@@ -125,17 +157,45 @@ function associationInput() {
         genericity: 2,
         reference_availability: 2,
       },
-      // Reserve material (2026-09-07, per-candidate re-roll): scored lower on
-      // personal/story relevance and originality than the three above, so
-      // rankVisualCandidates always places these beyond VISIBLE_CANDIDATE_COUNT --
-      // this is what lets a live journey actually exercise rerollSlot().
+      // Filler material so ranking always fills the default top 5 (existing,
+      // unchanged in shape by the 2026-09-07 redesign).
+      {
+        description: "a small carved wooden charm",
+        personal_meaning: "a keepsake carried the way a talisman is carried",
+        source_category: "personal_artefact",
+        resolution_state: "concrete",
+        personal_relevance: 6,
+        story_relevance: 6,
+        visual_potential: 5,
+        originality: 4,
+        genericity: 5,
+        reference_availability: 5,
+      },
+      {
+        description: "a simple line drawing of a house",
+        personal_meaning: "the place the memory actually happened",
+        source_category: "personal_artefact",
+        resolution_state: "concrete",
+        personal_relevance: 5,
+        story_relevance: 6,
+        visual_potential: 5,
+        originality: 4,
+        genericity: 5,
+        reference_availability: 5,
+      },
+      // Reserve material (2026-09-07, per-candidate re-roll, now 5 visible
+      // slots not 3): scored lower on personal/story relevance and
+      // originality than the five above, so rankVisualCandidates always
+      // places these beyond VISIBLE_CANDIDATE_COUNT -- this is what lets a
+      // live journey actually exercise a blank ("Not this one", no reason
+      // given) re-roll pulling from the free reserve pool.
       {
         description: "a small linework paw print, rendered simply",
         personal_meaning: "a straightforward nod to the bond with your dog",
         source_category: "public_artefact",
         resolution_state: "concrete",
-        personal_relevance: 5,
-        story_relevance: 5,
+        personal_relevance: 3,
+        story_relevance: 3,
         visual_potential: 5,
         originality: 3,
         genericity: 7,
@@ -146,8 +206,8 @@ function associationInput() {
         personal_meaning: "something given and something received, held gently",
         source_category: "artistic_symbol",
         resolution_state: "concrete",
-        personal_relevance: 4,
-        story_relevance: 4,
+        personal_relevance: 2,
+        story_relevance: 2,
         visual_potential: 6,
         originality: 4,
         genericity: 6,
@@ -207,7 +267,7 @@ function blueprintInput() {
 const FIXTURES_BY_TOOL = {
   record_discovery: (text) => discoveryInput(text),
   record_provenance: (text) => provenanceInput(text),
-  record_associations: () => associationInput(),
+  record_associations: (text) => associationInput(text),
   suggest_avoidances: () => avoidanceInput(),
   resolve_style_reference: () => styleReferenceInput(),
   write_blueprint: () => blueprintInput(),

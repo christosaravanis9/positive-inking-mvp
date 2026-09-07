@@ -1,12 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useJourney } from "../journey/JourneyProvider";
-import { useAsyncAction } from "../journey/useAsyncAction";
-import { requestAssociations } from "../api/association";
+import { useAsyncAction, useKeyedAsyncAction } from "../journey/useAsyncAction";
+import { requestAssociations, requestAssociationAlternative } from "../api/association";
 import { AsyncError } from "../components/AsyncError";
 import { ModelWaitIndicator } from "../components/ModelWaitIndicator";
 import { ReferenceAttachment, emptyReferenceDraft, type ReferenceDraft } from "../components/ReferenceAttachment";
+import { NEEDS_REFERENCE, statusFromDraft, draftToConsentRecord, draftFromExisting } from "../journey/referenceDraft";
 import { logTelemetryEvent } from "../instrumentation/telemetry";
-import type { VisualElement, ElementFidelity, ConsentRecord, ReferenceStatus } from "@positive-inking/engine";
+import type { VisualElement, ElementFidelity, ConsentRecord } from "@positive-inking/engine";
 import {
   suppressGeneratedSymbolicSuggestions,
   rankVisualCandidates,
@@ -20,7 +21,6 @@ import {
   type IdeaIterationBehavior,
   type SuitabilityConsideration,
 } from "@positive-inking/engine";
-import type { JourneyState } from "../journey/state";
 
 interface AddedIdea {
   text: string;
@@ -32,23 +32,14 @@ interface AddedIdea {
   addsScene: boolean;
 }
 
-const NEEDS_REFERENCE: ReadonlySet<ElementFidelity> = new Set(["exact", "closely_based_on"]);
-
 /**
- * "Studio ledger" direction: the native <select> fidelity dropdowns became
- * segmented pill buttons. Same values, same setState calls as before -- only
- * the triggering control's shape changed, not what it does. Two orderings
- * (matching the original two <select>s' own option order) since a
- * system-suggested candidate defaults toward "exact"/"closely_based_on"
- * first, while a client's own idea defaults toward "interpretive" first.
+ * "This has given me another idea..." (§3.6) keeps its own separate fidelity
+ * choice + reference flow, unchanged by the 2026-09-07 Screen 7 redesign --
+ * that redesign is scoped to Association-sourced *candidates* specifically
+ * (Keep/Build upon/Not this one, reference collection moved to Screen 13);
+ * a user-authored idea was never part of that scope. Same values, same
+ * setState calls as before -- only candidates' own control shape changed.
  */
-const CANDIDATE_FIDELITY_OPTIONS: { value: ElementFidelity; label: string }[] = [
-  { value: "exact", label: "Exactly as-is (needs a reference)" },
-  { value: "closely_based_on", label: "Closely based on this (needs a reference)" },
-  { value: "interpretive", label: "Interpreted by the artist" },
-  { value: "open", label: "Open — artist's call" },
-];
-
 const IDEA_FIDELITY_OPTIONS: { value: ElementFidelity; label: string }[] = [
   { value: "interpretive", label: "Interpreted by the artist" },
   { value: "open", label: "Open — artist's call" },
@@ -68,77 +59,33 @@ const IDEA_FIDELITY_OPTIONS: { value: ElementFidelity; label: string }[] = [
 const DETAIL_SEPARATOR = " — specifically, ";
 
 /**
- * Per-candidate re-roll's visible cap (2026-09-07). Everything ranked beyond
- * this position in the already-fetched candidate list becomes that fetch's
- * reserve pool -- see rerollSlot() below. Matches the density this screen's
- * "studio ledger" layout has always comfortably shown.
+ * Per-candidate visible cap (2026-09-07 redesign, up from 3). Everything
+ * ranked beyond this position in the already-fetched candidate list becomes
+ * that fetch's reserve pool for a free "Not this one" -- see notThisOne()
+ * and submitReroll() below.
  */
-const VISIBLE_CANDIDATE_COUNT = 3;
+const VISIBLE_CANDIDATE_COUNT = 5;
 
 function extractDetailAnswer(candidateDescription: string, confirmedDescription: string): string {
   const prefix = candidateDescription + DETAIL_SEPARATOR;
   return confirmedDescription.startsWith(prefix) ? confirmedDescription.slice(prefix.length) : "";
 }
 
-function draftToConsentRecord(referenceId: string, draft: ReferenceDraft): ConsentRecord | null {
-  if (!draft.material_type && !draft.dataUrl) return null;
-  return {
-    reference_id: referenceId,
-    material_type: draft.material_type ?? "own_material",
-    subject_relationship: draft.subject_relationship,
-    attestation_given: draft.attestation_given,
-    attestation_text: draft.attestation_text,
-    attested_at: draft.attestation_given ? new Date().toISOString() : null,
-    copyright_flag: draft.copyright_flag,
-    flag_resolution: draft.flag_resolution,
-  };
-}
-
-function statusFromDraft(fidelity: ElementFidelity, sourceCategory: string, draft: ReferenceDraft | undefined): ReferenceStatus {
-  if (!NEEDS_REFERENCE.has(fidelity)) return "not_needed";
-  if (draft?.dataUrl) return "available";
-  if (sourceCategory === "new_materialisation") return "to_create";
-  return "to_upload";
-}
-
-/**
- * Rehydrates a ReferenceDraft from already-confirmed project data (a prior
- * consent record + any attached file). Without this, navigating back to
- * this screen -- e.g. via Screen 13's "Add references" -- would silently
- * discard everything the user already entered, which is exactly the kind
- * of "don't make users reconfirm what they just did" failure V3.0 warns
- * against (§5), just aimed backwards instead of forwards.
- */
-function draftFromExisting(elementId: string, state: JourneyState): ReferenceDraft | undefined {
-  const record = state.project.consent_records.find((r) => r.reference_id === elementId);
-  const asset = state.ui.referenceAssets[elementId];
-  if (!record && !asset) return undefined;
-  return {
-    dataUrl: asset?.dataUrl ?? null,
-    fileName: asset?.fileName ?? null,
-    material_type: record?.material_type ?? null,
-    subject_relationship: record?.subject_relationship ?? "self",
-    attestation_given: record?.attestation_given ?? false,
-    attestation_text: record?.attestation_text ?? "",
-    copyright_flag: record?.copyright_flag ?? false,
-    flag_resolution: record?.flag_resolution ?? null,
-    // An existing asset could only have been stored via the upload gate below, so
-    // rehydrating it back never needs to be reconfirmed -- consistent with the rest
-    // of this function's "don't make users reconfirm what they just did" purpose.
-    rights_confirmed: Boolean(asset?.dataUrl),
-  };
-}
-
 /**
  * Screen 7 (§8) -- all modes converge here. Runs the Association Engine
- * (§11) once, then lets the user select/react/extend rather than pick from
- * a fixed menu. "This has given me another idea..." (§3.6) is always
- * available and adds a user-authored element, never merely feedback on the
- * options shown.
+ * (§11) once, then lets the user react per candidate: Keep it, build upon
+ * it, or say it's not right (optionally saying why, which either pops a
+ * free reserve alternative or -- only past the end of what's already been
+ * generated for that slot, with a reason typed -- asks the model for one
+ * more). "This has given me another idea..." (§3.6) is always available
+ * and adds a user-authored element, never merely feedback on the options
+ * shown.
  *
- * Reference attachment (§15) happens right here, inline, at the point the
- * user tells the system a piece needs to be exact -- not on a separate
- * consent screen. §15.3: "One checkbox, one line, at the point of upload."
+ * Reference attachment (§15) no longer happens here (2026-09-07) -- it now
+ * happens on Screen 13, once fidelity is refined per confirmed element, at
+ * the point the system actually knows a reference is needed. Screen 7 only
+ * ever decides Keep/Build upon (which implies a fidelity default) or asks
+ * for something else.
  *
  * The new-idea loop (§14) also lives here -- this is the only screen in
  * this build that shows "visual material" in the sense §3.6 means (an
@@ -148,19 +95,40 @@ function draftFromExisting(elementId: string, state: JourneyState): ReferenceDra
 export function ElementsDiscovery() {
   const { state, patchProject, patchUI } = useJourney();
   const { run: runFetchAssociations, pending: fetching } = useAsyncAction();
+  const { run: runReroll, isPending: isRerollPending } = useKeyedAsyncAction();
 
-  const [selected, setSelected] = useState<Set<number>>(() => {
-    const set = new Set<number>();
-    state.ui.associationCandidates.forEach((_, i) => {
-      if (state.project.visual_elements.some((e) => e.id === `candidate-${i}`)) set.add(i);
-    });
-    return set;
-  });
-  const [fidelityByIndex, setFidelityByIndex] = useState<Record<number, ElementFidelity>>(() => {
-    const map: Record<number, ElementFidelity> = {};
+  // Concurrency-safety (2026-09-07): two per-slot Why-generation calls can be
+  // in flight at once (useKeyedAsyncAction explicitly allows different keys
+  // to run concurrently). Appending the new candidate to
+  // state.ui.associationCandidates via patchUI needs the *current* array at
+  // resolve-time, not whatever this render's closure captured when the call
+  // started -- otherwise a later-resolving slot's append could silently
+  // overwrite an earlier-resolving slot's already-appended candidate. Kept
+  // in sync on every render instead.
+  const associationCandidatesRef = useRef(state.ui.associationCandidates);
+  useEffect(() => {
+    associationCandidatesRef.current = state.ui.associationCandidates;
+  }, [state.ui.associationCandidates]);
+
+  const hasCandidates = state.ui.associationCandidates.length > 0;
+  // §11: rank by personal_relevance/story_relevance/originality (outweighing
+  // raw visual appeal) before display, then §9.7 scope limit: suppress
+  // system-generated artistic_symbol/tattoo_reference at low confidence.
+  // Neither step ever touches indices -- decisionByIndex/detailByIndex and
+  // the "candidate-{i}" id scheme all key off the *original* array
+  // position, so this only reorders/hides entries for render. addedIdeas
+  // (user-authored) is a wholly separate array that never passes through
+  // either function.
+  const indexedCandidates = state.ui.associationCandidates.map((c, i) => ({ ...c, i }));
+  const rankedAndFiltered = suppressGeneratedSymbolicSuggestions(rankVisualCandidates(indexedCandidates), state.project.interpretation_confidence);
+  const defaultTopIndices = rankedAndFiltered.slice(0, VISIBLE_CANDIDATE_COUNT).map((c) => c.i);
+  const reservePool = rankedAndFiltered.slice(VISIBLE_CANDIDATE_COUNT);
+
+  const [decisionByIndex, setDecisionByIndex] = useState<Record<number, "keep" | "build_upon">>(() => {
+    const map: Record<number, "keep" | "build_upon"> = {};
     state.ui.associationCandidates.forEach((_, i) => {
       const el = state.project.visual_elements.find((e) => e.id === `candidate-${i}`);
-      if (el) map[i] = el.fidelity;
+      if (el) map[i] = el.fidelity === "interpretive" || el.fidelity === "open" ? "build_upon" : "keep";
     });
     return map;
   });
@@ -175,14 +143,67 @@ export function ElementsDiscovery() {
     });
     return map;
   });
-  const [referenceByIndex, setReferenceByIndex] = useState<Record<number, ReferenceDraft>>(() => {
-    const map: Record<number, ReferenceDraft> = {};
-    state.ui.associationCandidates.forEach((_, i) => {
-      const draft = draftFromExisting(`candidate-${i}`, state);
-      if (draft) map[i] = draft;
+
+  // Per-slot non-destructive re-roll history (2026-09-07). Keyed by SLOT
+  // POSITION (0..VISIBLE_CANDIDATE_COUNT-1), not candidate index, because a
+  // slot's occupant changes on re-roll while its position on screen does
+  // not. Nothing already generated for a slot is ever discarded: history
+  // only ever grows, and historyPos just moves within it.
+  //
+  // Seeded via an effect gated on hasCandidates, NOT a useState lazy
+  // initializer -- this component mounts before fetchAssociations' request
+  // resolves (associationCandidates starts empty), so a lazy initializer
+  // would freeze these at empty seeds forever. An empty history/historyPos
+  // for a slot falls back to defaultTopIndices *recomputed fresh every
+  // render*, which drifts as ranking changes (e.g. once a Why-driven
+  // re-roll appends a new candidate that re-ranks into another slot's
+  // position) -- confirmed live: a second slot silently duplicated a
+  // just-generated candidate this way before this fix.
+  const [history, setHistory] = useState<Record<number, number[]>>({});
+  const [historyPos, setHistoryPos] = useState<Record<number, number>>({});
+  // Tracks how far into the free reserve pool a blank ("no reason given")
+  // re-roll has already consumed, shared across every slot so the same
+  // reserve candidate is never handed out twice.
+  const [reserveCursor, setReserveCursor] = useState(0);
+  const [rerollPromptOpenSlots, setRerollPromptOpenSlots] = useState<Set<number>>(new Set());
+  const [whyDraft, setWhyDraft] = useState<Record<number, string>>({});
+  const historySeededRef = useRef(false);
+  useEffect(() => {
+    if (historySeededRef.current || !hasCandidates) return;
+    historySeededRef.current = true;
+    // Guarantee a candidate already confirmed as a visual_elements entry stays
+    // visible once seeded (e.g. navigating back to this screen), even if it
+    // was originally re-rolled in and now falls outside the default top-N by
+    // rank -- what the client already chose must never silently disappear.
+    const confirmedOutsideTop = state.ui.associationCandidates
+      .map((_, i) => i)
+      .filter((i) => !defaultTopIndices.includes(i) && state.project.visual_elements.some((e) => e.id === `candidate-${i}`));
+    const historySeed: Record<number, number[]> = {};
+    const posSeed: Record<number, number> = {};
+    defaultTopIndices.forEach((idx, slot) => {
+      historySeed[slot] = [idx];
+      posSeed[slot] = 0;
     });
-    return map;
-  });
+    confirmedOutsideTop.forEach((idx, k) => {
+      if (k < defaultTopIndices.length) {
+        historySeed[k] = [...historySeed[k]!, idx];
+        posSeed[k] = 1;
+      }
+    });
+    setHistory(historySeed);
+    setHistoryPos(posSeed);
+    let cursor = 0;
+    Object.values(historySeed).forEach((hist) => {
+      hist.forEach((idx, pos) => {
+        if (pos === 0) return; // the slot's original default candidate, not a reserve pop
+        const reservePos = reservePool.findIndex((c) => c.i === idx);
+        if (reservePos !== -1 && reservePos + 1 > cursor) cursor = reservePos + 1;
+      });
+    });
+    setReserveCursor(cursor);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasCandidates]);
+
   const [newIdeaText, setNewIdeaText] = useState("");
   const [replacesChoice, setReplacesChoice] = useState("");
   const [isLikenessOrPlaceChecked, setIsLikenessOrPlaceChecked] = useState(false);
@@ -209,81 +230,11 @@ export function ElementsDiscovery() {
     suitability: SuitabilityConsideration | null;
   } | null>(null);
 
-  const hasCandidates = state.ui.associationCandidates.length > 0;
-  // §11: rank by personal_relevance/story_relevance/originality (outweighing
-  // raw visual appeal) before display, then §9.7 scope limit: suppress
-  // system-generated artistic_symbol/tattoo_reference at low confidence.
-  // Neither step ever touches indices -- selected/fidelityByIndex/
-  // referenceByIndex and the "candidate-{i}" id scheme all key off the
-  // *original* array position, so this only reorders/hides entries for
-  // render. addedIdeas (user-authored) is a wholly separate array that never
-  // passes through either function.
-  const indexedCandidates = state.ui.associationCandidates.map((c, i) => ({ ...c, i }));
-  const rankedAndFiltered = suppressGeneratedSymbolicSuggestions(rankVisualCandidates(indexedCandidates), state.project.interpretation_confidence);
-
-  // Per-candidate re-roll (client-only reserve-pool approach, 2026-09-07 --
-  // see docs/PROJECT_STATUS.md for the full reasoning this was chosen over a
-  // real server round-trip). No new server call and no new async/staleness
-  // guard: candidates beyond the visible cap are already sitting in the one
-  // Association response already fetched -- rerollSlot() only ever swaps
-  // which already-returned candidate a slot shows, synchronously.
-  // slotOverrides is keyed by SLOT POSITION (0..VISIBLE_CANDIDATE_COUNT-1),
-  // not by candidate index, because a slot's occupant changes on re-roll
-  // while its position on screen does not.
-  const defaultTopIndices = rankedAndFiltered.slice(0, VISIBLE_CANDIDATE_COUNT).map((c) => c.i);
-  const reservePool = rankedAndFiltered.slice(VISIBLE_CANDIDATE_COUNT);
-  const [slotOverrides, setSlotOverrides] = useState<Record<number, number>>(() => {
-    // Guarantee a candidate already confirmed as a visual_elements entry stays
-    // visible on a fresh mount (e.g. navigating back to this screen via the
-    // panel), even if it was originally a re-rolled-in reserve candidate that
-    // now falls outside the default top-N by rank -- what the client already
-    // chose must never silently disappear.
-    const confirmedOutsideTop = state.ui.associationCandidates
-      .map((_, i) => i)
-      .filter((i) => !defaultTopIndices.includes(i) && state.project.visual_elements.some((e) => e.id === `candidate-${i}`));
-    if (confirmedOutsideTop.length === 0) return {};
-    const overrides: Record<number, number> = {};
-    confirmedOutsideTop.forEach((idx, k) => {
-      if (k < defaultTopIndices.length) overrides[k] = idx;
-    });
-    return overrides;
+  const visibleCandidateIndices = defaultTopIndices.map((defaultIdx, slot) => {
+    const hist = history[slot] ?? [defaultIdx];
+    const pos = historyPos[slot] ?? 0;
+    return hist[pos] ?? defaultIdx;
   });
-  const [reserveCursor, setReserveCursor] = useState(() => {
-    // Keep in step with the slotOverrides seed above: skip past every reserve
-    // candidate that seed already placed on screen, so the next real re-roll
-    // click can never hand out a duplicate of something already shown.
-    let cursor = 0;
-    for (const idx of Object.values(slotOverrides)) {
-      const pos = reservePool.findIndex((c) => c.i === idx);
-      if (pos !== -1 && pos + 1 > cursor) cursor = pos + 1;
-    }
-    return cursor;
-  });
-  const canRerollMore = reserveCursor < reservePool.length;
-
-  function rerollSlot(slot: number) {
-    if (reserveCursor >= reservePool.length) return;
-    const outgoingIndex = slotOverrides[slot] ?? defaultTopIndices[slot];
-    const next = reservePool[reserveCursor]!;
-    setSlotOverrides((prev) => ({ ...prev, [slot]: next.i }));
-    setReserveCursor((c) => c + 1);
-    // A re-rolled-away candidate must also be deselected -- `selected` keys off
-    // the original candidate index, not slot position, so without this the
-    // swapped-out candidate would still silently confirm even though it's no
-    // longer shown. Re-rolling a candidate the client had chosen is exactly
-    // "I don't want this one anymore," so this is the correct default, not a
-    // surprising side effect.
-    if (outgoingIndex !== undefined) {
-      setSelected((prev) => {
-        if (!prev.has(outgoingIndex)) return prev;
-        const next2 = new Set(prev);
-        next2.delete(outgoingIndex);
-        return next2;
-      });
-    }
-  }
-
-  const visibleCandidateIndices = defaultTopIndices.map((i, slot) => slotOverrides[slot] ?? i);
 
   // §14.2: only offered when there is exactly one already-confirmed element to
   // possibly replace -- this build has no explicit "set hierarchy to primary"
@@ -296,16 +247,21 @@ export function ElementsDiscovery() {
   // so without a stated reason Continue goes dark with no way for the user to tell what's
   // needed. Requiring a real element before advancing is correct (artist notes are
   // deliberately not design elements) -- what was missing is saying so.
-  const continueDisabled = selected.size === 0 && addedIdeas.length === 0 && state.project.visual_elements.length === 0;
+  const continueDisabled = Object.keys(decisionByIndex).length === 0 && addedIdeas.length === 0 && state.project.visual_elements.length === 0;
+
+  function confirmedMeaningText(): string {
+    return state.project.journey_mode === "full"
+      ? state.project.statement_of_intention
+      : [state.project.raw_story, state.project.attraction_origin].filter(Boolean).join("\n\n");
+  }
+
+  function knownPersonalMaterial(): string[] {
+    return [...state.project.personal_people, ...state.project.personal_places, ...state.project.personal_objects];
+  }
 
   function fetchAssociations() {
     void runFetchAssociations(async (guard) => {
-      const confirmedText =
-        state.project.journey_mode === "full"
-          ? state.project.statement_of_intention
-          : [state.project.raw_story, state.project.attraction_origin].filter(Boolean).join("\n\n");
-      const known = [...state.project.personal_people, ...state.project.personal_places, ...state.project.personal_objects];
-      const result = await requestAssociations(confirmedText, known);
+      const result = await requestAssociations(confirmedMeaningText(), knownPersonalMaterial());
       if (guard.isStale()) return;
       patchUI({
         associationCandidates: result.visual_candidates,
@@ -340,13 +296,108 @@ export function ElementsDiscovery() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function toggle(index: number) {
-    setSelected((prev) => {
+  function decide(index: number, decision: "keep" | "build_upon") {
+    setDecisionByIndex((prev) => {
+      if (prev[index] === decision) {
+        const next = { ...prev };
+        delete next[index];
+        return next;
+      }
+      return { ...prev, [index]: decision };
+    });
+  }
+
+  function appendToHistory(slot: number, index: number) {
+    setHistory((prev) => {
+      const hist = prev[slot] ?? [defaultTopIndices[slot]!];
+      return { ...prev, [slot]: [...hist, index] };
+    });
+    setHistoryPos((prev) => {
+      const hist = history[slot] ?? [defaultTopIndices[slot]!];
+      return { ...prev, [slot]: hist.length };
+    });
+  }
+
+  function pageSlot(slot: number, delta: number) {
+    setHistoryPos((prev) => {
+      const hist = history[slot] ?? [defaultTopIndices[slot]!];
+      const current = prev[slot] ?? 0;
+      const nextPos = Math.min(Math.max(current + delta, 0), hist.length - 1);
+      return { ...prev, [slot]: nextPos };
+    });
+  }
+
+  function notThisOne(slot: number) {
+    const hist = history[slot] ?? [defaultTopIndices[slot]!];
+    const pos = historyPos[slot] ?? 0;
+    // Already-generated ground for this slot -- paging forward through it is
+    // free, exactly like paging back with the pager below.
+    if (pos < hist.length - 1) {
+      pageSlot(slot, 1);
+      return;
+    }
+    // At the end of what's been generated for this slot -- ask why (optional)
+    // before deciding whether this needs a real model call.
+    setRerollPromptOpenSlots((prev) => new Set(prev).add(slot));
+  }
+
+  function cancelReroll(slot: number) {
+    setRerollPromptOpenSlots((prev) => {
       const next = new Set(prev);
-      if (next.has(index)) next.delete(index);
-      else next.add(index);
+      next.delete(slot);
       return next;
     });
+    setWhyDraft((prev) => {
+      const next = { ...prev };
+      delete next[slot];
+      return next;
+    });
+  }
+
+  function submitReroll(slot: number) {
+    const reason = (whyDraft[slot] ?? "").trim();
+    setRerollPromptOpenSlots((prev) => {
+      const next = new Set(prev);
+      next.delete(slot);
+      return next;
+    });
+    setWhyDraft((prev) => {
+      const next = { ...prev };
+      delete next[slot];
+      return next;
+    });
+
+    // A plain re-roll with no reason given stays free -- consistent with the
+    // client-only reserve-pool swap this replaces. No new server call, no new
+    // async/staleness guard: the candidate is already sitting in the one
+    // Association response already fetched.
+    if (!reason) {
+      if (reserveCursor >= reservePool.length) return; // exhausted -- never auto-upgrades to a real call
+      const nextCandidate = reservePool[reserveCursor]!;
+      setReserveCursor((c) => c + 1);
+      appendToHistory(slot, nextCandidate.i);
+      return;
+    }
+
+    // Advancing past the end of history with a reason typed is the one path
+    // that costs a real per-slot model call.
+    void runReroll(
+      slot,
+      async (guard) => {
+        const hist = history[slot] ?? [defaultTopIndices[slot]!];
+        const alreadyShown = hist
+          .map((idx) => associationCandidatesRef.current[idx]?.description)
+          .filter((d): d is string => Boolean(d));
+        const result = await requestAssociationAlternative(confirmedMeaningText(), knownPersonalMaterial(), alreadyShown, reason);
+        if (guard.isStale()) return;
+        const newCandidate = result.visual_candidates[0];
+        if (!newCandidate) return;
+        const newIndex = associationCandidatesRef.current.length;
+        patchUI({ associationCandidates: [...associationCandidatesRef.current, newCandidate] });
+        appendToHistory(slot, newIndex);
+      },
+      "Finding another idea for this slot",
+    );
   }
 
   function resetIdeaForm() {
@@ -431,32 +482,29 @@ export function ElementsDiscovery() {
     const candidateConsentRecords: ConsentRecord[] = [];
     const referenceAssets: Record<string, { dataUrl: string; fileName: string }> = {};
 
-    const fromCandidates: VisualElement[] = [...selected].map((i) => {
+    const fromCandidates: VisualElement[] = Object.entries(decisionByIndex).map(([key, decision]) => {
+      const i = Number(key);
       const candidate = state.ui.associationCandidates[i]!;
-      const fidelity = fidelityByIndex[i] ?? "interpretive";
       const id = `candidate-${i}`;
-      const draft = referenceByIndex[i];
-      if (draft) {
-        const record = draftToConsentRecord(id, draft);
-        if (record) candidateConsentRecords.push(record);
-        if (draft.dataUrl && draft.fileName) {
-          referenceAssets[id] = { dataUrl: draft.dataUrl, fileName: draft.fileName };
-          logTelemetryEvent("reference_requested", state.project.project_id, { material_type: draft.material_type });
-        }
-      }
       const detailAnswer = detailByIndex[i]?.trim();
       const description = detailAnswer ? `${candidate.description}${DETAIL_SEPARATOR}${detailAnswer}` : candidate.description;
       const concreteness = candidate.resolution_state === "concrete" || detailAnswer ? "concrete" : "unresolved_placeholder";
+      const defaultFidelity: ElementFidelity = decision === "keep" ? "closely_based_on" : "interpretive";
+      // Fidelity refinement + reference collection moved to Screen 13
+      // (2026-09-07) -- preserve whatever it already set there rather than
+      // resetting it every time this screen's confirm() runs (which happens
+      // on every Continue click, not just the first ever visit).
+      const existing = state.project.visual_elements.find((e) => e.id === id);
       return {
         id,
         description,
         personal_meaning: candidate.personal_meaning,
         source_category: candidate.source_category,
-        hierarchy: "undecided",
-        fidelity,
-        colour_role: "undecided",
-        reference_required: NEEDS_REFERENCE.has(fidelity),
-        reference_status: statusFromDraft(fidelity, candidate.source_category, draft),
+        hierarchy: existing?.hierarchy ?? "undecided",
+        fidelity: existing?.fidelity ?? defaultFidelity,
+        colour_role: existing?.colour_role ?? "undecided",
+        reference_required: existing?.reference_required ?? false,
+        reference_status: existing?.reference_status ?? "not_needed",
         origin: "system_suggestion",
         user_selected: true,
         concreteness,
@@ -617,64 +665,100 @@ export function ElementsDiscovery() {
       <h2 className="ledger-headline">Let us find what could represent it.</h2>
       <AsyncError onRetry={fetchAssociations} />
       {fetching && <ModelWaitIndicator label="Finding personal and visual directions..." />}
-      {hasCandidates && <p className="supporting">Select as many as feel right — you can choose more than one.</p>}
+      {hasCandidates && <p className="supporting">Keep the ones that already feel right, build upon ones that are close, or ask for something else.</p>}
       {hasCandidates && (
         <div className="ledger-list">
           {visibleCandidateIndices.map((i, slot) => {
             const candidate = state.ui.associationCandidates[i]!;
+            const decision = decisionByIndex[i];
+            const hist = history[slot] ?? [defaultTopIndices[slot]!];
+            const pos = historyPos[slot] ?? 0;
+            const canPageBack = pos > 0;
+            const canPageForward = pos < hist.length - 1;
+            const rerolling = isRerollPending(slot);
+            const whyOpen = rerollPromptOpenSlots.has(slot);
+            const reserveExhausted = reserveCursor >= reservePool.length;
             return (
-              <div key={i} className={`ledger-candidate${selected.has(i) ? " selected" : ""}`}>
-                <label className="ledger-candidate-row">
-                  <input type="checkbox" className="ledger-seal-input" checked={selected.has(i)} onChange={() => toggle(i)} />
-                  <span className="ledger-seal" aria-hidden="true" />
+              <div key={slot} className={`ledger-candidate${decision ? " selected" : ""}`}>
+                <div className="ledger-candidate-row">
                   <span className="ledger-candidate-body">
                     <strong>{candidate.description}</strong>
                     {" — "}
                     <span className="ledger-candidate-meaning">{candidate.personal_meaning}</span>
                   </span>
-                </label>
-                {canRerollMore ? (
-                  <button type="button" className="ledger-candidate-reroll" onClick={() => rerollSlot(slot)}>
-                    Not quite right? Try another idea
+                  {hist.length > 1 && (
+                    <span className="ledger-candidate-pager">
+                      <button type="button" disabled={!canPageBack} onClick={() => pageSlot(slot, -1)} aria-label="Previous alternative for this slot">
+                        {"<"}
+                      </button>
+                      {pos + 1}/{hist.length}
+                      <button type="button" disabled={!canPageForward} onClick={() => pageSlot(slot, 1)} aria-label="Next alternative for this slot">
+                        {">"}
+                      </button>
+                    </span>
+                  )}
+                </div>
+
+                <div className="ledger-decision-row" role="group" aria-label="Decision">
+                  <button
+                    type="button"
+                    className={`ledger-decision-pill ledger-decision-keep${decision === "keep" ? " active" : ""}`}
+                    onClick={() => decide(i, "keep")}
+                  >
+                    Keep
                   </button>
-                ) : (
-                  reserveCursor > 0 && <span className="ledger-candidate-reroll-exhausted">No more alternatives to offer right now</span>
-                )}
-                {selected.has(i) && (
+                  <button
+                    type="button"
+                    className={`ledger-decision-pill ledger-decision-build-upon${decision === "build_upon" ? " active" : ""}`}
+                    onClick={() => decide(i, "build_upon")}
+                  >
+                    Build upon
+                  </button>
+                  <button type="button" className="ledger-decision-pill ledger-decision-not-this-one" onClick={() => notThisOne(slot)} disabled={rerolling}>
+                    Not this one
+                  </button>
+                </div>
+
+                {rerolling && <p className="supporting">Finding another idea for this slot...</p>}
+
+                {whyOpen && (
                   <div className="ledger-marginalia">
-                    {candidate.resolution_state === "needs_client_specific_detail" && (
-                      <div className="ledger-marginalia-field">
-                        <span className="ledger-marginalia-label">{candidate.follow_up_prompt ?? "What specifically is this?"}</span>
-                        <input
-                          type="text"
-                          className="ledger-lined-input"
-                          value={detailByIndex[i] ?? ""}
-                          onChange={(e) => setDetailByIndex((prev) => ({ ...prev, [i]: e.target.value }))}
-                          placeholder="Optional, but this is what makes it a real design rather than a placeholder"
-                        />
-                      </div>
-                    )}
-                    <div className="ledger-fidelity-row">
-                      <div className="ledger-fidelity" role="group" aria-label="Fidelity">
-                        {CANDIDATE_FIDELITY_OPTIONS.map((opt) => (
-                          <button
-                            key={opt.value}
-                            type="button"
-                            className={`ledger-fidelity-pill${(fidelityByIndex[i] ?? "interpretive") === opt.value ? " active" : ""}`}
-                            onClick={() => setFidelityByIndex((prev) => ({ ...prev, [i]: opt.value }))}
-                          >
-                            {opt.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    {NEEDS_REFERENCE.has(fidelityByIndex[i] ?? "interpretive") && (
-                      <ReferenceAttachment
-                        value={referenceByIndex[i] ?? emptyReferenceDraft()}
-                        onChange={(next) => setReferenceByIndex((prev) => ({ ...prev, [i]: next }))}
-                        elementDescription={candidate.description}
+                    <label className="reference-field">
+                      <span>Why isn't this one right? (optional)</span>
+                      <input
+                        type="text"
+                        className="ledger-lined-input"
+                        value={whyDraft[slot] ?? ""}
+                        onChange={(e) => setWhyDraft((prev) => ({ ...prev, [slot]: e.target.value }))}
+                        placeholder={`e.g. "too literal for what I'm going for" or "not keen on circles"`}
                       />
+                    </label>
+                    {reserveExhausted && (
+                      <p className="reference-note">No more free alternatives left for this slot — add a reason above to have the model find a new one.</p>
                     )}
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button type="button" onClick={() => submitReroll(slot)}>
+                        Show me something else
+                      </button>
+                      <button type="button" className="secondary" onClick={() => cancelReroll(slot)}>
+                        Never mind
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {decision && candidate.resolution_state === "needs_client_specific_detail" && (
+                  <div className="ledger-marginalia">
+                    <div className="ledger-marginalia-field">
+                      <span className="ledger-marginalia-label">{candidate.follow_up_prompt ?? "What specifically is this?"}</span>
+                      <input
+                        type="text"
+                        className="ledger-lined-input"
+                        value={detailByIndex[i] ?? ""}
+                        onChange={(e) => setDetailByIndex((prev) => ({ ...prev, [i]: e.target.value }))}
+                        placeholder="Optional, but this is what makes it a real design rather than a placeholder"
+                      />
+                    </div>
                   </div>
                 )}
               </div>
@@ -785,7 +869,7 @@ export function ElementsDiscovery() {
         {continueDisabled && (
           <p className="supporting">
             {hasCandidates
-              ? "Select at least one starting point above, or add a new idea that becomes a design element, to continue."
+              ? "Keep or build upon at least one starting point above, or add a new idea that becomes a design element, to continue."
               : "Add at least one idea that becomes a design element to continue — notes for the artist alone aren't enough to move forward."}
           </p>
         )}

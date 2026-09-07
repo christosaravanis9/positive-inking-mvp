@@ -88,3 +88,76 @@ export function useAsyncAction() {
 
   return { run, pending };
 }
+
+/**
+ * Keyed variant of useAsyncAction (2026-09-07), for a screen where several
+ * independent slots can each have their own in-flight model call at once --
+ * Screen 7's per-candidate "Not this one" re-roll, specifically the
+ * Why-driven path that needs a real per-slot generation call (see
+ * docs/PROJECT_STATUS.md). Same three guarantees as useAsyncAction above,
+ * just tracked per key instead of once for the whole hook instance: a
+ * second run() for the SAME key while one is in flight is a no-op, but a
+ * DIFFERENT key may run concurrently; guard.isStale() reports true once a
+ * later run() for that same key has started, or the component has
+ * unmounted -- exactly the same two ways a result can go stale, just
+ * scoped to one key instead of the whole screen.
+ */
+export interface KeyedAsyncActionGuard {
+  isStale: () => boolean;
+}
+
+export function useKeyedAsyncAction() {
+  const { setError, beginAttempt } = useJourney();
+  const [pendingKeys, setPendingKeys] = useState<ReadonlySet<string | number>>(new Set());
+  const pendingRefs = useRef<Map<string | number, boolean>>(new Map());
+  const tokenRefs = useRef<Map<string | number, number>>(new Map());
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const run = useCallback(
+    async (key: string | number, action: (guard: KeyedAsyncActionGuard) => Promise<void>, errorContext: string) => {
+      if (pendingRefs.current.get(key)) return;
+      pendingRefs.current.set(key, true);
+      setPendingKeys((prev) => new Set(prev).add(key));
+      const myToken = (tokenRefs.current.get(key) ?? 0) + 1;
+      tokenRefs.current.set(key, myToken);
+      const guard: KeyedAsyncActionGuard = { isStale: () => tokenRefs.current.get(key) !== myToken || !mountedRef.current };
+
+      beginAttempt();
+      try {
+        await action(guard);
+        if (!guard.isStale()) setError(null);
+      } catch (err) {
+        if (!guard.isStale()) {
+          setError({
+            code: (err as { code?: string })?.code ?? "unknown_error",
+            message: err instanceof Error ? err.message : "Unknown error",
+            context: errorContext,
+          });
+        }
+      } finally {
+        if (tokenRefs.current.get(key) === myToken) {
+          pendingRefs.current.set(key, false);
+          if (mountedRef.current) {
+            setPendingKeys((prev) => {
+              const next = new Set(prev);
+              next.delete(key);
+              return next;
+            });
+          }
+        }
+      }
+    },
+    [beginAttempt, setError],
+  );
+
+  const isPending = useCallback((key: string | number) => pendingKeys.has(key), [pendingKeys]);
+
+  return { run, isPending };
+}

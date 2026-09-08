@@ -189,9 +189,32 @@ draws from was starved, not any per-slot code bug (confirmed live: the
 exhaustion-handling code was working exactly as designed, it just ran
 out two slots too early). Fixed by raising that guidance to "typically
 9 to 12 total," with an explicit note tying it to the visible count so
-this can't silently drift again. See the latest session log entry. 456
-unit tests pass across engine/server/web; typecheck and build are clean
-across all three workspaces.
+this can't silently drift again. **A four-item live-testing report
+(2026-09-08, later) is now fully addressed**: (1) Section 4's garbled
+"— specifically, no the tattoo artist ability —" text, root-caused to
+`ElementsDiscovery.tsx`'s `DETAIL_SEPARATOR` gluing a client's raw
+free-typed follow-up answer onto a candidate description assuming
+grammatical continuation, plus the same run-on category one level out
+in `ElementLine`'s meaning append — both now close the prior sentence
+and introduce the addition as its own clause instead of chaining
+another connector; (2) Section 4's heading now reads "Confirmed visual
+subjects" only when something actually is, "Visual subjects being
+explored" otherwise, via a shared `visualSubjectsHeading()` reading the
+same grouping state the section already tracked correctly; (3) the
+Blueprint Writer prompt (`server/src/schemas/blueprint.ts`) gained the
+same WORDING register standard the Association prompt already had —
+confirmed via direct evidence the model's own free prose, not any
+label or template, produced the reported elaborate connective style;
+(4) a new structural rule designates `visual_direction` as the one
+section that states a chosen concept in full, with `story`/`why` and
+`artist_brief` instructed to reference it briefly instead of
+re-narrating it — closing the four-times repetition report for the
+sections that are actually model-written (Section 4 itself is
+deterministic from confirmed elements, not model repetition, see the
+latest session log entry for that correction). See the latest session
+log entry for full before/after evidence, live reproduction, and
+verification. 467 unit tests pass across engine/server/web; typecheck
+and build are clean across all three workspaces.
 
 **Design:** a new "studio ledger" visual direction (warm parchment
 background, serif headline, ember-accented selection/marginalia, no card
@@ -408,6 +431,133 @@ here for you to decide scope on, matching how other open decisions in
 this document are tracked.
 
 ## Session log
+
+### 2026-09-08 (later) — Four-item live-testing report on the Blueprint: a real garbled-text bug, a labeling contradiction, a Blueprint Writer register gap, and cross-section repetition
+
+A real client's live Blueprint output surfaced four separate issues.
+Each was investigated before any fix, per the task's explicit
+instruction; items 1, 3, and 4 were reported back with root cause and
+proposed fix and approved before implementing (item 2 was
+straightforward enough to fix directly).
+
+**1. REAL BUG — garbled text in Section 4, root-caused and fixed.**
+Reported verbatim: `"— specifically, no the tattoo artist ability —"`
+embedded inline in a Confirmed Visual Subjects bullet. Traced the exact
+composition path: `ElementsDiscovery.tsx`'s `confirm()` composes a
+candidate's description via `DETAIL_SEPARATOR` (`" — specifically, "`
+before the fix) whenever the client answers a `needs_client_specific_detail`
+candidate's plain-text follow-up question — glued directly onto the
+candidate's own description with **no validation or grammar-checking of
+what the client typed**, on the unstated assumption the answer would
+always read as a natural continuation. It doesn't have to: a fragment,
+a negation, anything that isn't a bare noun phrase breaks it. This
+is a different failure category than the raw-enum leaks fixed earlier
+in this project (nothing here leaks an internal token) — it's raw,
+unvalidated client free text spliced into a client-facing document via
+a connector phrase that presumes a grammatical shape the input can't
+guarantee. **Reproduced live** (real server + Vite + fake-Anthropic
+double): answering that exact follow-up with free text reproduced the
+reported fragment byte-for-byte. Also found the second half of the
+same run-on category one level out: `BlueprintView.tsx`'s `ElementLine`
+unconditionally appended `— {meaning}` right after description with no
+sentence break, which would chain onto the detail addition into the
+same kind of run-on.
+- **Fix:** `DETAIL_SEPARATOR` is now `". In your own words: "` — closes
+  the candidate's own sentence first (stripping any trailing
+  `.`/`!`/`?` so it's never doubled), then introduces the client's
+  words as their own clearly-labelled clause, correct regardless of
+  what they typed. `composeDescriptionWithDetail`/`detailPrefix` are
+  the single source of truth both `confirm()` and the existing
+  `extractDetailAnswer()` round-trip read from, so revisiting the
+  screen still correctly re-extracts an already-answered detail.
+  `ElementLine`'s meaning append now goes through a new shared
+  `meaningConnector(description)` (`blueprintSummary.ts`) that adds
+  exactly one terminal period when description doesn't already end
+  with one, or a bare space when it does — never a dash-continuation,
+  never doubled punctuation. Applied identically to the on-screen JSX
+  and the plain-text Copy/Save export.
+- **Verification:** new regression tests reproducing the exact
+  live-tested scenario (`ElementsDiscovery.test.tsx`, two tests: the
+  garbled case itself, plus a doubled-punctuation guard) and
+  `meaningConnector`'s own unit tests (`blueprintSummary.test.ts`).
+  Live-verified: the composed description and rendered Section 4 both
+  confirmed clean, no leftover connector, screenshotted.
+
+**2. LABELING CONTRADICTION — Section 4's heading always said
+"Confirmed visual subjects" even when every item under it was "Still
+undecided," now fixed.** Investigated whether this needed deeper
+state-tracking changes — it didn't: `groupVisualElementsForHierarchySection`
+already correctly tracks confirmed-vs-undecided state (`personal`/`other`
+are the two groups reserved for a resolved hierarchy), the heading
+just never read it. Added `visualSubjectsHeading(groups)` in
+`blueprintSummary.ts`, returning "Confirmed visual subjects" when
+`personal`/`other` have anything, "Visual subjects being explored"
+otherwise; wired into both `BlueprintView.tsx`'s on-screen heading and
+its plain-text export. Regression tests at both the pure-function level
+and the rendered-component level, confirming both directions; three
+pre-existing tests whose default fixture is all-undecided were updated
+to the now-correct heading text.
+
+**3. SCOPE GAP — the Association prompt's rule 9 (WORDING)
+simplification was never applied to the Blueprint Writer's own prompt,
+now fixed.** Confirmed by direct evidence: the reported elaborate-register
+phrases ("the piece is meant to read clearly at a glance, not as a
+faint or subtle mark"; "Composition: confirmed as interlocking — the
+chosen concept... should be built so its parts visually connect/overlap
+rather than sit as separate isolated elements") exist nowhere in the
+codebase as a label or template string — grepped every label file to
+rule that out — so both are the model's own free `artistic_direction`
+prose, with nothing in `BLUEPRINT_SYSTEM_PROMPT` discouraging the
+elaborate register a terse input like "Composition: Interlocking" got
+padded into. **Fix:** added a new WORDING rule to
+`server/src/schemas/blueprint.ts`, mirroring rule 9's own structure —
+plain common words, short direct sentences, avoid a formal connective
+where a plain word or a new sentence says the same thing — carrying
+both directly-evidenced BEFORE/AFTER examples verbatim plus two
+constructed calibration examples (Your story/intention, Artist Brief).
+Also tightened three existing instruction sentences flagged as
+themselves written in the elaborate register the model may have been
+mirroring (the attraction/expert-mode paragraph, the "Collaborative"
+creative-control explanation).
+
+**4. CONTENT QUALITY — the same concept described in near-full detail
+up to four times across sections, now structurally fixed for the
+sections that can actually cause it.** Investigated first, since the
+report's own framing needed one correction: Sections 1/2/3/7/11
+(`story`, `why`/`what_matters_most`, `visual_direction`,
+`artistic_direction`, `artist_brief`) are all model-written free text —
+genuinely fixable by prompt restructuring. **Section 4 is not** — it
+renders entirely deterministically from the client's own confirmed
+`visual_elements`, no model involved at all, so if it reads like it's
+repeating Sections 1/3/11 that's Section 4 correctly showing the
+canonical definition of the design, not the Blueprint Writer being
+repetitive. A pre-existing repetition rule (added in an earlier round,
+task #29) was scoped only to single facts ("a composition choice, a
+density, a treatment word"), not a whole concept's narrative. **Fix:**
+added a new paragraph designating `visual_direction` as the one section
+that states the chosen concept in full; `story`/`why` may reference it
+only as much as the personal narrative needs, never re-narrate what it
+looks like; `artist_brief` may reference it briefly ("the design
+described above") plus only what's genuinely new for the artist, never
+restate the narrative from scratch.
+
+**Verification (3 and 4 together, live browser check with
+before/after).** This sandbox has no real `ANTHROPIC_API_KEY`, so
+actual model compliance with the new prompt cannot be verified live —
+stated plainly, same limitation as the earlier Association WORDING fix.
+What *was* verified live: `test-integration/fakeAnthropic.mjs`'s
+`blueprintInput()` fixture was permanently rewritten to the target
+register/structure (visual_direction states both candidate concepts in
+full once; story/artist_brief reference briefly; the two directly-
+evidenced phrases converted to their AFTER form), and a real browser
+journey through Story → Discovery → Screen 7 → the real `/api/blueprint`
+route confirmed it renders correctly with the full concept mentioned
+exactly once across the document, plain register throughout, no
+rendering regression. A separate BEFORE render (the old elaborate,
+four-times-repeated text, fed through a stubbed response) was
+screenshotted alongside it for direct visual comparison — both sent to
+the user. Typecheck, full suite (467 tests — engine 165, server 65, web
+237), and build all clean across all three workspaces.
 
 ### 2026-09-08 — Confirmed and fixed the "Artist suggestion:" label wording, and root-caused + fixed a real live-tested bug: slots 4-5's "Not this one" silently doing nothing
 

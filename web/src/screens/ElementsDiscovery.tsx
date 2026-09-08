@@ -51,12 +51,27 @@ const IDEA_FIDELITY_OPTIONS: { value: ElementFidelity; label: string }[] = [
  * §11 concreteness — a candidate marked needs_client_specific_detail carries
  * a category, not yet a real visual idea (e.g. "a specific object that
  * belongs to her"). Answering its one follow_up_prompt turns it into one by
- * appending the client's own concrete detail; this separator is how a
- * revisit of this screen tells an already-answered detail apart from the
- * bare candidate text, so going back and confirming again without retyping
- * never silently drops what was already captured.
+ * appending the client's own concrete detail.
+ *
+ * The separator used to be " — specifically, " -- a mid-sentence connector
+ * that assumed the client's free-text answer would always read as a
+ * grammatical continuation of the candidate's own description. It doesn't:
+ * a live-tested report produced "a specific object tied to a shared memory
+ * — specifically, no the tattoo artist ability", ungrammatical because
+ * nothing constrains what the client types into that plain text field.
+ * Closing the candidate's own sentence first, then introducing the client's
+ * words as their own clearly-labelled clause, is correct regardless of what
+ * they typed -- a fragment, a negation, a full sentence, anything. Kept as
+ * a full sentence-boundary + label rather than another connector so a
+ * second addition later (see ElementLine's own meaning append) never
+ * chains onto this one into the same kind of run-on again.
  */
-const DETAIL_SEPARATOR = " — specifically, ";
+const DETAIL_SEPARATOR = ". In your own words: ";
+
+/** The candidate description with any trailing sentence punctuation stripped, so DETAIL_SEPARATOR's own period never produces a doubled ".." when the description already ended with one. */
+function detailPrefix(candidateDescription: string): string {
+  return `${candidateDescription.replace(/[.!?]+$/, "")}${DETAIL_SEPARATOR}`;
+}
 
 /**
  * Per-candidate visible cap (2026-09-07 redesign, up from 3). Everything
@@ -66,8 +81,12 @@ const DETAIL_SEPARATOR = " — specifically, ";
  */
 const VISIBLE_CANDIDATE_COUNT = 5;
 
+function composeDescriptionWithDetail(candidateDescription: string, detailAnswer: string): string {
+  return `${detailPrefix(candidateDescription)}${detailAnswer}`;
+}
+
 function extractDetailAnswer(candidateDescription: string, confirmedDescription: string): string {
-  const prefix = candidateDescription + DETAIL_SEPARATOR;
+  const prefix = detailPrefix(candidateDescription);
   return confirmedDescription.startsWith(prefix) ? confirmedDescription.slice(prefix.length) : "";
 }
 
@@ -578,7 +597,7 @@ export function ElementsDiscovery() {
         const candidate = state.ui.associationCandidates[i]!;
         const id = `candidate-${i}`;
         const detailAnswer = detailByIndex[i]?.trim();
-        const description = detailAnswer ? `${candidate.description}${DETAIL_SEPARATOR}${detailAnswer}` : candidate.description;
+        const description = detailAnswer ? composeDescriptionWithDetail(candidate.description, detailAnswer) : candidate.description;
         const concreteness = candidate.resolution_state === "concrete" || detailAnswer ? "concrete" : "unresolved_placeholder";
         const defaultFidelity: ElementFidelity = decision === "keep" ? "closely_based_on" : "interpretive";
         // Fidelity refinement + reference collection moved to Screen 13

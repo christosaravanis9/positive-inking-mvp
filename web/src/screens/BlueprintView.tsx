@@ -5,6 +5,7 @@ import {
   HIERARCHY_LABEL,
   REFERENCE_STATUS_LABEL,
   visualElementSentence,
+  meaningConnector,
   groupVisualElementsForHierarchySection,
   visualSubjectsHeading,
   describeComposition,
@@ -67,7 +68,12 @@ function ElementLine({ element }: { element: VisualElement }) {
     <li>
       <strong>{description}</strong>
       {roleLabel && <span className="recommendation-tag">{roleLabel}</span>}
-      {meaning && <> — {meaning}</>}
+      {meaning && (
+        <>
+          {meaningConnector(description)}
+          {meaning}
+        </>
+      )}
     </li>
   );
 }
@@ -109,7 +115,7 @@ function formatBlueprintAsText(project: ReturnType<typeof useJourney>["state"]["
   const elementLine = (e: VisualElement) => {
     const { description, roleLabel, meaning } = visualElementSentence(e);
     const role = roleLabel ? ` (${roleLabel})` : "";
-    const meaningPart = meaning ? ` -- ${meaning}` : "";
+    const meaningPart = meaning ? `${meaningConnector(description)}${meaning}` : "";
     return `- ${description}${role}${meaningPart}`;
   };
   const hierarchyGroups = groupVisualElementsForHierarchySection(project.visual_elements);

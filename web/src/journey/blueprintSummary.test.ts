@@ -6,6 +6,7 @@ import {
   REFERENCE_STATUS_LABEL,
   groupVisualElementsForHierarchySection,
   visualSubjectsHeading,
+  meaningConnector,
   describeComposition,
   conceptSpecificDecisions,
 } from "./blueprintSummary";
@@ -103,6 +104,32 @@ describe("visualElementSentence", () => {
   it("omits personal_meaning when it only duplicates the description", () => {
     const { meaning } = visualElementSentence(elementFixture({ personal_meaning: "A specific small object that belongs to your daughter or represents a shared activity or ritual between you" }));
     expect(meaning).toBeNull();
+  });
+});
+
+/**
+ * Live-test report (2026-09-08): the same run-on category as
+ * DETAIL_SEPARATOR (ElementsDiscovery.tsx), one level further out --
+ * meaning used to always get "— {meaning}" tacked directly onto
+ * description, assuming a grammatical continuation. That assumption breaks
+ * once description itself can end in unpredictable client-typed text (the
+ * DETAIL_SEPARATOR fix), so this closes description's own sentence first
+ * instead of chaining another dash onto it.
+ */
+describe("meaningConnector", () => {
+  it("adds a period when description has no terminal punctuation of its own", () => {
+    expect(meaningConnector("a specific object tied to a shared memory")).toBe(". ");
+  });
+
+  it("never doubles the terminal punctuation when description already ends with one", () => {
+    expect(meaningConnector("A drawing you made as a kid, kept exactly as you drew it.")).toBe(" ");
+    expect(meaningConnector("Is this the right idea?")).toBe(" ");
+    expect(meaningConnector("Exactly this!")).toBe(" ");
+  });
+
+  it("ignores trailing whitespace when deciding", () => {
+    expect(meaningConnector("a specific object.   ")).toBe(" ");
+    expect(meaningConnector("a specific object   ")).toBe(". ");
   });
 });
 

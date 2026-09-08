@@ -96,6 +96,24 @@ export function visualElementSentence(e: VisualElement): { description: string; 
 }
 
 /**
+ * The connector between an element's description and its personal_meaning
+ * clause (both BlueprintView callers append meaning through this, never an
+ * em-dash directly). description used to always get "— {meaning}" tacked
+ * on, assuming it would read as a grammatical continuation -- but
+ * description can now end in the client's own free-typed detail addition
+ * (ElementsDiscovery.tsx's DETAIL_SEPARATOR fix), which carries no
+ * guaranteed punctuation of its own. Chaining another em-dash onto that is
+ * exactly the same run-on category the detail fix eliminated, just one
+ * level further out. Always closing description's own sentence first --
+ * adding the one missing terminal mark, never doubling one already there --
+ * makes the boundary correct regardless of what description happens to end
+ * with.
+ */
+export function meaningConnector(description: string): string {
+  return /[.!?]$/.test(description.trim()) ? " " : ". ";
+}
+
+/**
  * Section 4 (Visual hierarchy) used to be the model's own visual_direction
  * paragraph followed by one merged bullet list of every element -- which is
  * exactly what let a personal-reference element's own confirmed description

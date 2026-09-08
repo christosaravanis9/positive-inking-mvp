@@ -352,18 +352,36 @@ function styleReferenceInput() {
   };
 }
 
+/**
+ * Blueprint Writer prose, in the plain register the WORDING rule targets
+ * (server/src/schemas/blueprint.ts) and with the repetition-fix structure:
+ * visual_direction is the one place the two candidate concepts get stated
+ * in full; story/why and artist_brief reference them only briefly, never
+ * re-narrating the design from scratch. Live-test evidence (2026-09-08)
+ * found the same core concept described in near-full detail four separate
+ * times (Sections 1, 3, 4, 11) and elaborate connective prose ("the piece
+ * is meant to read clearly at a glance, not as a faint or subtle mark",
+ * "Composition: confirmed as interlocking — the chosen concept... rather
+ * than sit as separate isolated elements") -- this fixture is the AFTER
+ * state for both, since this sandbox has no real ANTHROPIC_API_KEY to
+ * verify actual model compliance with the new prompt (same limitation
+ * noted for the Association WORDING fix). What real browser verification
+ * *can* confirm: the document renders correctly, with no rendering
+ * regression, in the register/structure the prompt now asks for.
+ */
 function blueprintInput() {
   return {
-    story: "A tattoo to remember a childhood dog named Scout.",
+    story: "This tattoo honours years spent with a childhood dog named Scout.",
     why_this_image: "",
-    why: "To carry a small daily reminder of that companionship.",
+    why: "To carry a daily reminder of that companionship.",
     what_matters_most: "Loyalty and companionship.",
-    visual_direction: "A single emblem, isolated, no background, minimal density.",
-    artistic_direction: "Black and grey. Illustrative style. Clearly present. Structured linework. Smooth greywash shading. Balanced contrast.",
+    visual_direction:
+      "Two ideas: a dog-silhouette emblem in clean, structured linework, no background. Or the client's own childhood drawing of Scout, kept exactly as drawn -- not cleaned up, not restyled. The composition is interlocking: the elements should visually connect and overlap, not sit apart.",
+    artistic_direction: "The piece should read clearly at a glance. Keep it bold, not faint. Black and grey. Illustrative style. Structured linework. Smooth greywash shading.",
     placement: "Forearm, medium scale, contained composition.",
     design_considerations: ["Keep linework structured enough to hold up at this scale."],
     statement_of_inspiration: "A quiet daily reminder of being greeted and loved.",
-    artist_brief: "Client-led project. Core brief: a single dog-silhouette emblem, black and grey, no background, medium forearm placement.",
+    artist_brief: "Client-led project. See the design above for the two candidate concepts. Whichever the client finalises: black and grey, no background, medium forearm placement.",
     readiness: "blueprint_ready",
   };
 }

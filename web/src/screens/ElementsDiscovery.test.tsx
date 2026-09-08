@@ -541,6 +541,104 @@ describe("ElementsDiscovery -- Keep / Build upon / Not this one, non-destructive
     expect(builtUpon.fidelity).toBe("interpretive");
   });
 
+  /**
+   * Live-test report (2026-09-08): answering a needs_client_specific_detail
+   * follow-up produced "a specific object tied to a shared memory —
+   * specifically, no the tattoo artist ability" in Section 4 -- ungrammatical
+   * because the old DETAIL_SEPARATOR (" — specifically, ") assumed the
+   * client's free-typed answer would always read as a grammatical
+   * continuation. It doesn't, and nothing constrains what a client types
+   * into that plain text field. The fix closes the candidate's own sentence
+   * first, then introduces the client's words as their own clause -- correct
+   * regardless of what they typed.
+   */
+  function seedDetailAnswerState(): JourneyState {
+    const state = createInitialJourneyState();
+    state.project = { ...state.project, ...createEmptyProjectState(state.project.project_id, state.project.created_at) };
+    const candidates = rankedCandidateFixtures(5);
+    candidates[0] = {
+      ...candidates[0]!,
+      description: "a specific object tied to a shared memory",
+      resolution_state: "needs_client_specific_detail",
+      follow_up_prompt: "What object carries the most memory for you?",
+    };
+    state.ui = {
+      ...state.ui,
+      pastWelcome: true,
+      viewpointSelected: true,
+      discoveryCompleted: true,
+      themesSelected: true,
+      intentionConfirmed: true,
+      imageDescribed: true,
+      provenanceCaptured: true,
+      associationCandidates: candidates,
+    };
+    savePersistedState(state);
+    return state;
+  }
+
+  it("composes a clean, grammatical description from a needs_client_specific_detail answer, whatever the client typed -- regression for the live-tested garbled Section 4 text", () => {
+    seedDetailAnswerState();
+    render(
+      <JourneyProvider>
+        <ElementsDiscovery />
+      </JourneyProvider>,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Keep" })[0]!);
+    const input = screen.getByPlaceholderText("Optional, but this is what makes it a real design rather than a placeholder");
+    // The client's real, live-tested answer -- a fragment that does not read as a
+    // grammatical continuation of the candidate description.
+    fireEvent.change(input, { target: { value: "no the tattoo artist ability" } });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    const stored = JSON.parse(localStorage.getItem("positive-inking:journey-state:v1")!);
+    const element = stored.project.visual_elements.find((e: { id: string }) => e.id === "candidate-0");
+    expect(element.description).toBe("a specific object tied to a shared memory. In your own words: no the tattoo artist ability");
+    // The exact live-tested garbled fragment must never appear again.
+    expect(element.description).not.toContain("— specifically,");
+    // No doubled punctuation at the join, whatever the candidate description ends with.
+    expect(element.description).not.toMatch(/\.\s*\./);
+  });
+
+  it("never doubles the terminal period when the candidate description already ends with one", () => {
+    const state = createInitialJourneyState();
+    state.project = { ...state.project, ...createEmptyProjectState(state.project.project_id, state.project.created_at) };
+    const candidates = rankedCandidateFixtures(5);
+    candidates[0] = {
+      ...candidates[0]!,
+      description: "A drawing you made as a kid, kept exactly as you drew it.",
+      resolution_state: "needs_client_specific_detail",
+      follow_up_prompt: "What object carries the most memory for you?",
+    };
+    state.ui = {
+      ...state.ui,
+      pastWelcome: true,
+      viewpointSelected: true,
+      discoveryCompleted: true,
+      themesSelected: true,
+      intentionConfirmed: true,
+      imageDescribed: true,
+      provenanceCaptured: true,
+      associationCandidates: candidates,
+    };
+    savePersistedState(state);
+    render(
+      <JourneyProvider>
+        <ElementsDiscovery />
+      </JourneyProvider>,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Keep" })[0]!);
+    const input = screen.getByPlaceholderText("Optional, but this is what makes it a real design rather than a placeholder");
+    fireEvent.change(input, { target: { value: "the drawing of our dog" } });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    const stored = JSON.parse(localStorage.getItem("positive-inking:journey-state:v1")!);
+    const element = stored.project.visual_elements.find((e: { id: string }) => e.id === "candidate-0");
+    expect(element.description).toBe("A drawing you made as a kid, kept exactly as you drew it. In your own words: the drawing of our dog");
+  });
+
   it("two different slots' blank re-rolls dispatched in the same tick (before either re-renders) never hand out the same reserve candidate -- the reserveCursor race reported live", () => {
     seedRerollState(); // 5 visible + 2 reserve: Candidate 5 and Candidate 6
     render(

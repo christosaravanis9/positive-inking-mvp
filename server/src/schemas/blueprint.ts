@@ -21,9 +21,9 @@ Preserve confirmed themes and consolidate no more than three core values.
 
 In attraction or expert mode, write why_this_image in place of story. State
 provenance as fact and interpret nothing. Do not write thin versions of
-sections you are unsure about — write your best honest attempt for every
-field; a downstream deterministic rule will remove whole sections that do not
-apply to this journey, so do not pre-emptively hedge or omit within a field.
+sections you are unsure about. Write your best honest attempt for every
+field -- a downstream rule removes whole sections that do not apply to this
+journey, so do not hedge or omit within a field just in case.
 
 Explain what each visual represents and distinguish primary, supporting,
 accent and background roles.
@@ -48,19 +48,30 @@ Distinguish avoidances declined from avoidances never asked.
 Calibrate the Artist Brief to creative control: client-led -> precise
 requirements; collaborative -> priorities plus open decisions; artist-led ->
 meaning and non-negotiables while preserving interpretation; surrendered ->
-meaning, non-negotiables and accuracy requirements only. "Collaborative" is
-the name of one specific creative-control level, not a general word for
+meaning, non-negotiables and accuracy requirements only. "Collaborative"
+names one specific creative-control level. It is not a general word for
 "there are things left to decide" -- a client-led project can still have
-decisions the client has not made yet, but describe those as open decisions
-for the client to finalise, never as the project being collaborative. Only
-use the word "collaborative" when the confirmed creative control is actually
-collaborative.
+undecided details; call those open decisions for the client to finalise,
+never the project being collaborative. Only call the project collaborative
+when the confirmed creative control is actually collaborative.
 
 Each confirmed fact belongs in one primary section. Do not restate the same
 fact (a composition choice, a density, a treatment word) across multiple
 sections just to make each one sound complete on its own -- mention it once
 where it is load-bearing, and only repeat it elsewhere if that section
 genuinely cannot be understood without it.
+
+visual_direction is the one place that states the chosen visual concept in
+full -- everything it is, in concrete detail. Every other section already
+knows what the concept is; none of them need to re-explain it. story and why
+may reference the concept, but only as much as the personal, human reason
+for it needs -- never re-narrate what it looks like, that is
+visual_direction's job alone. artist_brief may reference the concept only
+briefly (e.g. "the design described above") and must add only what is
+genuinely new for the artist -- a requirement, a constraint, a priority --
+never restate the concept's own narrative from scratch. If you catch
+yourself writing the same descriptive sentence you already wrote in
+visual_direction, delete it and reference visual_direction instead.
 
 Statement of inspiration is one or two sentences only, drawn primarily from
 the client's story and why -- the personal, human reason this tattoo
@@ -77,6 +88,37 @@ that dimension (do not write "Graphic realism style"; write something like
 "a graphic style" or "graphic-style linework" instead).
 
 Never call an unverified generated image print-ready or final.
+
+WORDING — write every field in plain, common words and short, direct
+sentences -- the same register already required of the Association
+candidates this Blueprint is built from, extended here to the whole
+document. This changes sentence length and word choice only, never content:
+the same specific detail, said directly instead of qualified.
+  - Avoid a formal connective ("rather than," "as it was originally,"
+    "which subsequently") wherever a plain word, or simply a period and a
+    new short sentence, says the same thing. State the specific detail
+    once; do not also state what it is not, unless that contrast is itself
+    the point.
+  - A short input fact (e.g. "Composition: Interlocking") does not need an
+    elaborate sentence to sound complete. Say what it means plainly and
+    stop -- do not pad it with a subordinate clause to make the sentence
+    feel more thorough.
+  BEFORE (real output this replaces): "the piece is meant to read clearly
+  at a glance, not as a faint or subtle mark" / "Composition: confirmed as
+  interlocking — the chosen concept... should be built so its parts
+  visually connect/overlap rather than sit as separate isolated elements."
+  AFTER (same specific detail, plain and direct): "The piece should read
+  clearly at a glance. Keep it bold, not faint." / "The composition is
+  interlocking: the elements should visually connect and overlap, not sit
+  apart."
+  A second calibration, for Your story / Your intention: BEFORE "This
+  tattoo is meant to honour the bond between them, not as a generic symbol
+  but as something rather more specific and personal." AFTER "This tattoo
+  honours the bond between them. It's personal, not a generic symbol."
+  A third, for the Artist Brief: BEFORE "The linework should be kept clean
+  and precise, rather than loose or sketch-like, as this is not the style
+  the client is seeking." AFTER "Keep the linework clean and precise. Not
+  loose or sketch-like."
 
 OUTPUT — valid structured data via the write_blueprint tool.`;
 

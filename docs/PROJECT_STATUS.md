@@ -180,9 +180,18 @@ stays reachable via the pager, same as a re-roll. Building it surfaced
 and fixed one more real bug: `confirm()` was reading stale decisions for
 candidates a slot had since moved on from, which would have produced a
 ghost extra element after a refinement. See the latest session log
-entry for the full design and verification. 455 unit tests pass across
-engine/server/web; typecheck and build are clean across all three
-workspaces.
+entry for the full design and verification. **A real live-tested bug is
+now fixed too (2026-09-08): only the first 2-3 of Screen 7's 5 slots
+could actually "Not this one."** Root-caused to the Association prompt's
+own batch-size guidance never being scaled up when the visible count
+was raised from 3 to 5 — the shared reserve pool every slot's re-roll
+draws from was starved, not any per-slot code bug (confirmed live: the
+exhaustion-handling code was working exactly as designed, it just ran
+out two slots too early). Fixed by raising that guidance to "typically
+9 to 12 total," with an explicit note tying it to the visible count so
+this can't silently drift again. See the latest session log entry. 456
+unit tests pass across engine/server/web; typecheck and build are clean
+across all three workspaces.
 
 **Design:** a new "studio ledger" visual direction (warm parchment
 background, serif headline, ember-accented selection/marginalia, no card
@@ -399,6 +408,62 @@ here for you to decide scope on, matching how other open decisions in
 this document are tracked.
 
 ## Session log
+
+### 2026-09-08 — Confirmed and fixed the "Artist suggestion:" label wording, and root-caused + fixed a real live-tested bug: slots 4-5's "Not this one" silently doing nothing
+
+Two items in one round: a wording confirmation, and a real bug reported
+from live client testing.
+
+**1. "Artist suggestion:" label, confirmed and fixed.** Read
+`server/src/routes/association.ts`'s `refine_user_edit` instruction
+verbatim and confirmed it did NOT use that literal label (matching the
+prior investigation, which also could not find it anywhere in the
+repo). Fixed directly: the instruction now reads `"Respond as an Artist
+suggestion: a concrete development of exactly this idea..."` instead of
+`"Refine and develop exactly this idea..."`.
+
+**2. Real bug: only the first 2-3 of Screen 7's 5 slots could
+"Not this one."** Investigated per the report's own checklist before
+touching any code:
+- Checked every function touching per-slot state
+  (`notThisOne`/`submitReroll`/`appendToHistory`/`pageSlot`/the seeding
+  effect) for a hardcoded `3` left over from before the visible count
+  was raised to 5 -- none found; `VISIBLE_CANDIDATE_COUNT` is used
+  consistently everywhere. **Ruled out.**
+- Checked the Association prompt's batch-size guidance (rule 1): still
+  said "typically 4 to 8 total," unchanged since before the visible
+  count went from 3 to 5. With 5 shown by default, that range leaves as
+  few as 0 candidates for the reserve pool every slot's free "not this
+  one" draws from. **Confirmed as the root cause.**
+- Reproduced live (real server + Vite + fake-Anthropic double, the
+  fixture's existing 5-visible-plus-2-reserve shape standing in for a
+  realistic response near that stale range): clicked "Not this one" on
+  all 5 slots in order. Slots 1-2 (backed by the 2 available reserve
+  candidates) re-rolled correctly; slots 3-5 correctly showed the "no
+  more free alternatives" hint and correctly no-opped on blank
+  submission -- the existing exhaustion-handling code was working
+  exactly as designed. The bug was never in the slot-handling code at
+  all; it was that the reserve pool the whole screen shares was too
+  small for 5 slots to draw from, and got exhausted after only 2 of
+  them, not because slots 4-5 specifically were broken.
+  Fix: raised rule 1's guidance to "typically 9 to 12 total," with an
+  explicit note tying that number to the visible count and to what
+  happens if the two drift apart again, so a future increase to the
+  visible count doesn't quietly reintroduce the same bug.
+  `test-integration/fakeAnthropic.mjs`'s fixture expanded from 2 to 7
+  reserve candidates (5 visible + 7 reserve = 12, the top of the new
+  range) to match, and on-story for Scout the dog.
+
+**Verification.** New regression test in `ElementsDiscovery.test.tsx`
+explicitly covering "Not this one" on slot 4 and slot 5 (not just 1-3,
+which existing tests already covered) — exactly the kind of off-by-N
+bug that only shows up when the newly-added slots themselves are
+tested, not just the ones that existed before the redesign.
+Typecheck/build clean; 456 tests pass across engine (165)/server
+(65)/web (226, +1). Live browser check with the expanded reserve pool:
+all 5 slots successfully re-roll in sequence, and Keep/Build upon both
+confirmed working on the specific slots (4 and 5) that were previously
+broken, screenshotted.
 
 ### 2026-09-07 (later than that) — Simplified Association's candidate wording (description/personal_meaning) app-wide to the same plain-words house standard already set for static screen copy
 

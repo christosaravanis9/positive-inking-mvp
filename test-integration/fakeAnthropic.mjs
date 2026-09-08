@@ -222,12 +222,17 @@ function associationInput(text = "") {
         genericity: 5,
         reference_availability: 5,
       },
-      // Reserve material (2026-09-07, per-candidate re-roll, now 5 visible
-      // slots not 3): scored lower on personal/story relevance and
-      // originality than the five above, so rankVisualCandidates always
-      // places these beyond VISIBLE_CANDIDATE_COUNT -- this is what lets a
-      // live journey actually exercise a blank ("Not this one", no reason
-      // given) re-roll pulling from the free reserve pool.
+      // Reserve material (2026-09-07, per-candidate re-roll; count raised
+      // 2026-09-08 to match the Association prompt's own rule 1 -- "9 to 12
+      // total," scaled for 5 visible slots not 3, after a live report that
+      // only the first couple of "not this one" clicks anywhere on the
+      // screen actually worked, regardless of which slot). Scored lower on
+      // personal/story relevance and originality than the five above, so
+      // rankVisualCandidates always places these beyond
+      // VISIBLE_CANDIDATE_COUNT -- this is what lets a live journey
+      // actually exercise a blank ("Not this one", no reason given)
+      // re-roll pulling from the free reserve pool, on every visible slot,
+      // not just the first two or three.
       {
         description: "a small linework paw print, rendered simply",
         personal_meaning: "a straightforward nod to the bond with your dog",
@@ -251,6 +256,66 @@ function associationInput(text = "") {
         originality: 4,
         genericity: 6,
         reference_availability: 6,
+      },
+      {
+        description: "a leash coiled into a loose spiral",
+        personal_meaning: "the shape of every walk you took together",
+        source_category: "personal_artefact",
+        resolution_state: "concrete",
+        personal_relevance: 4,
+        story_relevance: 4,
+        visual_potential: 5,
+        originality: 3,
+        genericity: 6,
+        reference_availability: 5,
+      },
+      {
+        description: "a single dog bone, worn smooth at one end",
+        personal_meaning: "a small, well-used thing, not a symbol standing in for it",
+        source_category: "personal_artefact",
+        resolution_state: "concrete",
+        personal_relevance: 3,
+        story_relevance: 3,
+        visual_potential: 4,
+        originality: 3,
+        genericity: 7,
+        reference_availability: 6,
+      },
+      {
+        description: "a food bowl, empty, seen from directly above",
+        personal_meaning: "the shape of what's missing now, not the dog itself",
+        source_category: "new_materialisation",
+        resolution_state: "concrete",
+        personal_relevance: 3,
+        story_relevance: 3,
+        visual_potential: 5,
+        originality: 5,
+        genericity: 5,
+        reference_availability: 4,
+      },
+      {
+        description: "a single ear, upright, mid-alert",
+        personal_meaning: "one small piece of him, not the whole picture",
+        source_category: "personal_artefact",
+        resolution_state: "concrete",
+        personal_relevance: 3,
+        story_relevance: 2,
+        visual_potential: 5,
+        originality: 4,
+        genericity: 5,
+        reference_availability: 5,
+      },
+      {
+        description: "a gate left slightly open",
+        personal_meaning: "not sad, just always a little bit waiting for him",
+        source_category: "new_materialisation",
+        resolution_state: "concrete",
+        personal_relevance: 2,
+        story_relevance: 2,
+        visual_potential: 5,
+        originality: 5,
+        genericity: 5,
+        reference_availability: 4,
       },
     ],
     place_role: "none",

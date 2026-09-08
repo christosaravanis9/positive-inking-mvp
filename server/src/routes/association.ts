@@ -51,7 +51,7 @@ associationRouter.post("/api/associations", async (req, res) => {
           `The client wants to develop one of their own candidate ideas further -- this is NOT a rejection, do not propose something different.`,
           `Original candidate: "${refine_original_description ?? ""}"`,
           `The client's own edit or addition to it: "${refine_user_edit.trim()}"`,
-          `Refine and develop exactly this idea, grounded in what the client themselves wrote -- keep their intent and the substance of their edit intact, and complete/sharpen it into one polished candidate. This is iteration on the client's own idea, not a fresh alternative: do not ignore, water down, or override what they specifically wrote. Follow every other rule in your system instructions.`,
+          `Respond as an Artist suggestion: a concrete development of exactly this idea, grounded in what the client themselves wrote -- keep their intent and the substance of their edit intact, and complete/sharpen it into one polished candidate. This is iteration on the client's own idea, not a fresh alternative: do not ignore, water down, or override what they specifically wrote. Follow every other rule in your system instructions.`,
         ].join("\n")
       : avoid_descriptions.length > 0
         ? [

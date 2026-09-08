@@ -349,6 +349,39 @@ describe("ElementsDiscovery -- Keep / Build upon / Not this one, non-destructive
     screen.getByText("Candidate 5");
   });
 
+  it("'Not this one' works correctly on slot 4 and slot 5 specifically, not just the first 3 -- regression for the off-by-N bug reported live (2026-09-08): the reserve pool wasn't sized for 5 visible slots, so only the first couple of clicks anywhere on the screen actually re-rolled", () => {
+    // 5 visible + 4 reserve so both slot 4 and slot 5 have their own free
+    // reserve candidate available, independent of each other and of
+    // whatever the first 3 slots consume.
+    seedRerollState(9);
+    render(
+      <JourneyProvider>
+        <ElementsDiscovery />
+      </JourneyProvider>,
+    );
+
+    for (const n of [0, 1, 2, 3, 4]) screen.getByText(`Candidate ${n}`);
+
+    // Slot 4 (index 3): "Not this one" -> blank submit must swap it, pulling
+    // the first unused reserve candidate (the shared cursor starts at 0
+    // regardless of which slot rerolls first).
+    fireEvent.click(screen.getAllByRole("button", { name: "Not this one" })[3]!);
+    fireEvent.click(screen.getByRole("button", { name: "Show me something else" }));
+    expect(screen.queryByText("Candidate 3")).toBeNull();
+    screen.getByText("Candidate 5"); // first unused reserve candidate
+
+    // Slot 5 (index 4): "Not this one" -> blank submit must also swap it,
+    // independently of slot 4's own swap above, pulling the next one.
+    fireEvent.click(screen.getAllByRole("button", { name: "Not this one" })[4]!);
+    fireEvent.click(screen.getByRole("button", { name: "Show me something else" }));
+    expect(screen.queryByText("Candidate 4")).toBeNull();
+    screen.getByText("Candidate 6");
+
+    // Slots 1-3 were never touched -- confirms slot 4/5's re-roll didn't
+    // somehow reroll the wrong slot instead.
+    for (const n of [0, 1, 2]) screen.getByText(`Candidate ${n}`);
+  });
+
   it("paging back and forth through history never calls the server", () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);

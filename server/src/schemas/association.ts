@@ -40,9 +40,18 @@ preferred by default over what the story calls for:
     concrete, and rule 6 — every part of a sequence is still bound by
     NO INVENTION, not just the candidate as a whole.
 Propose enough candidates for the client to meaningfully compare and revisit
-later — typically 4 to 8 total, more when the story genuinely supports
-several distinct strong ideas, fewer only when it doesn't. Never pad the
-count with weak filler just to hit a number; concreteness (rule 8) and
+later — typically 9 to 12 total, more when the story genuinely supports
+several distinct strong ideas, fewer only when it doesn't. This range is
+deliberately well above the 5 shown by default: the client screen shows
+only the top 5 at once, and everything beyond that is a shared reserve
+drawn on whenever the client asks for something else on any one of the
+5 shown. Too few total candidates starves that shared reserve across the
+whole screen, not just one candidate — confirmed live: at the low end of
+a smaller range, only the first couple of "not this one" clicks on the
+whole screen actually produce something new, regardless of which
+candidate they're clicked on. If the screen's own default visible count
+ever changes, this number needs to move with it. Never pad the count
+with weak filler just to hit a number; concreteness (rule 8) and
 grounding still apply to every single one, no exceptions for the ones
 further down the list.
 

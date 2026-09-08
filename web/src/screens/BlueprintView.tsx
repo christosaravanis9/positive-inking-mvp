@@ -6,6 +6,7 @@ import {
   REFERENCE_STATUS_LABEL,
   visualElementSentence,
   groupVisualElementsForHierarchySection,
+  visualSubjectsHeading,
   describeComposition,
   conceptSpecificDecisions,
 } from "../journey/blueprintSummary";
@@ -113,7 +114,7 @@ function formatBlueprintAsText(project: ReturnType<typeof useJourney>["state"]["
   };
   const hierarchyGroups = groupVisualElementsForHierarchySection(project.visual_elements);
   section(
-    "04 — Confirmed visual subjects",
+    `04 — ${visualSubjectsHeading(hierarchyGroups)}`,
     [
       hierarchyGroups.personal.length > 0 ? ["Personal reference:", ...hierarchyGroups.personal.map(elementLine)].join("\n") : "",
       hierarchyGroups.other.length > 0 ? ["Other elements:", ...hierarchyGroups.other.map(elementLine)].join("\n") : "",
@@ -301,7 +302,7 @@ export function BlueprintView() {
       )}
       <section className="blueprint-section">
         <span className="blueprint-section-number">04</span>
-        <h3 className="blueprint-section-heading">Confirmed visual subjects</h3>
+        <h3 className="blueprint-section-heading">{visualSubjectsHeading(hierarchyGroups)}</h3>
         {hierarchyGroups.personal.length > 0 && (
           <>
             <p className="supporting">

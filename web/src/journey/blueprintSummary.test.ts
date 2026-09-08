@@ -5,6 +5,7 @@ import {
   visualElementSentence,
   REFERENCE_STATUS_LABEL,
   groupVisualElementsForHierarchySection,
+  visualSubjectsHeading,
   describeComposition,
   conceptSpecificDecisions,
 } from "./blueprintSummary";
@@ -181,6 +182,45 @@ describe("groupVisualElementsForHierarchySection", () => {
   it("a resolved element never appears under 'still undecided'", () => {
     const groups = groupVisualElementsForHierarchySection([elementFixture({ hierarchy: "primary" })]);
     expect(groups.stillUndecided).toHaveLength(0);
+  });
+});
+
+/**
+ * Live-test report (2026-09-08): Section 4's heading always read "Confirmed
+ * visual subjects" even when every element under it was flagged "Still
+ * undecided" -- a client who hadn't resolved a single element's hierarchy
+ * yet saw a heading claiming something was confirmed directly above a list
+ * saying the opposite. groupVisualElementsForHierarchySection already tracks
+ * exactly the right state (personal/other are the two groups reserved for a
+ * RESOLVED hierarchy) -- visualSubjectsHeading just has to read it instead
+ * of hardcoding the label.
+ */
+describe("visualSubjectsHeading", () => {
+  it("reads 'Confirmed visual subjects' when at least one element has a resolved hierarchy (personal)", () => {
+    const groups = groupVisualElementsForHierarchySection([elementFixture({ source_category: "personal_artefact", hierarchy: "primary" })]);
+    expect(visualSubjectsHeading(groups)).toBe("Confirmed visual subjects");
+  });
+
+  it("reads 'Confirmed visual subjects' when at least one element has a resolved hierarchy (other), even alongside still-undecided ones", () => {
+    const groups = groupVisualElementsForHierarchySection([
+      elementFixture({ id: "resolved", source_category: "new_materialisation", hierarchy: "accent" }),
+      elementFixture({ id: "undecided", source_category: "new_materialisation", hierarchy: "undecided" }),
+    ]);
+    expect(visualSubjectsHeading(groups)).toBe("Confirmed visual subjects");
+  });
+
+  it("reads 'Visual subjects being explored' -- never 'Confirmed' -- when every element is still undecided, the exact live-test contradiction", () => {
+    const groups = groupVisualElementsForHierarchySection([
+      elementFixture({ id: "a", hierarchy: "undecided" }),
+      elementFixture({ id: "b", hierarchy: "undecided" }),
+    ]);
+    expect(visualSubjectsHeading(groups)).toBe("Visual subjects being explored");
+    expect(visualSubjectsHeading(groups)).not.toContain("Confirmed");
+  });
+
+  it("reads 'Visual subjects being explored' when there are no elements at all yet", () => {
+    const groups = groupVisualElementsForHierarchySection([]);
+    expect(visualSubjectsHeading(groups)).toBe("Visual subjects being explored");
   });
 });
 

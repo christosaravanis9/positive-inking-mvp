@@ -129,6 +129,23 @@ export function groupVisualElementsForHierarchySection(elements: readonly Visual
   };
 }
 
+/**
+ * Section 4's heading used to be the bare literal "Confirmed visual subjects"
+ * regardless of whether anything in `hierarchyGroups` was actually resolved
+ * -- a client whose every element was still `undecided` (personal/other both
+ * empty) saw a section headed "Confirmed" directly above a list entirely
+ * flagged "Still undecided", which reads as a mistake in the document, not a
+ * deliberate "here's what's still open" section. `personal`/`other` are
+ * exactly the two groups groupVisualElementsForHierarchySection already
+ * reserves for elements with a resolved hierarchy (`stillUndecided` takes
+ * priority over both, see that function's own comment) -- so whether either
+ * has anything in it is already the correct, existing signal for "is
+ * anything genuinely confirmed yet," with no new state to track.
+ */
+export function visualSubjectsHeading(groups: VisualHierarchyGroups): string {
+  return groups.personal.length > 0 || groups.other.length > 0 ? "Confirmed visual subjects" : "Visual subjects being explored";
+}
+
 /** Screen 10's own labels (CompositionBackground.tsx) for the one field OptionChips stores by raw value rather than label -- see that component's GENERIC_OPTIONS.density and its onSelect(option.value) wiring. Kept here, not there, since this is the one place that needs to decode it back to prose. */
 const DENSITY_LABEL: Record<string, string> = {
   minimal: "Minimal",

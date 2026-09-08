@@ -114,7 +114,10 @@ describe("BlueprintView -- Visual hierarchy rendering (regression: raw '(undecid
       </JourneyProvider>,
     );
 
-    const section = screen.getByRole("heading", { name: "Confirmed visual subjects" }).closest("section")!;
+    // The default fixture's one element is still undecided -- so the heading itself
+    // reads "Visual subjects being explored", not "Confirmed" (see the
+    // visualSubjectsHeading describe block below for that behavior in isolation).
+    const section = screen.getByRole("heading", { name: "Visual subjects being explored" }).closest("section")!;
     // The fixture's description contains a comma-free, distinctive substring safe to count.
     expect(occurrences(section.textContent!, "craft wire and plaster fabric")).toBe(1);
     expect(occurrences(section.textContent!, "A concrete thing from your shared world")).toBe(1);
@@ -128,7 +131,7 @@ describe("BlueprintView -- Visual hierarchy rendering (regression: raw '(undecid
       </JourneyProvider>,
     );
 
-    const section = screen.getByRole("heading", { name: "Confirmed visual subjects" }).closest("section")!;
+    const section = screen.getByRole("heading", { name: "Visual subjects being explored" }).closest("section")!;
     expect(section.textContent).not.toMatch(/\(undecided\)/i);
     const stillUndecidedItem = screen.getByText("Still undecided:").closest("section")!.querySelector("ul li")!;
     expect(stillUndecidedItem.textContent).not.toMatch(/\bundecided\b/i);
@@ -175,6 +178,41 @@ describe("BlueprintView -- Visual hierarchy rendering (regression: raw '(undecid
     expect(screen.queryByText("Personal reference:")).toBeNull();
     screen.getByText("Other elements:"); // throws if not found -- the element must be listed somewhere
     expect(section.textContent).toContain("A new mark made for this project");
+  });
+});
+
+/**
+ * Live-test report (2026-09-08): Section 4's heading read "Confirmed visual
+ * subjects" even when every listed item was flagged "Still undecided" --
+ * blueprintSummary.test.ts covers visualSubjectsHeading() itself in
+ * isolation; these two close the same gap the file's own header comment
+ * describes for the rest of Section 4 -- a regression where the component
+ * stops calling the shared helper (e.g. reverts to the old hardcoded
+ * string) would pass the pure-function tests but still ship the bug.
+ */
+describe("BlueprintView -- Section 4 heading reflects real confirmed/undecided state (live-test regression, 2026-09-08)", () => {
+  it("reads 'Visual subjects being explored', never 'Confirmed', when nothing has a resolved hierarchy yet", () => {
+    seedBlueprintState({}); // default fixture: one element, hierarchy "undecided"
+    render(
+      <JourneyProvider>
+        <BlueprintView />
+      </JourneyProvider>,
+    );
+
+    screen.getByRole("heading", { name: "Visual subjects being explored" });
+    expect(screen.queryByRole("heading", { name: "Confirmed visual subjects" })).toBeNull();
+  });
+
+  it("reads 'Confirmed visual subjects' once at least one element has a resolved hierarchy", () => {
+    seedBlueprintState({ visualElements: [elementFixture({ hierarchy: "primary" })] });
+    render(
+      <JourneyProvider>
+        <BlueprintView />
+      </JourneyProvider>,
+    );
+
+    screen.getByRole("heading", { name: "Confirmed visual subjects" });
+    expect(screen.queryByRole("heading", { name: "Visual subjects being explored" })).toBeNull();
   });
 });
 
@@ -304,6 +342,11 @@ describe("BlueprintView -- Readiness reason rendering (regression: bare label wi
 describe("BlueprintView -- twelve-section restructure (Sites migration spec §7)", () => {
   it("renders every section heading in spec order, Readiness last", () => {
     seedBlueprintState({
+      // A resolved element, not the default fixture's undecided one -- this test is
+      // about section ORDER, orthogonal to visualSubjectsHeading's own confirmed-
+      // vs-undecided behavior (covered separately below), so it uses "Confirmed
+      // visual subjects" as its known-stable expected heading text.
+      visualElements: [elementFixture({ hierarchy: "primary" })],
       project: {
         composition_type: "Isolated, no background",
         composition_background: "none",

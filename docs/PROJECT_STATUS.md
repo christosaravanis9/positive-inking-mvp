@@ -255,6 +255,22 @@ session surfaced along the way (an intermittent `follow_up_prompt`
 schema-validation failure that discards an entire good batch for one
 malformed candidate).
 
+**The `follow_up_prompt` schema-validation bug above is now fixed and
+verified (2026-09-09, later): closed, removed from Open decisions.**
+Both changes the report asked for, together (neither alone would have
+closed it): `follow_up_prompt` now accepts and coerces an explicit
+`null` to `undefined`; and `/api/associations` validates
+`visual_candidates` per-entry instead of as one array, dropping only
+the malformed candidate(s) and logging a `[model-timing]` line for each
+(never the candidate's own description/personal_meaning text), only
+failing the whole request once zero candidates survive. Real-model
+re-verification: 8/8 real batch fetches succeeded post-fix (vs. 2/4
+failing before), no third failure shape appeared, and no batch fell
+below 5 (the visible-slot count) after salvage — no impact on rule 1's
+"9 to 12 total" guidance. 484 unit tests pass across engine/server/web
+(+17 for this fix); typecheck and build are clean across all three
+workspaces.
+
 **Design:** a new "studio ledger" visual direction (warm parchment
 background, serif headline, ember-accented selection/marginalia, no card
 chrome) was explored as an isolated static preview, approved, and is now
@@ -321,32 +337,6 @@ to compare terminal output by hand.
   decision are all in the latest session log entry. **Parts 2-4 are not
   built** — awaiting your read on the sequencing fix and the Why/generation
   tension before any of it is implemented.
-- **Association `follow_up_prompt` schema-validation reliability — newly
-  discovered real bug, decision needed.** Found while running the first
-  real-model verification this project has ever had (2026-09-09, see the
-  latest session log entry): a real `/api/associations` batch fetch (9-12
-  candidates) intermittently fails schema validation and returns a 502
-  with ZERO candidates -- observed in 2 of 4 real calls in this one
-  session. Two distinct manifestations, same underlying cause: the model
-  sometimes emits `follow_up_prompt: null` on a candidate whose
-  `resolution_state` is `"concrete"` (`z.string().optional()` accepts
-  `undefined` but not `null`, so this fails type validation), and
-  sometimes omits/empties it on a candidate whose `resolution_state` IS
-  `"needs_client_specific_detail"` (correctly caught by the schema's own
-  `.refine()`, but the whole batch is still discarded for one bad
-  candidate among a dozen good ones). This blocked real verification of
-  two of the three items you asked to check until a retry happened to
-  succeed -- it is a live, real-user-facing failure mode (a genuinely
-  intermittent 50%-ish failure rate in this small sample), not a wording
-  issue, and was never caught before because this sandbox never had a
-  real API key until now. **Not touched, per your investigate-first
-  instruction.** Two directions worth your call: make the zod schema
-  tolerant of `null` (`.nullable()`, coerced to `undefined`) so a stray
-  null on a candidate that doesn't need the field no longer fails the
-  whole batch; and/or have the route drop just the offending candidate(s)
-  from a batch instead of discarding the entire response for one bad
-  entry, since 8-11 good candidates are being thrown away today alongside
-  the 1 malformed one.
 - **"Whose is it?" reference field — investigated, no change made.**
   The dropdown (`web/src/components/ReferenceAttachment.tsx`,
   `subject_relationship`) renders whenever a candidate's chosen fidelity
@@ -451,6 +441,87 @@ here for you to decide scope on, matching how other open decisions in
 this document are tracked.
 
 ## Session log
+
+### 2026-09-09 (later still) — Fixed the follow_up_prompt schema-validation bug, verified with real output: no third failure shape, no impact on rule 1's batch-size guidance
+
+Fixed the real bug found and reported in the previous entry: a real
+`/api/associations` batch fetch intermittently 502'd with zero
+candidates over one malformed candidate's `follow_up_prompt`. Both
+requested changes, together (neither alone would have closed this):
+
+**1. Schema (`server/src/schemas/association.ts`).**
+`follow_up_prompt` changed from `z.string().optional()` to
+`z.string().nullable().optional().transform((v) => v ?? undefined)` --
+an explicit JSON `null` (the first real failure shape: the model
+emitting `null` on a candidate whose `resolution_state` doesn't need
+the field) is now coerced to `undefined` instead of failing type
+validation.
+
+**2. Route (`server/src/routes/association.ts`), per-candidate
+validation.** Added `parseAssociationResult()` to the schema file:
+validates each `visual_candidates` entry individually via the existing
+`visualCandidateSchema` (unchanged, including its own `.refine()` that
+still correctly requires `follow_up_prompt` when `resolution_state` is
+`needs_client_specific_detail` -- this is the SECOND real failure
+shape, a genuinely missing value the schema fix in #1 can't address on
+its own), keeps whichever candidates parse, and only returns `data:
+null` (triggering the whole-request 502, unchanged from before) once
+zero candidates survive. Every other top-level field (`place_role`,
+`contradictions_noticed`, ...) is still validated exactly as strictly
+as before via a final `associationResultSchema` pass over the
+reconstructed object -- the relaxation is scoped to candidates only,
+per the task's own instruction. Added `logAssociationCandidateDropped()`
+to `modelTiming.ts`, mirroring `logModelTiming`'s existing convention
+(`[model-timing]` prefix, unconditional `console.log`, key=value
+parts): logs `candidate_index`, `resolution_state`, and the zod issue
+path/message for every dropped candidate, deliberately never the
+candidate's own `description`/`personal_meaning` (real story-derived
+content), matching this project's own never-log-story-content
+discipline.
+
+**Verification.** New tests: `server/test/associationSchema.test.ts`
+(9 cases -- both real failure shapes individually and combined, the
+"zero survive" case, the "non-candidate field still fails the whole
+request" boundary, the "never logs the candidate's own text" case, a
+missing/non-array `visual_candidates` guard) and
+`server/test/associationRoute.test.ts` (6 cases, the same scenarios
+end-to-end through the real Express route via `supertest`, plus
+confirming the actual `[model-timing]` log line's exact shape).
+`modelTiming.test.ts` gained 2 more for `logAssociationCandidateDropped`
+itself. Typecheck, full suite (484 tests -- engine 165, server 82, web
+237), and build all clean across all three workspaces.
+
+**Real-model re-verification, per the task's own "report back if a
+third failure shape appears, or if salvage affects the '9 to 12'
+guidance" instruction.** Ran 8 real `/api/associations` calls across 4
+scenarios (Scout the dog, the Athena wall-art scenario, the "stopped
+drinking" story, a grandmother's-garden scenario), 2 of them repeated,
+using a key supplied for this run only (never written to any file,
+never committed). Results: **8/8 succeeded** (batch sizes 5, 5, 6, 11,
+11, 11, 12, 12) versus the 2/4 that failed before this fix in the same
+session. **No third failure shape appeared** -- every error observed
+in this project remains one of the two already characterized and now
+handled. **No batch fell below 5** (the visible-slot count that
+actually matters for the reserve pool) after this fix, so **no impact
+on rule 1's "9 to 12 total" guidance** -- worth flagging honestly,
+though: the specific per-candidate DROP code path was not directly
+observed firing on real output in these 8 calls (no
+`candidate_dropped` log lines appeared) -- the most plausible
+explanation is that the null-coercion fix (#1) silently resolves the
+more commonly-observed failure shape before a drop would ever be
+needed, and the "genuinely missing" shape (#2) that would trigger a
+drop is real (reproduced in the original bug report and covered by
+unit tests with synthetic data matching it exactly) but rarer, and
+this session's 8 real calls simply didn't happen to hit it again. Not
+a gap in the fix itself -- both real failure shapes from the original
+report are covered by passing unit tests -- just a note that "8/8
+succeeded" is strong but not exhaustive evidence, consistent with how
+every real-model finding in this project has been reported: what was
+actually observed, not a permanent guarantee.
+
+Two throwaway verification scripts made the real calls and were
+deleted afterward, same pattern as the previous entry -- neither ever
+wrote the API key to disk.
 
 ### 2026-09-09 (later) — First real-model verification of this project: three open items checked against real output, one new reliability bug found along the way
 

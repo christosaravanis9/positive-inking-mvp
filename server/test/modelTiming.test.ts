@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { logModelTiming } from "../src/modelTiming.js";
+import { logModelTiming, logAssociationCandidateDropped } from "../src/modelTiming.js";
 
 describe("logModelTiming", () => {
   it("formats a successful call with token counts and derived throughput", () => {
@@ -50,6 +50,33 @@ describe("logModelTiming", () => {
     const line = spy.mock.calls[0]![0] as string;
     expect(line).toContain("http_status=503");
     expect(line).toContain("attempt=2");
+
+    spy.mockRestore();
+  });
+});
+
+describe("logAssociationCandidateDropped", () => {
+  it("formats the standard case with a known resolution_state", () => {
+    const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+    logAssociationCandidateDropped({ index: 3, resolutionState: "needs_client_specific_detail", issues: "follow_up_prompt: follow_up_prompt is required when resolution_state is needs_client_specific_detail" });
+
+    const line = spy.mock.calls[0]![0] as string;
+    expect(line).toContain("[model-timing]");
+    expect(line).toContain("stage=association");
+    expect(line).toContain("event=candidate_dropped");
+    expect(line).toContain("candidate_index=3");
+    expect(line).toContain("resolution_state=needs_client_specific_detail");
+    expect(line).toContain("issues=follow_up_prompt:");
+
+    spy.mockRestore();
+  });
+
+  it("falls back to 'unknown' when resolutionState is undefined (the raw candidate wasn't even shaped enough to read it)", () => {
+    const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+    logAssociationCandidateDropped({ index: 0, resolutionState: undefined, issues: "description: Required" });
+
+    const line = spy.mock.calls[0]![0] as string;
+    expect(line).toContain("resolution_state=unknown");
 
     spy.mockRestore();
   });

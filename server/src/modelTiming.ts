@@ -53,3 +53,31 @@ export function logModelTiming(event: ModelTimingEvent): void {
   }
   console.log(`[model-timing] ${parts.join(" ")}`);
 }
+
+export interface AssociationCandidateDroppedEvent {
+  index: number;
+  resolutionState: string | undefined;
+  issues: string;
+}
+
+/**
+ * A single malformed candidate salvaged out of an otherwise-good batch
+ * (server/src/schemas/association.ts's parseAssociationResult) instead of
+ * failing the whole request -- unconditionally logged, same as
+ * logModelTiming above, so a regression in how often this fires is visible
+ * in real traffic rather than silently invisible again. Never carries the
+ * candidate's own description/personal_meaning (real story-derived
+ * content) -- only structural detail, matching this project's own
+ * never-log-story-content discipline (see the data-minimization audit in
+ * docs/PROJECT_STATUS.md).
+ */
+export function logAssociationCandidateDropped(event: AssociationCandidateDroppedEvent): void {
+  const parts = [
+    "stage=association",
+    "event=candidate_dropped",
+    `candidate_index=${event.index}`,
+    `resolution_state=${event.resolutionState ?? "unknown"}`,
+    `issues=${event.issues}`,
+  ];
+  console.log(`[model-timing] ${parts.join(" ")}`);
+}

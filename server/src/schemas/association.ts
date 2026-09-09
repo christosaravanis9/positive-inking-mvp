@@ -324,7 +324,17 @@ const visualCandidateSchema = z
     personal_meaning: z.string(),
     source_category: z.enum(sourceCategoryEnum),
     resolution_state: z.enum(resolutionStateEnum),
-    follow_up_prompt: z.string().optional(),
+    // Real live-tested behaviour (2026-09-09): the model sometimes emits an
+    // explicit JSON null for follow_up_prompt on a candidate that doesn't
+    // need one, not just omitting the key -- a plain z.string().optional()
+    // accepts undefined but rejects null, so that alone previously failed
+    // schema validation for the whole batch over a single harmless field.
+    // Treat null the same as absent.
+    follow_up_prompt: z
+      .string()
+      .nullable()
+      .optional()
+      .transform((v) => v ?? undefined),
     personal_relevance: z.number().min(0).max(10),
     story_relevance: z.number().min(0).max(10),
     visual_potential: z.number().min(0).max(10),
@@ -335,6 +345,11 @@ const visualCandidateSchema = z
   // A candidate that needs one more detail from the client must actually carry
   // the question that would surface it -- otherwise the UI has a gate with
   // nothing to ask, and the placeholder would silently confirm unresolved.
+  // This is the OTHER real failure shape found live (2026-09-09): the model
+  // not reliably including follow_up_prompt on a candidate that DOES need
+  // it, across a large batch. Nothing above can fix that (the field is
+  // genuinely missing, not null) -- the route salvages the rest of the
+  // batch around this one instead, see parseAssociationResult below.
   .refine((c) => c.resolution_state !== "needs_client_specific_detail" || !!c.follow_up_prompt?.trim(), {
     message: "follow_up_prompt is required when resolution_state is needs_client_specific_detail",
     path: ["follow_up_prompt"],
@@ -354,3 +369,58 @@ export const associationResultSchema = z.object({
 });
 
 export type AssociationModelOutput = z.infer<typeof associationResultSchema>;
+
+/** One candidate dropped from a batch by parseAssociationResult, for logging -- never carries the candidate's own description/personal_meaning text (real story-derived content), only structural detail, matching this project's own never-log-story-content discipline. */
+export interface DroppedAssociationCandidate {
+  index: number;
+  resolutionState: string | undefined;
+  issues: string;
+}
+
+export interface AssociationParseResult {
+  /** null only when the whole request must fail: zero candidates survived, or a non-candidate field (place_role, contradictions_noticed, ...) failed validation. */
+  data: AssociationModelOutput | null;
+  droppedCandidates: DroppedAssociationCandidate[];
+}
+
+/**
+ * A single malformed candidate among 9-12 real ones used to fail the whole
+ * batch (live-tested 2026-09-09: 2 of 4 real calls 502'd with zero
+ * candidates over one bad follow_up_prompt). Validates visual_candidates
+ * entry-by-entry instead of as one array, keeps whatever survives, and only
+ * fails outright once nothing does -- every other field (place_role,
+ * contradictions_noticed, ...) is still validated as strictly as before via
+ * the final associationResultSchema pass, unchanged from prior behaviour.
+ */
+export function parseAssociationResult(raw: unknown): AssociationParseResult {
+  const droppedCandidates: DroppedAssociationCandidate[] = [];
+  const rawCandidates = Array.isArray((raw as { visual_candidates?: unknown })?.visual_candidates)
+    ? (raw as { visual_candidates: unknown[] }).visual_candidates
+    : [];
+
+  const validCandidates: z.infer<typeof visualCandidateSchema>[] = [];
+  rawCandidates.forEach((candidate, index) => {
+    const parsed = visualCandidateSchema.safeParse(candidate);
+    if (parsed.success) {
+      validCandidates.push(parsed.data);
+      return;
+    }
+    const resolutionState = (candidate as { resolution_state?: unknown })?.resolution_state;
+    droppedCandidates.push({
+      index,
+      resolutionState: typeof resolutionState === "string" ? resolutionState : undefined,
+      issues: parsed.error.issues.map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`).join("; "),
+    });
+  });
+
+  if (validCandidates.length === 0) {
+    return { data: null, droppedCandidates };
+  }
+
+  const reconstructed = { ...(raw as Record<string, unknown>), visual_candidates: validCandidates };
+  const validated = associationResultSchema.safeParse(reconstructed);
+  if (!validated.success) {
+    return { data: null, droppedCandidates };
+  }
+  return { data: validated.data, droppedCandidates };
+}

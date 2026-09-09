@@ -3,7 +3,8 @@ import { z } from "zod";
 import { callModelForStructuredOutput } from "../modelClient.js";
 import { sendModelErrorResponse } from "../errors.js";
 import { abortSignalForRequest } from "../requestAbort.js";
-import { ASSOCIATION_SYSTEM_PROMPT, associationResultSchema, associationToolInputSchema } from "../schemas/association.js";
+import { ASSOCIATION_SYSTEM_PROMPT, associationToolInputSchema, parseAssociationResult } from "../schemas/association.js";
+import { logAssociationCandidateDropped } from "../modelTiming.js";
 
 const requestSchema = z.object({
   confirmed_meaning_or_provenance: z.string().min(1),
@@ -118,15 +119,24 @@ associationRouter.post("/api/associations", async (req, res) => {
       abortSignal: abortSignalForRequest(req, res),
     });
 
-    const validated = associationResultSchema.safeParse(result.data);
-    if (!validated.success) {
+    // Per-candidate salvage (2026-09-09), not whole-batch pass/fail: a real
+    // batch of 9-12 candidates has previously been discarded entirely --
+    // zero candidates reaching the client -- over one malformed candidate's
+    // follow_up_prompt. Every dropped candidate is logged (never its own
+    // description/personal_meaning, only structural detail) so a regression
+    // in how often this fires is visible, not silently invisible again.
+    const { data: validated, droppedCandidates } = parseAssociationResult(result.data);
+    for (const dropped of droppedCandidates) {
+      logAssociationCandidateDropped(dropped);
+    }
+    if (!validated) {
       res.status(502).json({
-        error: { code: "model_invalid_response", message: "Model response failed schema validation.", detail: validated.error.format() },
+        error: { code: "model_invalid_response", message: "Model response failed schema validation.", detail: { droppedCandidates } },
       });
       return;
     }
 
-    res.json({ data: validated.data });
+    res.json({ data: validated });
   } catch (err) {
     sendModelErrorResponse(res, err);
   }

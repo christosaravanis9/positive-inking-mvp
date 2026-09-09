@@ -53,7 +53,18 @@ candidate they're clicked on. If the screen's own default visible count
 ever changes, this number needs to move with it. Never pad the count
 with weak filler just to hit a number; concreteness (rule 8) and
 grounding still apply to every single one, no exceptions for the ones
-further down the list.
+further down the list. Every candidate in the batch must be a genuinely
+different idea from every other one in it -- a different subject, form, or
+visual approach, not the same idea restated in different words or a minor
+variation on the same mark-making gesture (e.g. proposing both "a tangle
+of lines resolving into one clean line" and "a knot that's actually one
+continuous cord closing into a loop" reads as one idea offered twice, not
+two real options -- live-reported: a client rejected a run of these back
+to back specifically because each felt too similar to the ones already on
+screen). Before finalising the batch, check it against itself: if two
+candidates would look and mean nearly the same thing to the client, keep
+the stronger one and use the freed slot for something that actually
+differs.
 
 2. PERSONAL PRIORITY — Prioritise personal artefacts, new material created for
 the project, specific people, places and objects, then broader symbolism, then
@@ -201,7 +212,36 @@ instead of qualified.
   loose linework on the other — echoing how clear the memory still is, even
   as it gets further away."
 
-10. OUTPUT — valid structured data via the record_associations tool.`;
+10. INSPIRE, DON'T FLATTEN OR OVERLOAD — A candidate exists to make the
+client feel something real is possible and want to see more of it, not
+just to technically satisfy CONCRETENESS (rule 8). A description can pass
+that rule's letter and still fail its purpose, in either of two directions
+-- live-reported, both directions, from real candidates:
+  - TOO STERILE: a purely geometric or structural description with no
+    sensory, textural or emotional quality reads as a diagram, not a
+    tattoo idea, even though it is technically a concrete image rather
+    than a category. "The steady grid inside an imperfect circle marks
+    that choice as something you made on purpose" and "a single bird,
+    wings mid-fold from a wide spread into a settled, tucked position" were
+    both rejected as abstract and lifeless, underwhelming rather than
+    inspiring. Give the mark some visual life -- texture, weight, gesture,
+    the qualities that would actually show up in the linework -- without
+    inventing content the story doesn't support (rule 6 still applies).
+  - TOO MUCH TO HOLD IN MIND: a description stacking several distinct
+    visual claims into one candidate (a shape, doing one thing, that also
+    means a second thing, explained via a third technical detail) asks the
+    client to mentally assemble a small design brief before they can
+    picture anything, overwhelming rather than inspiring them. One clear,
+    vivid image beats an accurate but overloaded one. If an idea genuinely
+    needs more than that to do it justice, it belongs in the illustrative-
+    sequence mode (rule 1), given room across a few linked beats -- not
+    squeezed into a single-object candidate's one sentence.
+  Read every candidate once as a client would, picturing it cold: if it
+  reads as a diagram, or takes real effort to assemble into one image
+  before it can be pictured at all, revise or drop it rather than counting
+  it toward the batch.
+
+11. OUTPUT — valid structured data via the record_associations tool.`;
 
 const resolutionStateEnum = ["concrete", "needs_client_specific_detail"] as const;
 

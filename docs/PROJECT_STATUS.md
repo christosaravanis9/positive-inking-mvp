@@ -213,8 +213,23 @@ sections that are actually model-written (Section 4 itself is
 deterministic from confirmed elements, not model repetition, see the
 latest session log entry for that correction). See the latest session
 log entry for full before/after evidence, live reproduction, and
-verification. 467 unit tests pass across engine/server/web; typecheck
-and build are clean across all three workspaces.
+verification. **A four-item Screen 7 patch (2026-09-09) from an
+outside investigation is now applied and verified**: rejection reasons
+now accumulate across rounds within a slot instead of only the latest
+one reaching the model (`dismissal_reason_history`); a re-roll's
+"avoid" list now also covers every candidate currently visible in
+other slots, not just this slot's own history; the Association prompt
+gained a batch-self-distinctness check (rule 1) and a new rule 10
+("INSPIRE, DON'T FLATTEN OR OVERLOAD") addressing candidates that read
+as sterile diagrams or as too many stacked visual claims to picture at
+once; and the mobile-truncated follow-up placeholder is now a real,
+always-visible wrapping element instead of relying on the `placeholder`
+attribute. This sandbox still has no real `ANTHROPIC_API_KEY`, so only
+the plumbing and prompt text were verified, live — see the latest
+session log entry for what that live check actually covers versus real
+model output, which remains unverified here. 467 unit tests pass across
+engine/server/web; typecheck and build are clean across all three
+workspaces.
 
 **Design:** a new "studio ledger" visual direction (warm parchment
 background, serif headline, ember-accented selection/marginalia, no card
@@ -431,6 +446,70 @@ here for you to decide scope on, matching how other open decisions in
 this document are tracked.
 
 ## Session log
+
+### 2026-09-09 — Applied an outside-investigation patch: Screen 7 reason-history accumulation, cross-slot avoid list, two new Association prompt rules, mobile placeholder fix
+
+A separate Claude chat session investigated four live-reported Screen 7
+bugs against this repo without a real `ANTHROPIC_API_KEY` and produced
+`screen7-candidate-fixes.patch`, generated but never applied against
+this branch's own commits. Applied it here, then verified it for real
+against the actual current checkout rather than trusting that it
+merely applied.
+
+**Apply.** `git apply --check --3way` first (dry run, no conflicts),
+then `git apply --3way` for real. All five files applied cleanly with
+no 3-way fallback needed, meaning the branch hadn't drifted from what
+the patch assumed in any of the touched regions -- confirmed by reading
+every hunk against the current file content afterward, not just
+trusting a clean apply (in particular, `visibleCandidateIndices`, the
+variable the patch's new cross-slot avoid-list code reads, already
+existed in `ElementsDiscovery.tsx` at the point the patch's new code
+runs).
+
+**What it does, one line each** (see the patch's own inline comments
+for full rationale): (1) `dismissal_reason_history` — every reason the
+client has given for a slot across rounds, not just the latest one,
+now reaches the model (`ElementsDiscovery.tsx`'s `whyHistoryBySlotRef`
++ `whyHistoryBySlot`, `association.ts` route, `association.ts` API
+client) — read as a cumulative pattern, not isolated complaints. (2)
+A re-roll's `avoid_descriptions` now also includes every candidate
+currently visible in every OTHER slot on screen, not only this slot's
+own rejected history, closing a live-reported near-duplicate-across-
+slots bug. (3) `ASSOCIATION_SYSTEM_PROMPT` gained a batch-self-
+distinctness check at the end of rule 1 (candidates must be genuinely
+different ideas from each other, not the same idea restated) and a new
+rule 10, "INSPIRE, DON'T FLATTEN OR OVERLOAD" (renumbering OUTPUT to
+11), covering two live-reported failure directions a candidate can
+still pass CONCRETENESS (rule 8) while failing: reading as a sterile
+diagram with no sensory/textural quality, or stacking too many
+distinct visual claims into one sentence to picture at once. (4) The
+`needs_client_specific_detail` follow-up input's long guidance text
+("Optional, but this is what makes it a real design rather than a
+placeholder") was the ONLY place that guidance lived, as the
+`placeholder` attribute -- which never wraps, clips at the input's own
+width, isn't selectable, and disappears on focus/value -- live-
+reported as unreadable in full on a phone. Moved to a real, always-
+visible `<p>` below the input; the input's own placeholder is now just
+"Optional".
+
+**Verification.** `npm run typecheck` and the full suite (`npm test`
+per workspace: engine 165, server 65, web 237 = 467, unchanged from
+before this patch -- it modified two existing tests' assertions rather
+than adding new `it()` blocks) and `npm run build` all clean across
+all three workspaces. This sandbox has no real `ANTHROPIC_API_KEY`
+(confirmed: no `server/.env`, nothing in the process environment) --
+same limitation stated plainly in every prior round of this project,
+so real model output quality with the two new prompt rules could not
+be assessed here, only the plumbing. What real live verification
+(server + Vite + fake-Anthropic double + a real browser journey)
+*does* confirm: the mobile placeholder note now renders as a real,
+visible, wrapping element instead of clipped placeholder text
+(screenshotted); and two consecutive reasoned rejections on the same
+slot produced request bodies whose `dismissal_reason_history` genuinely
+accumulated both reasons in order on the second request (not just the
+latest), with the second request's `avoid_descriptions` covering all
+visible slots, not only the one being rejected -- both sent to the
+user as evidence rather than asserted from reading the diff alone.
 
 ### 2026-09-08 (later) — Four-item live-testing report on the Blueprint: a real garbled-text bug, a labeling contradiction, a Blueprint Writer register gap, and cross-section repetition
 

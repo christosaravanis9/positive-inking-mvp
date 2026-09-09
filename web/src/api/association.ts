@@ -27,6 +27,15 @@ export async function requestAssociationAlternative(
   knownPersonalMaterial: string[],
   alreadyShownDescriptions: string[],
   dismissalReason: string,
+  // 2026-09-09: every reason the client has given for THIS slot so far,
+  // this round's `dismissalReason` included as the last entry -- previously
+  // only the single latest reason ever reached the model, so three rounds
+  // of distinct feedback ("too similar", "no form or life", "metaphorically
+  // weak") were each seen in isolation, never as the accumulated shape of
+  // what kept being rejected and why. Optional and additive: `dismissalReason`
+  // is kept as its own field too, so a caller that only ever rejects once
+  // needs no change.
+  dismissalReasonHistory?: string[],
 ): Promise<AssociationData> {
   const result = await postJson<{ data: AssociationData }>(
     "/api/associations",
@@ -35,6 +44,7 @@ export async function requestAssociationAlternative(
       known_personal_material: knownPersonalMaterial,
       avoid_descriptions: alreadyShownDescriptions,
       dismissal_reason: dismissalReason,
+      dismissal_reason_history: dismissalReasonHistory,
     },
     clientTimeoutForRoute("association"),
   );

@@ -423,7 +423,18 @@ describe("ElementsDiscovery -- Keep / Build upon / Not this one, non-destructive
     expect(url).toBe("/api/associations");
     const body = JSON.parse(init.body);
     expect(body.dismissal_reason).toBe("not keen on circles");
-    expect(body.avoid_descriptions).toEqual(["Candidate 0"]);
+    // 2026-09-09: avoid_descriptions now also covers every candidate
+    // currently visible in every OTHER slot on screen, not just this
+    // slot's own history -- a fresh candidate must not duplicate or
+    // closely echo something the client can already see elsewhere right
+    // now. "Candidate 0" is this slot's own (still included); "Candidate
+    // 1"-"Candidate 4" are the other four default-visible slots.
+    expect(body.avoid_descriptions).toEqual(
+      expect.arrayContaining(["Candidate 0", "Candidate 1", "Candidate 2", "Candidate 3", "Candidate 4"]),
+    );
+    expect(body.avoid_descriptions).toHaveLength(5);
+    // Single-round rejection: the history is exactly this one reason.
+    expect(body.dismissal_reason_history).toEqual(["not keen on circles"]);
 
     screen.getByText("2/2");
     vi.unstubAllGlobals();
@@ -586,7 +597,7 @@ describe("ElementsDiscovery -- Keep / Build upon / Not this one, non-destructive
     );
 
     fireEvent.click(screen.getAllByRole("button", { name: "Keep" })[0]!);
-    const input = screen.getByPlaceholderText("Optional, but this is what makes it a real design rather than a placeholder");
+    const input = screen.getByPlaceholderText("Optional");
     // The client's real, live-tested answer -- a fragment that does not read as a
     // grammatical continuation of the candidate description.
     fireEvent.change(input, { target: { value: "no the tattoo artist ability" } });
@@ -630,7 +641,7 @@ describe("ElementsDiscovery -- Keep / Build upon / Not this one, non-destructive
     );
 
     fireEvent.click(screen.getAllByRole("button", { name: "Keep" })[0]!);
-    const input = screen.getByPlaceholderText("Optional, but this is what makes it a real design rather than a placeholder");
+    const input = screen.getByPlaceholderText("Optional");
     fireEvent.change(input, { target: { value: "the drawing of our dog" } });
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 

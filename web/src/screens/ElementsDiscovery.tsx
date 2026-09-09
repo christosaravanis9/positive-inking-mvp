@@ -216,6 +216,27 @@ export function ElementsDiscovery() {
   const [reserveCursor, setReserveCursor] = useState(0);
   const [rerollPromptOpenSlots, setRerollPromptOpenSlots] = useState<Set<number>>(new Set());
   const [whyDraft, setWhyDraft] = useState<Record<number, string>>({});
+  // 2026-09-09: every reason a client has ever typed for THIS slot, kept
+  // across rounds (keyed by slot, never cleared). Previously only the most
+  // recent reason reached the model on each re-roll -- so three rounds of
+  // "too similar" / "no form or life" / "metaphorically weak" each only
+  // ever saw the ONE reason just typed, never the accumulated shape of
+  // what the client kept telling it was wrong, which is exactly why the
+  // model kept circling the same territory across rounds. Sent alongside
+  // (not instead of) the per-round `dismissal_reason` for backward
+  // compatibility with anything still reading that single field.
+  const [whyHistoryBySlot, setWhyHistoryBySlot] = useState<Record<number, string[]>>({});
+  // Authoritative source for submitReroll's own read of "this slot's prior
+  // reasons so far" -- same rationale as reserveCursorRef/
+  // associationCandidatesRef above: a plain useState value read inside an
+  // async callback can be stale if two submits for different slots land in
+  // the same tick. Mutated synchronously, immediately, at the same point
+  // the state setter is called; whyHistoryBySlot itself remains only a
+  // display mirror (nothing currently renders it, but keeping the same
+  // pattern as the ref/state pairs above rather than a bare ref avoids this
+  // becoming the one exception to how this file handles the concurrency
+  // class of bug).
+  const whyHistoryBySlotRef = useRef<Record<number, string[]>>({});
   // "Build upon"'s direct-edit text (2026-09-07, later) -- keyed by
   // CANDIDATE index (like detailByIndex), not slot, since it belongs to
   // whichever specific candidate is being edited; lazily defaults to that
@@ -432,6 +453,8 @@ export function ElementsDiscovery() {
       // declaration comment for why the reserveCursor state value alone is
       // not safe to read here.
       if (reserveCursorRef.current >= reservePool.length) return; // exhausted -- never auto-upgrades to a real call
+      // A blank re-roll never reaches the model, so there's no reason to
+      // record for this slot's history -- it stays exactly as it was.
       const nextCandidate = reservePool[reserveCursorRef.current]!;
       reserveCursorRef.current += 1;
       setReserveCursor(reserveCursorRef.current);
@@ -440,15 +463,41 @@ export function ElementsDiscovery() {
     }
 
     // Advancing past the end of history with a reason typed is the one path
-    // that costs a real per-slot model call.
+    // that costs a real per-slot model call. Record the reason for this
+    // slot immediately (not inside the async callback) -- it's true the
+    // moment the client submits it, independent of whether the call
+    // eventually succeeds, times out, or goes stale.
+    const updatedSlotHistory = [...(whyHistoryBySlotRef.current[slot] ?? []), reason];
+    whyHistoryBySlotRef.current = { ...whyHistoryBySlotRef.current, [slot]: updatedSlotHistory };
+    setWhyHistoryBySlot(whyHistoryBySlotRef.current);
     void runSlotAction(
       slot,
       async (guard) => {
         const hist = history[slot] ?? [defaultTopIndices[slot]!];
-        const alreadyShown = hist
+        const thisSlotHistory = hist
           .map((idx) => associationCandidatesRef.current[idx]?.description)
           .filter((d): d is string => Boolean(d));
-        const result = await requestAssociationAlternative(confirmedMeaningText(), knownPersonalMaterial(), alreadyShown, reason);
+        // 2026-09-09, live-reported bug: a re-roll only ever told the model
+        // what THIS slot had already shown -- never what's currently sitting
+        // in every other slot on screen right now. That let a fresh
+        // candidate for slot 3 come back as a near-duplicate of slot 1's
+        // current text (reported: a genuine duplicate one slot below), or
+        // "too similar to other suggestions" already visible elsewhere on
+        // the same screen. A slot's own past history is still worth
+        // avoiding too (paging back should never resurrect something the
+        // model already re-proposed once and got rejected again), so both
+        // sets are combined and de-duplicated.
+        const currentlyVisibleElsewhere = visibleCandidateIndices
+          .map((idx) => associationCandidatesRef.current[idx]?.description)
+          .filter((d): d is string => Boolean(d));
+        const alreadyShown = Array.from(new Set([...thisSlotHistory, ...currentlyVisibleElsewhere]));
+        const result = await requestAssociationAlternative(
+          confirmedMeaningText(),
+          knownPersonalMaterial(),
+          alreadyShown,
+          reason,
+          updatedSlotHistory,
+        );
         if (guard.isStale()) return;
         const newCandidate = result.visual_candidates[0];
         if (!newCandidate) return;
@@ -896,8 +945,20 @@ export function ElementsDiscovery() {
                         className="ledger-lined-input"
                         value={detailByIndex[i] ?? ""}
                         onChange={(e) => setDetailByIndex((prev) => ({ ...prev, [i]: e.target.value }))}
-                        placeholder="Optional, but this is what makes it a real design rather than a placeholder"
+                        placeholder="Optional"
                       />
+                      {/* 2026-09-09: the previous long placeholder ("Optional, but
+                          this is what makes it a real design rather than a
+                          placeholder") was the ONLY place this guidance lived --
+                          placeholder text never wraps and is clipped by the
+                          input's own width, which is real screen-estate on
+                          mobile, and it's not selectable/scrollable, and it
+                          disappears entirely once the field has a value or focus.
+                          Live-reported: unreadable in full on a phone. Moved to a
+                          real, always-visible, wrapping element below the input
+                          instead of relying on the placeholder attribute for
+                          anything beyond a one-word nudge. */}
+                      <p className="reference-note" style={{ marginTop: 6 }}>This is what makes it a real design rather than a placeholder.</p>
                     </div>
                   </div>
                 )}

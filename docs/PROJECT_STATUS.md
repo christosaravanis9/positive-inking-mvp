@@ -224,12 +224,36 @@ gained a batch-self-distinctness check (rule 1) and a new rule 10
 as sterile diagrams or as too many stacked visual claims to picture at
 once; and the mobile-truncated follow-up placeholder is now a real,
 always-visible wrapping element instead of relying on the `placeholder`
-attribute. This sandbox still has no real `ANTHROPIC_API_KEY`, so only
-the plumbing and prompt text were verified, live — see the latest
-session log entry for what that live check actually covers versus real
-model output, which remains unverified here. 467 unit tests pass across
-engine/server/web; typecheck and build are clean across all three
-workspaces.
+attribute. 467 unit tests pass across engine/server/web; typecheck and
+build are clean across all three workspaces.
+
+**First real-model verification of this project (2026-09-09, with a
+user-supplied key for this run only): two of three checked items
+confirmed passing against real output, one confirmed passing but only
+after finding and reporting a real, previously-unknown reliability bug
+along the way.** (1) The Discovery MEANING DEPTH gate correctly landed
+both calibration stories: "I want a rose, roses are pretty" came back
+`meaning_is_thin: true`; "marking the point I stopped drinking" came
+back `false`, with `interpretation` explicitly reasoning it as "concrete
+and personal even without named people, places, or objects." **Closed,
+removed from Open decisions.** (2) The Association rule 8 Option C
+grounding fix works as intended — a real "handmade wall art for my
+daughter Athena" batch came back with every `personal_meaning`
+genuinely grounded in the story's own specific details (the wire, the
+plaster, "your own hands," "your own handwriting"), no generic
+boilerplate. **Closed, removed from Open decisions** — but getting a
+valid batch back at all required a retry: see the new open item below.
+(3) The two newest Association prompt rules (batch self-distinctness,
+"INSPIRE, DON'T FLATTEN OR OVERLOAD") also held up against real output:
+an 11-candidate real batch had no near-duplicate ideas, and three
+sequential reasoned re-rolls on one slot (paw print → dog seen from
+behind at the door → door with an implied shadow) genuinely diversified
+rather than circling the same territory, with no sterile/diagram-like
+or overloaded-stacked-claims candidates observed. See the latest
+session log entry for the full real output and the new open item this
+session surfaced along the way (an intermittent `follow_up_prompt`
+schema-validation failure that discards an entire good batch for one
+malformed candidate).
 
 **Design:** a new "studio ledger" visual direction (warm parchment
 background, serif headline, ember-accented selection/marginalia, no card
@@ -297,51 +321,32 @@ to compare terminal output by hand.
   decision are all in the latest session log entry. **Parts 2-4 are not
   built** — awaiting your read on the sequencing fix and the Why/generation
   tension before any of it is implemented.
-- **Meaning-depth gate prompt wording — real-model verification still
-  needed from you.** The new Discovery prompt item (§ MEANING DEPTH) asks
-  the model to classify a story as thin only when the stated reason is
-  generic/swappable, not when it's abstract-but-specific -- calibrated
-  against exactly the two example stories you gave ("I want a rose, roses
-  are pretty" vs. "marking the point I stopped drinking"). **This sandbox
-  has no `ANTHROPIC_API_KEY` configured**, the same limitation noted for
-  the Association prompt change below, so this could only be verified
-  mechanically: a fake-model double, driven by an explicit `__TEST_THIN__`
-  marker (the same convention `__TEST_DELAY_N__`/`__TEST_FAIL__` already
-  use), proved the app correctly branches, shows the register-matched
-  prompt, never blocks Continue, and re-runs Discovery at most once --
-  it did not and could not prove the real model draws the true/false line
-  where the prompt asks it to for either of your two example stories.
-  **Run `npm run diagnose-model` (or the app itself) with a real key
-  against both stories to confirm `meaning_is_thin` lands correctly on
-  each before treating the prompt wording as settled** — if the rose story
-  doesn't come back thin, or the "stopped drinking" story does, the next
-  step is sharpening the MEANING DEPTH prompt item's own true/false
-  examples, not the UI.
-- **Association candidate wording — prompt change applied, real-model
-  verification still needed from you.** Investigated why memorial/tribute
-  object candidates lean on abstract phrasing (e.g. "already carries the
-  weight of connection") in `personal_meaning`. Root cause:
-  `server/src/schemas/association.ts`'s rule 8 (CONCRETENESS) constrained
-  only the `description` field — there was no equivalent guidance for
-  `personal_meaning`, which is where the abstract phrasing actually lives.
-  Three options were proposed at different strictness levels; **Option C
-  (a grounding requirement, not a literalness requirement) was chosen and
-  is now live** in the prompt: `personal_meaning` no longer needs
-  `description`'s literal concreteness (a genuinely abstract emotional
-  truth is still legitimate) but must name a specific detail from the
-  client's own story or the candidate's own description rather than a
-  sentence generic enough to fit any client, and the model is told to say
-  plainly when nothing yet grounds the meaning rather than reach for
-  boilerplate. **This sandbox has no `ANTHROPIC_API_KEY` configured**
-  (`server/.env` doesn't exist; `npm run dev` reports "Model configured:
-  NO"), so the actual before/after wording change could not be observed
-  against the real model here — only the prompt text change itself, a
-  full typecheck/test pass, and the request/response pipeline shape were
-  verified. **You should run `npm run diagnose-model` (or the app itself)
-  with a real key against the "handmade wall art" scenario to confirm
-  `personal_meaning` reads more specifically before treating this as
-  settled** — see the latest session log entry for exact wording and
-  what was and wasn't checked.
+- **Association `follow_up_prompt` schema-validation reliability — newly
+  discovered real bug, decision needed.** Found while running the first
+  real-model verification this project has ever had (2026-09-09, see the
+  latest session log entry): a real `/api/associations` batch fetch (9-12
+  candidates) intermittently fails schema validation and returns a 502
+  with ZERO candidates -- observed in 2 of 4 real calls in this one
+  session. Two distinct manifestations, same underlying cause: the model
+  sometimes emits `follow_up_prompt: null` on a candidate whose
+  `resolution_state` is `"concrete"` (`z.string().optional()` accepts
+  `undefined` but not `null`, so this fails type validation), and
+  sometimes omits/empties it on a candidate whose `resolution_state` IS
+  `"needs_client_specific_detail"` (correctly caught by the schema's own
+  `.refine()`, but the whole batch is still discarded for one bad
+  candidate among a dozen good ones). This blocked real verification of
+  two of the three items you asked to check until a retry happened to
+  succeed -- it is a live, real-user-facing failure mode (a genuinely
+  intermittent 50%-ish failure rate in this small sample), not a wording
+  issue, and was never caught before because this sandbox never had a
+  real API key until now. **Not touched, per your investigate-first
+  instruction.** Two directions worth your call: make the zod schema
+  tolerant of `null` (`.nullable()`, coerced to `undefined`) so a stray
+  null on a candidate that doesn't need the field no longer fails the
+  whole batch; and/or have the route drop just the offending candidate(s)
+  from a batch instead of discarding the entire response for one bad
+  entry, since 8-11 good candidates are being thrown away today alongside
+  the 1 malformed one.
 - **"Whose is it?" reference field — investigated, no change made.**
   The dropdown (`web/src/components/ReferenceAttachment.tsx`,
   `subject_relationship`) renders whenever a candidate's chosen fidelity
@@ -446,6 +451,110 @@ here for you to decide scope on, matching how other open decisions in
 this document are tracked.
 
 ## Session log
+
+### 2026-09-09 (later) — First real-model verification of this project: three open items checked against real output, one new reliability bug found along the way
+
+Three items from "Open decisions waiting on you" all needed a real
+`ANTHROPIC_API_KEY` to verify, which this sandbox has never had. The
+user supplied one for this run only (never written to any file, passed
+inline as an environment variable to a throwaway script, never
+committed, never printed by this script's own output). Each of the
+three was investigated and reported before anything was touched, per
+the task's own instruction.
+
+**1. Discovery MEANING DEPTH calibration — PASS, closed.** Real
+`/api/discovery` calls against both calibration stories:
+- "I want a rose, roses are pretty." → `meaning_is_thin: true`,
+  `depth_prompt: "Is there a person or moment roses remind you of?"`,
+  `clarification_required: false`. Correct.
+- "I want a tattoo marking the point I stopped drinking." →
+  `meaning_is_thin: false`, `interpretation: "This is about marking a
+  real, specific turning point - stopping drinking - as something
+  worth carrying permanently. The reason is concrete and personal even
+  without named people, places, or objects yet."` Correct, and the
+  model's own stated reasoning matches the prompt's exact intent
+  (concrete-but-abstract, no named person/object, not thin).
+Both landed exactly where the prompt's own true/false examples say
+they should. No prompt change needed. Removed from Open decisions.
+
+**2. Association rule 8 Option C grounding ("handmade wall art"
+scenario) — PASS on content, closed, but surfaced a separate real bug
+along the way.** First real call against the Athena wall-art scenario
+returned HTTP 502 (schema validation failure, detail below) with zero
+candidates -- a retry succeeded. The valid batch: every one of 7
+candidates' `personal_meaning` was genuinely grounded in the specific
+story detail (the wire, the plaster, "your own hands," "your own
+handwriting frozen in place"), e.g. candidate 0's `personal_meaning`:
+`"This is the piece you made her, not a stand-in for it. The bend of
+each wire is your own handwriting frozen in place."` No instance of
+the old generic boilerplate ("already carries the weight of
+connection") anywhere in the batch. Option C's grounding requirement
+works as intended against real output. Removed from Open decisions.
+
+**3. Rejection-heavy Screen 7 scenario (rule 1 distinctness + rule 10
+inspire-don't-flatten) — PASS on both aspects, real output observed.**
+A real 11-candidate initial batch (Scout the dog) had no near-duplicate
+ideas -- silhouette, paw print, door-from-below, floor texture, collar,
+merged bowl/floor mark, footprint trail, a 3-part illustrative
+sequence, tail close-up, engraved tag, sleeping pose -- genuinely
+distinct subjects and approaches, and every one carried some sensory,
+textural, or gestural quality (e.g. "a soft blurred sweep of a few
+overlapping lines" for the tail; "curled asleep in a patch of light"),
+never the sterile-diagram pattern rule 10 targets. Separately, three
+sequential reasoned re-rolls on one slot, each carrying the
+accumulated `dismissal_reason_history`:
+1. reason "too similar to the others" → "A small drawing of Scout's
+   paw print, kept rough and uneven the way a real print would sit on
+   the ground, not a clean stock paw shape."
+2. reason "feels sterile, like a diagram" → "Scout waiting by a door,
+   drawn from behind... ears up and alert like he just heard footsteps
+   coming." (visibly responds to "sterile" with added gesture/life)
+3. reason "too many separate ideas crammed into one description" →
+   "The door itself, drawn slightly ajar with warm light spilling
+   through the gap, and a soft shadow shape resting on the floor just
+   inside it, the way a dog lying against the door would cast one."
+   (visibly simpler/more singular than round 2, responding to the
+   "too many ideas" critique)
+Each round proposed a genuinely different visual approach from the
+last, not a restatement -- the accumulated-reason mechanism and both
+new prompt rules held up against real output.
+
+**New finding, not one of the three requested, not touched per
+instruction: `follow_up_prompt` schema-validation reliability.** Across
+this session's real calls, 2 of 4 initial-batch `/api/associations`
+fetches failed with HTTP 502 before a retry succeeded on each. Root
+cause, from the actual validation error details:
+- `visual_candidates[7].follow_up_prompt: Expected string, received
+  null` -- the model emitted an explicit JSON `null` for a candidate
+  whose `resolution_state` was `"concrete"` (field not required there);
+  `z.string().optional()` accepts `undefined` but not `null`, so this
+  fails.
+- `visual_candidates[0]` and `[3]`: `"follow_up_prompt is required when
+  resolution_state is needs_client_specific_detail"` -- these two
+  candidates needed the field and didn't reliably get one across a
+  9-12-candidate batch.
+Both are the same underlying reliability gap (the model doesn't emit
+`follow_up_prompt` correctly for every candidate, 100% of the time,
+across a large batch), just failing two different ways. Either failure
+currently discards the ENTIRE batch -- 8-11 otherwise-good candidates
+thrown away for one malformed one -- which is a real, live-user-facing
+gap this sandbox could never have caught before having a real API key.
+Logged as a new item in Open decisions with two possible fix
+directions; not implemented, per the task's explicit "before touching
+anything" instruction.
+
+**What this run does and doesn't prove:** three real batches/re-rolls
+across two stories is a real signal, not a statistical guarantee --
+the same prompts could still occasionally produce a thin classification
+that should be false, or a sterile candidate, on a different sample.
+Reported as what was actually observed, not as a permanent guarantee
+this can never regress.
+
+No code changed this round except `docs/PROJECT_STATUS.md` itself. Two
+throwaway verification scripts (`test-integration/verifyRealModel.mjs`,
+`test-integration/verifyRealModelRetry.mjs`) made the real calls and
+were deleted afterward, matching this project's established pattern for
+live-verification scripts -- neither ever wrote the API key to disk.
 
 ### 2026-09-09 — Applied an outside-investigation patch: Screen 7 reason-history accumulation, cross-slot avoid list, two new Association prompt rules, mobile placeholder fix
 

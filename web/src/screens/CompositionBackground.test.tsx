@@ -129,4 +129,47 @@ describe("CompositionBackground -- auto-finalizes when already fully resolved on
     const stored = JSON.parse(localStorage.getItem("positive-inking:journey-state:v1")!);
     expect(stored.ui.compositionFlowDone).toBe(false);
   });
+
+  // 2026-09-09, live-reported: composition_type's own option labels
+  // ("Interlocking", "Shared frame", "Anchored primary with orbiting
+  // supporting elements") were reported as hard to visualise with nothing
+  // else to go on. Every COMPOSITION_POOLS entry now carries a plain-
+  // language description alongside its label -- confirms the description
+  // actually reaches the rendered option, not just that the pool data has
+  // it.
+  it("renders a plain-language description under every composition_type option, not just the bare structural label", () => {
+    const state = createInitialJourneyState();
+    state.project = {
+      ...state.project,
+      ...createEmptyProjectState(state.project.project_id, state.project.created_at),
+      journey_mode: "full",
+    };
+    state.ui = {
+      ...state.ui,
+      pastWelcome: true,
+      viewpointSelected: true,
+      discoveryCompleted: true,
+      themesSelected: true,
+      intentionConfirmed: true,
+      elementsDiscovered: true,
+      creativeControlSet: true,
+      roughScaleSet: true,
+    };
+    savePersistedState(state);
+    render(
+      <JourneyProvider>
+        <CompositionBackground />
+      </JourneyProvider>,
+    );
+
+    const options = screen.getAllByRole("button");
+    expect(options.length).toBeGreaterThan(1);
+    // Every option (including "Something else") is a title+description card,
+    // not a bare label -- if any single option regresses to plain text with
+    // no description, this fails.
+    for (const option of options) {
+      expect(option.querySelector(".option-chip-title")).not.toBeNull();
+      expect(option.querySelector(".option-chip-description")?.textContent?.length ?? 0).toBeGreaterThan(0);
+    }
+  });
 });

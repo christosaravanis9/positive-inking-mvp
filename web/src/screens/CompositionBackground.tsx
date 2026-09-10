@@ -175,7 +175,7 @@ export function CompositionBackground() {
         <p className="screen-eyebrow">Composition</p>
         <h2 className="screen-heading">{QUESTION_COPY[key]}</h2>
         <OptionChips
-          options={pool.map((o) => ({ value: o.label, label: o.label, noBackground: o.noBackground }))}
+          options={pool.map((o) => ({ value: o.label, label: o.label, description: o.description, noBackground: o.noBackground }))}
           selected={[]}
           onSelect={(v) => answer(key, v)}
         />

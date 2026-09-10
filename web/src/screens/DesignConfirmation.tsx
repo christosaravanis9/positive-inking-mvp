@@ -177,9 +177,24 @@ export function DesignConfirmation() {
         </dd>
         <dt>Open decisions</dt>
         <dd>
-          {visualDirectionComponent.status === "open_decisions"
-            ? readinessComponentDetail(visualDirectionComponent, project).join(" ")
-            : "None noted"}
+          {visualDirectionComponent.status === "open_decisions" ? (
+            <>
+              {readinessComponentDetail(visualDirectionComponent, project).join(" ")}
+              {/* 2026-09-09, live-reported: previously appended onto the same
+                  line as the detail above, reading as one run-on paragraph.
+                  Its own line, clearly labeled, instead -- matching the
+                  Blueprint's Readiness section, which the two rows must
+                  never drift apart from (see the comment above this
+                  component's own lookup). */}
+              {visualDirectionComponent.nextSteps.length > 0 && (
+                <p className="reference-note" style={{ marginTop: 4 }}>
+                  Possible next step{visualDirectionComponent.nextSteps.length > 1 ? "s" : ""}: {visualDirectionComponent.nextSteps.join(", or ")}.
+                </p>
+              )}
+            </>
+          ) : (
+            "None noted"
+          )}
         </dd>
       </dl>
 

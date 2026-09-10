@@ -115,6 +115,30 @@ describe("DesignConfirmation -- Open decisions row (regression: 'Nothing outstan
       "One or more primary visual elements are still an open decision for the client, not yet a concrete idea.",
     );
   });
+
+  // 2026-09-09, live-reported (same bug as the Blueprint's Readiness section,
+  // which this row must never drift apart from -- see the comment above
+  // visualDirectionComponent's own lookup): "Possible next steps" previously
+  // read as a run-on continuation of the contradiction description.
+  it("renders 'Possible next steps' as its own distinct element within the Open decisions row, not glued onto the description", () => {
+    seedDesignConfirmationState({
+      contradictions: [{ description: "An exact artefact is specified with no uploaded reference.", resolutions: ["Upload a reference photo", "switch to an interpretive rendering"] }],
+    });
+    render(
+      <JourneyProvider>
+        <DesignConfirmation />
+      </JourneyProvider>,
+    );
+
+    const openDecisionsDd = screen.getByText("Open decisions").nextElementSibling!;
+    const nextStepsEl = openDecisionsDd.querySelector("p");
+    expect(nextStepsEl).not.toBeNull();
+    // Singular "step" is correct: one contradiction's next step, offering
+    // two options joined by "or" -- not two separate steps.
+    expect(nextStepsEl!.textContent).toContain("Possible next step: Upload a reference photo, or switch to an interpretive rendering.");
+    const descriptionOnly = openDecisionsDd.textContent!.replace(nextStepsEl!.textContent!, "");
+    expect(descriptionOnly).not.toContain("Possible next steps");
+  });
 });
 
 /**

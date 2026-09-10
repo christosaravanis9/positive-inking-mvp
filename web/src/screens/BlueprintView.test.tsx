@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { createEmptyProjectState, type VisualElement, type ContradictionRecord } from "@positive-inking/engine";
+import { createEmptyProjectState, type VisualElement, type ContradictionRecord, type ArtistBrief } from "@positive-inking/engine";
 import { JourneyProvider } from "../journey/JourneyProvider";
 import { createInitialJourneyState, type JourneyState } from "../journey/state";
 import { savePersistedState } from "../journey/persistence";
-import { BlueprintView } from "./BlueprintView";
+import { BlueprintView, formatArtistBriefAsText } from "./BlueprintView";
 
 /**
  * Regression coverage for a second live-test report on the same bug family
@@ -57,6 +57,7 @@ function seedBlueprintState(overrides: {
   visualElements?: VisualElement[];
   contradictions?: ContradictionRecord[];
   project?: Partial<JourneyState["project"]>;
+  artistBrief?: ArtistBrief;
 }): JourneyState {
   const state = createInitialJourneyState();
   state.project = {
@@ -80,7 +81,13 @@ function seedBlueprintState(overrides: {
       placement: "Forearm, medium scale.",
       design_considerations: ["RECOMMENDATION: The exact script style for \"Athena\" is not yet confirmed and requires client decision or artist proposal."],
       statement_of_inspiration: "A piece of my daughter, carried with me.",
-      artist_brief: "Render the handmade wall art motif as an embossed/protruding script reading Athena.",
+      artist_brief: overrides.artistBrief ?? {
+        intro: "",
+        confirmed_priorities: ["Render the handmade wall art motif as an embossed/protruding script reading Athena."],
+        open_decisions: [],
+        avoid: [],
+        closing_notes: "",
+      },
       readiness: "needs_refinement",
     },
   };
@@ -329,6 +336,70 @@ describe("BlueprintView -- Readiness reason rendering (regression: bare label wi
     expect(section.textContent).toContain("switch to an interpretive rendering");
     expect(section.textContent).not.toContain("A noted contradiction in the design is still unresolved.");
   });
+
+  // 2026-09-09, live-reported: "Possible next steps: ..." previously read as
+  // one continuous run-on paragraph glued onto the same string as the
+  // contradiction's own description -- indistinguishable as its own answer.
+  it("renders 'Possible next steps' as its own distinct element, not appended onto the same string as the contradiction description", () => {
+    seedBlueprintState({
+      contradictions: [{ description: "An exact artefact is specified with no uploaded reference.", resolutions: ["Upload a reference photo", "switch to an interpretive rendering"] }],
+    });
+    render(
+      <JourneyProvider>
+        <BlueprintView />
+      </JourneyProvider>,
+    );
+
+    const section = screen.getByRole("heading", { name: "Readiness" }).closest("section")!;
+    const visualDirectionDt = [...section.querySelectorAll("dt")].find((dt) => dt.textContent === "Visual direction")!;
+    const visualDirectionDd = visualDirectionDt.nextElementSibling!;
+    // The description and the next-steps text must not sit in the same text
+    // node/run -- a dedicated child element carries "Possible next steps",
+    // proving it's structurally separate, not just visually styled apart.
+    const nextStepsEl = visualDirectionDd.querySelector("p");
+    expect(nextStepsEl).not.toBeNull();
+    // Singular "step" is correct here: this is ONE contradiction's next step,
+    // which happens to offer two options joined by "or" -- not two separate
+    // steps. Pluralization is per-contradiction, not per-option.
+    expect(nextStepsEl!.textContent).toContain("Possible next step:");
+    expect(nextStepsEl!.textContent).toContain("Upload a reference photo, or switch to an interpretive rendering");
+    // The description itself (outside that dedicated element) never carries
+    // the "Possible next steps" text baked in.
+    const descriptionOnly = visualDirectionDd.textContent!.replace(nextStepsEl!.textContent!, "");
+    expect(descriptionOnly).not.toContain("Possible next steps");
+  });
+
+  it("singular 'Possible next step' (no trailing 's') when a contradiction has exactly one resolution", () => {
+    seedBlueprintState({
+      contradictions: [{ description: "An exact artefact is specified with no uploaded reference.", resolutions: ["Upload a reference photo"] }],
+    });
+    render(
+      <JourneyProvider>
+        <BlueprintView />
+      </JourneyProvider>,
+    );
+
+    const section = screen.getByRole("heading", { name: "Readiness" }).closest("section")!;
+    expect(section.textContent).toContain("Possible next step: Upload a reference photo.");
+    expect(section.textContent).not.toContain("Possible next steps:");
+  });
+
+  it("plural 'Possible next steps' when TWO SEPARATE contradictions each carry a next step -- pluralization is per-contradiction, not per-option within one", () => {
+    seedBlueprintState({
+      contradictions: [
+        { description: "First contradiction.", resolutions: ["Do the first thing"] },
+        { description: "Second contradiction.", resolutions: ["Do the second thing"] },
+      ],
+    });
+    render(
+      <JourneyProvider>
+        <BlueprintView />
+      </JourneyProvider>,
+    );
+
+    const section = screen.getByRole("heading", { name: "Readiness" }).closest("section")!;
+    expect(section.textContent).toContain("Possible next steps: Do the first thing, or Do the second thing.");
+  });
 });
 
 /**
@@ -541,6 +612,96 @@ describe("BlueprintView -- twelve-section restructure (Sites migration spec §7)
       // No app-side template ever prefixes it with "Develop a {scale}..." -- confirmed by grep
       // across the whole codebase finding zero `a ${...}`/`an ${...}` article-concatenation
       // patterns anywhere (the mechanism the Sites quirk depends on does not exist here).
+    });
+  });
+
+  // 2026-09-09, live-reported: the Artist Brief used to render as one dense
+  // paragraph with the model's own structure only expressed as inline dashes
+  // -- genuinely hard to read. Now a structured object (ArtistBrief); these
+  // lock in that each part gets its own real sub-section, not just that the
+  // text appears somewhere in the section.
+  describe("Artist Brief structure (2026-09-09, ArtistBrief restructure)", () => {
+    it("renders confirmed priorities, open decisions and avoid as three separate labelled sub-sections, each its own list", () => {
+      seedBlueprintState({
+        artistBrief: {
+          intro: "This is a collaborative project.",
+          confirmed_priorities: ["The core idea is one continuous line.", "Composition is an isolated pair, no background."],
+          open_decisions: ["Whether the final design is the single-line or three-panel version."],
+          avoid: ["Placement across a joint, since bending would distort the progression."],
+          closing_notes: "No reference images have been supplied for this design.",
+        },
+      });
+      render(
+        <JourneyProvider>
+          <BlueprintView />
+        </JourneyProvider>,
+      );
+
+      const section = screen.getByRole("heading", { name: "Artist Brief" }).closest("section")!;
+      const columnHeadings = [...section.querySelectorAll(".artist-brief-column-heading")].map((el) => el.textContent);
+      expect(columnHeadings).toEqual(["Confirmed priorities", "Open decisions", "Avoid"]);
+
+      const columns = section.querySelectorAll(".artist-brief-column");
+      expect(columns).toHaveLength(3);
+      expect(columns[0]!.querySelectorAll("li")).toHaveLength(2);
+      expect(columns[1]!.querySelectorAll("li")).toHaveLength(1);
+      expect(columns[2]!.querySelectorAll("li")).toHaveLength(1);
+
+      expect(section.querySelector(".artist-brief-intro")!.textContent).toBe("This is a collaborative project.");
+      expect(section.querySelector(".artist-brief-closing-notes")!.textContent).toBe("No reference images have been supplied for this design.");
+    });
+
+    it("renders no column, and no empty grid, for a list the model left empty -- e.g. a client-led brief with nothing open", () => {
+      seedBlueprintState({
+        artistBrief: {
+          intro: "",
+          confirmed_priorities: ["A precise, non-negotiable requirement."],
+          open_decisions: [],
+          avoid: [],
+          closing_notes: "",
+        },
+      });
+      render(
+        <JourneyProvider>
+          <BlueprintView />
+        </JourneyProvider>,
+      );
+
+      const section = screen.getByRole("heading", { name: "Artist Brief" }).closest("section")!;
+      const columnHeadings = [...section.querySelectorAll(".artist-brief-column-heading")].map((el) => el.textContent);
+      expect(columnHeadings).toEqual(["Confirmed priorities"]);
+      expect(section.querySelector(".artist-brief-intro")).toBeNull();
+      expect(section.querySelector(".artist-brief-closing-notes")).toBeNull();
+    });
+
+    it("the plain-text export helper renders the same four parts as clearly separated, labelled blocks -- never one run-on paragraph", () => {
+      const text = formatArtistBriefAsText({
+        intro: "This is a collaborative project.",
+        confirmed_priorities: ["The core idea is one continuous line."],
+        open_decisions: ["Whether the final design is the single-line or three-panel version."],
+        avoid: ["Placement across a joint."],
+        closing_notes: "No reference images have been supplied for this design.",
+      });
+      expect(text).toContain("This is a collaborative project.");
+      expect(text).toContain("Confirmed priorities:\n- The core idea is one continuous line.");
+      expect(text).toContain("Open decisions:\n- Whether the final design is the single-line or three-panel version.");
+      expect(text).toContain("Avoid:\n- Placement across a joint.");
+      expect(text).toContain("No reference images have been supplied for this design.");
+      // Each block is separated by a blank line, not run together.
+      expect(text.split("\n\n").length).toBeGreaterThanOrEqual(4);
+    });
+
+    it("the plain-text export helper omits an empty list's heading entirely, rather than printing a heading with nothing under it", () => {
+      const text = formatArtistBriefAsText({
+        intro: "",
+        confirmed_priorities: ["A precise, non-negotiable requirement."],
+        open_decisions: [],
+        avoid: [],
+        closing_notes: "",
+      });
+      expect(text).toContain("Confirmed priorities:\n- A precise, non-negotiable requirement.");
+      expect(text).not.toContain("Open decisions:");
+      expect(text).not.toContain("Avoid:");
     });
   });
 });

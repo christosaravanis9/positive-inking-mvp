@@ -22,6 +22,7 @@ import {
   buildReferenceChecklist,
   isReferenceEntrySatisfied,
   describeReadinessComponents,
+  type ArtistBrief,
   type ReferenceChecklistEntry,
   type ReadinessState,
   type ProjectState,
@@ -60,6 +61,22 @@ function referenceProvenanceLine(entry: ReferenceChecklistEntry): string {
     : "no attestation recorded yet";
   return `${relationship} — ${attestation}`;
 }
+
+/**
+ * 2026-09-09, live-reported: Section 11 used to render `blueprint.artist_brief`
+ * as one flat string, which read as a dense wall of text -- the model's own
+ * "priorities plus open decisions" structure had no visible sections. Now a
+ * structured object (ArtistBrief); this renders each part as its own
+ * clearly labelled block for the plain-text export, matching the headed
+ * on-screen layout below.
+ */
+export function formatArtistBriefAsText(brief: ArtistBrief): string {
+  const list = (label: string, items: string[]) => (items.length > 0 ? [`${label}:`, ...items.map((i) => `- ${i}`)].join("\n") : "");
+  return [brief.intro, list("Confirmed priorities", brief.confirmed_priorities), list("Open decisions", brief.open_decisions), list("Avoid", brief.avoid), brief.closing_notes]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
 
 /** One element's line within Section 04's Personal reference / Other elements groups (§17.1's decision-map restructure) -- shared so both groups render identically. */
 function ElementLine({ element }: { element: VisualElement }) {
@@ -165,14 +182,19 @@ function formatBlueprintAsText(project: ReturnType<typeof useJourney>["state"]["
     .filter(Boolean)
     .join("\n");
   section("10 — References and open decisions", referencesBody);
-  section("11 — Artist Brief", blueprint.artist_brief);
+  section("11 — Artist Brief", formatArtistBriefAsText(blueprint.artist_brief));
   if (project.artist_notes.length > 0) {
     section("Further ideas the client raised (unspecified, for the artist to discuss)", project.artist_notes.map((n) => `- ${n}`).join("\n"));
   }
   const componentLines = readinessComponents(project, blueprint.readiness).map((c) => {
     const detail = readinessComponentDetail(c, project);
     const status = readinessComponentStatusText(c);
-    return `${READINESS_COMPONENT_LABEL[c.id]}: ${status}${detail.length > 0 ? ` — ${detail.join(" ")}` : ""}`;
+    const base = `${READINESS_COMPONENT_LABEL[c.id]}: ${status}${detail.length > 0 ? ` — ${detail.join(" ")}` : ""}`;
+    // 2026-09-09, live-reported: this used to be baked into the same string
+    // as `detail` above, reading as one continuous run-on paragraph. Its own
+    // line now, clearly labeled, indented so it visibly belongs to the
+    // component above it rather than starting a new one.
+    return c.nextSteps.length > 0 ? `${base}\n  Possible next step${c.nextSteps.length > 1 ? "s" : ""}: ${c.nextSteps.join(", or ")}.` : base;
   });
   section("12 — Readiness", [READINESS_LABEL[blueprint.readiness] ?? blueprint.readiness, "", ...componentLines].join("\n"));
 
@@ -428,7 +450,42 @@ export function BlueprintView() {
       <section className="blueprint-section">
         <span className="blueprint-section-number">11</span>
         <h3 className="blueprint-section-heading">Artist Brief</h3>
-        <p>{blueprint.artist_brief}</p>
+        {blueprint.artist_brief.intro && <p className="artist-brief-intro">{blueprint.artist_brief.intro}</p>}
+        {(blueprint.artist_brief.confirmed_priorities.length > 0 || blueprint.artist_brief.open_decisions.length > 0 || blueprint.artist_brief.avoid.length > 0) && (
+          <div className="artist-brief-grid">
+            {blueprint.artist_brief.confirmed_priorities.length > 0 && (
+              <div className="artist-brief-column">
+                <p className="artist-brief-column-heading">Confirmed priorities</p>
+                <ul>
+                  {blueprint.artist_brief.confirmed_priorities.map((item, i) => (
+                    <li key={i}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {blueprint.artist_brief.open_decisions.length > 0 && (
+              <div className="artist-brief-column">
+                <p className="artist-brief-column-heading">Open decisions</p>
+                <ul>
+                  {blueprint.artist_brief.open_decisions.map((item, i) => (
+                    <li key={i}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {blueprint.artist_brief.avoid.length > 0 && (
+              <div className="artist-brief-column">
+                <p className="artist-brief-column-heading">Avoid</p>
+                <ul>
+                  {blueprint.artist_brief.avoid.map((item, i) => (
+                    <li key={i}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+        {blueprint.artist_brief.closing_notes && <p className="artist-brief-closing-notes">{blueprint.artist_brief.closing_notes}</p>}
       </section>
       {project.artist_notes.length > 0 && (
         <section className="blueprint-section">
@@ -459,6 +516,14 @@ export function BlueprintView() {
                       {" — "}
                       {detail.join(" ")}
                     </>
+                  )}
+                  {/* 2026-09-09, live-reported: previously appended onto the
+                      same line as `detail` above, reading as one run-on
+                      paragraph. Its own line, clearly labeled, instead. */}
+                  {c.nextSteps.length > 0 && (
+                    <p className="reference-note" style={{ marginTop: 4 }}>
+                      Possible next step{c.nextSteps.length > 1 ? "s" : ""}: {c.nextSteps.join(", or ")}.
+                    </p>
                   )}
                 </dd>
               </Fragment>

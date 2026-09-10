@@ -1,4 +1,4 @@
-import type { ArtisticDimensionKey, PlaceRole, ReadinessState } from "@positive-inking/engine";
+import type { ArtisticDimensionKey, ArtistBrief, PlaceRole, ReadinessState } from "@positive-inking/engine";
 
 export interface DiscoveryData {
   primary_viewpoint: "past" | "present" | "future" | "mixed";
@@ -89,7 +89,7 @@ export interface BlueprintData {
   placement: string;
   design_considerations: string[];
   statement_of_inspiration: string | null;
-  artist_brief: string;
+  artist_brief: ArtistBrief;
   readiness: ReadinessState;
 }
 

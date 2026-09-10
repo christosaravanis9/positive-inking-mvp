@@ -502,6 +502,52 @@ input[type="text"] {
 }
 
 /**
+ * 2026-09-09, live-reported: Section 11 (Artist Brief) used to render as one
+ * dense paragraph -- the model's own "confirmed priorities / open decisions
+ * / avoid" structure had no visible sub-sections. A responsive 3-column
+ * grid (collapses to a single column below 720px, and always in print --
+ * see the print media query below) with each populated list as its own
+ * labelled sub-card. Never assumes all three columns are present -- an
+ * empty list renders no card at all (see the component logic), so a
+ * client-led brief with no open decisions shows two columns, not an empty
+ * one.
+ */
+.artist-brief-intro {
+  margin: 0 0 16px;
+}
+
+.artist-brief-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  margin-bottom: 16px;
+}
+
+.artist-brief-column-heading {
+  font-family: var(--text-label-family);
+  font-weight: var(--text-label-weight);
+  font-size: var(--text-label-size);
+  letter-spacing: var(--text-label-tracking);
+  text-transform: var(--text-label-transform);
+  color: var(--accent);
+  margin: 0 0 8px;
+}
+
+.artist-brief-column ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.artist-brief-column li {
+  margin-bottom: 6px;
+}
+
+.artist-brief-closing-notes {
+  margin: 0;
+  color: var(--muted);
+}
+
+/**
  * Statement of Inspiration quote-box (item 4, 2026-09-06). A genuine callout, not one of
  * the twelve numbered sections above, so it's the one deliberate exception to this file's
  * "no --ledger-* color here" rule (see the big comment above .blueprint-header) --
@@ -572,6 +618,16 @@ input[type="text"] {
   .blueprint-section {
     break-inside: avoid;
     padding: 14px 0;
+  }
+  .artist-brief-grid {
+    /* Three columns rarely fit A4's usable width cleanly once each has a
+       real heading + multi-line list items -- stack in print rather than
+       risk a cramped or overflowing layout the screen grid never has to
+       worry about. */
+    grid-template-columns: 1fr;
+  }
+  .artist-brief-column {
+    break-inside: avoid;
   }
   @page {
     size: A4;

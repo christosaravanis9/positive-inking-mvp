@@ -47,7 +47,11 @@ const MATERIAL_TYPES: { value: NonNullable<ConsentRecord["material_type"]>; labe
 ];
 
 const RELATIONSHIPS: { value: ConsentRecord["subject_relationship"]; label: string }[] = [
-  { value: "self", label: "Me" },
+  // 2026-09-09, live-reported: "Me" doesn't answer "Whose is it?" -- "Whose
+  // is it? Me" doesn't parse. "Mine" is the grammatically correct answer to
+  // the question actually being asked; the underlying value ("self") is
+  // unchanged, this is a label-only fix.
+  { value: "self", label: "Mine" },
   { value: "living_other", label: "Someone else (living)" },
   { value: "child", label: "A child" },
   { value: "deceased", label: "Someone who has passed" },

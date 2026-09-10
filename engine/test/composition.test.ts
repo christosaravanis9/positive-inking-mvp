@@ -9,6 +9,7 @@ import {
   explicitCompositionConfirmationRequired,
   getCompositionOptionPool,
   COMPOSITION_POOLS,
+  SOMETHING_ELSE_OPTION,
 } from "../src/composition.js";
 import type { ConceptShape } from "../src/types.js";
 
@@ -134,5 +135,19 @@ describe("composition option pools (§12.6)", () => {
         expect(overlap.length).toBeLessThanOrEqual(1);
       }
     }
+  });
+
+  // 2026-09-09, live-reported: bare structural labels ("Interlocking",
+  // "Shared frame") were hard to visualise with nothing else to go on.
+  it("every option in every pool, and SOMETHING_ELSE_OPTION, carries a non-empty, plain-language description distinct from its own label", () => {
+    for (const shape of shapes) {
+      for (const option of COMPOSITION_POOLS[shape]) {
+        expect(option.description, `${shape} / "${option.label}" is missing a description`).toBeTruthy();
+        expect(option.description!.length).toBeGreaterThan(0);
+        // A description that just repeats the label back adds nothing.
+        expect(option.description!.toLowerCase()).not.toBe(option.label.toLowerCase());
+      }
+    }
+    expect(SOMETHING_ELSE_OPTION.description).toBeTruthy();
   });
 });

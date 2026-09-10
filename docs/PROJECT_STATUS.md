@@ -271,6 +271,33 @@ below 5 (the visible-slot count) after salvage — no impact on rule 1's
 (+17 for this fix); typecheck and build are clean across all three
 workspaces.
 
+**A second outside-investigation patch (2026-09-09, later) is now applied
+and verified, including a live-model schema change.** Every composition
+option (`COMPOSITION_POOLS`, engine) now carries a plain-language
+description alongside its previously-bare label ("Interlocking" ->
+"The two elements physically overlap or connect into one combined
+shape."); the "Whose is it?" reference dropdown's "Me" is now "Mine"
+(label only, the stored value is unchanged); the Blueprint's Readiness
+section (and Screen 13's matching "Open decisions" row) now render
+"Possible next steps" as their own distinct element instead of one
+run-on paragraph glued onto the contradiction's own description; and
+the **Artist Brief changed from one flat string to a structured
+`ArtistBrief` object** (`intro`, `confirmed_priorities`,
+`open_decisions`, `avoid`, `closing_notes`) across engine -> server ->
+web, rendered as a labelled 3-column grid instead of one dense
+paragraph. Real-model verification (a key supplied for this run only,
+never written to disk): across two real scenarios, the model populated
+all five fields sensibly and followed the creative-control calibration
+correctly -- a client-led brief left `open_decisions` genuinely empty
+(10 separate `confirmed_priorities`, `closing_notes` correctly holding
+only the reference-photo/concept-sketch caveats); a collaborative
+brief populated all three lists with genuine, distinct content (7
+confirmed priorities, 2 real open decisions, 3 concrete execution-
+level avoid items) with no duplication between `avoid` and the
+client's own separately-tracked symbolic avoidances. 494 unit tests
+pass across engine/server/web (+10 for this patch); typecheck and
+build are clean across all three workspaces.
+
 **Design:** a new "studio ledger" visual direction (warm parchment
 background, serif headline, ember-accented selection/marginalia, no card
 chrome) was explored as an isolated static preview, approved, and is now
@@ -441,6 +468,104 @@ here for you to decide scope on, matching how other open decisions in
 this document are tracked.
 
 ## Session log
+
+### 2026-09-09 (even later still) — Applied a second outside-investigation patch: composition option descriptions, "Mine" label fix, Readiness "Possible next steps" separated, and the Artist Brief restructured from a string to a structured object
+
+Applied `screen13-artist-brief-and-earlier-fixes.patch` (a second Claude
+chat session's investigation of several more live-reported fixes),
+verified it for real against the actual current checkout, then ran a
+real-model check of the one change that touches a live model-facing
+schema and prompt.
+
+**Apply.** `git apply --check --3way` (dry run, clean) then `git apply
+--3way` for real. All 18 touched files applied cleanly, no 3-way
+fallback needed.
+
+**What it does, one line each:** (1) every `COMPOSITION_POOLS` option
+(engine) now carries a plain-language `description` alongside its
+previously-bare structural label ("Interlocking" -> "The two elements
+physically overlap or connect into one combined shape."), rendered as
+a title+description card (`OptionChips.tsx`); (2) the "Whose is it?"
+dropdown's `self` option now labels as "Mine" instead of "Me" --
+"Whose is it? Me" doesn't parse, "Whose is it? Mine" does; the stored
+value is unchanged. (3) The Blueprint's Readiness section (and Screen
+13's matching "Open decisions" row, which must never drift from it)
+previously appended "Possible next steps: ..." onto the SAME string as
+the contradiction's own description -- one run-on paragraph.
+`unresolvedVisualDirectionDetail()` (engine) now returns `{ reasons,
+nextSteps }` separately, and `ReadinessComponent` gained its own
+`nextSteps` field, so both callers render it as its own distinct
+line/element. (4) **The Artist Brief (`artist_brief`) changed from one
+flat string to a structured `ArtistBrief` object** across engine ->
+server -> web: `intro`, `confirmed_priorities`, `open_decisions`,
+`avoid`, `closing_notes` -- the shape the model's content already had
+(the prompt's own pre-existing "priorities plus open decisions"
+calibration language), just previously flattened into one paragraph
+with inline dashes. `BlueprintView.tsx` renders it as a labelled,
+responsive 3-column grid (never an empty column for a list the model
+left empty), and a new `formatArtistBriefAsText()` mirrors the same
+structure for the plain-text Copy/Save export.
+
+**Checked nothing else assumed the old string shape** (the task's own
+explicit ask, item 2): grepped every `artist_brief`/`.artist_brief`
+reference across engine/server/web/test-integration. The one other
+read site, `server/src/routes/blueprint.ts`'s `artist_brief:
+model.artist_brief` passthrough, was already unconditional (no
+eligibility-nulling logic ever applied to this field, before or after)
+and needed no change -- it now just passes through the object instead
+of a string, correctly.
+
+**Verification.** `npm run typecheck` initially failed in `web` with
+"no exported member 'ArtistBrief'" and several `nextSteps`-does-not-
+exist errors -- not a real defect: `web` resolves `@positive-inking/
+engine`'s types via its compiled `dist/index.d.ts`, which was stale
+until `engine` was rebuilt. Rebuilding `engine` first, then re-running
+typecheck across all three workspaces, came back clean -- worth noting
+for next time this pattern recurs (an engine source change needs an
+engine build before dependent-workspace typecheck sees it). Full suite
+(494 tests -- engine 166, server 82, web 246, +10 for this patch) and
+build all clean across all three workspaces.
+
+**Real-model verification of the Artist Brief change specifically**
+(the task's own explicit ask, item 4 -- a key supplied for this run
+only, never written to disk), two scenarios against the real
+`/api/blueprint` route:
+- Client-led (Scout the dog): `intro` correctly framed it as
+  client-led; 10 separate, genuine `confirmed_priorities` (never
+  combined with commas); `open_decisions` correctly empty (client-led
+  calibration: nothing left open); `avoid` empty; `closing_notes`
+  correctly held only the reference-photo and concept-sketch caveats,
+  no duplication with the lists above.
+- Collaborative (grandmother's rose garden): `intro` correctly framed
+  it as collaborative; 7 `confirmed_priorities`; **2 genuinely open
+  `open_decisions`** (stylised vs. a specific bloom variety; which
+  reference photo to use) -- exactly the calibration difference the
+  prompt asks for between client-led and collaborative; **3 concrete,
+  execution-level `avoid` items** (a rendering-style conflict, background
+  busyness, linework not holding up at small scale) -- distinct from
+  the client's own symbolic avoidances, never conflated; `closing_notes`
+  correctly held only the missing-reference status, not a restated
+  open decision.
+Both scenarios: the model populated all five fields sensibly and
+followed the creative-control calibration correctly, not just passing
+schema validation against a synthetic fixture.
+
+**Live browser rendering check** (separate from the real-model content
+check above -- this confirms the RENDER, using the fake-Anthropic
+double for the single-column case and the real captured model output
+above for the 3-column case): a client-led fixture correctly rendered
+one column ("Confirmed priorities") with no empty grid for the two
+empty lists; the real collaborative output correctly rendered all
+three columns side by side, each under its own labelled sub-heading,
+intro and closing notes each in their own paragraph. Both screenshotted
+and sent to the user. Composition option cards and the "Mine" label
+were not separately live-screenshotted -- both are already covered by
+their own passing component tests that assert on the real rendered DOM
+structure (`.option-chip-title`/`.option-chip-description`,
+`getByRole` on the actual "Mine" text).
+
+Throwaway verification scripts made the real calls and were deleted
+afterward; none ever wrote the API key to disk.
 
 ### 2026-09-09 (later still) — Fixed the follow_up_prompt schema-validation bug, verified with real output: no third failure shape, no impact on rule 1's batch-size guidance
 

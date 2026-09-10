@@ -122,53 +122,64 @@ export function explicitCompositionConfirmationRequired(signals: CompositionConf
 /** §12.6 — candidate pools, not menus. Rewritten in the user's own terms downstream by the model; these are the fixed slots the model fills. */
 export interface CompositionOption {
   label: string;
+  /**
+   * 2026-09-09, live-reported: the bare structural labels below ("Interlocking",
+   * "Shared frame", "Anchored primary with orbiting supporting elements") were
+   * genuinely hard to visualise with no supporting text -- a client can't
+   * picture "Interlocking" without a concrete image of what that would
+   * actually look like. One short, plain sentence per option, describing
+   * what it would look like in practice -- never jargon, never repeating the
+   * label's own words back. Optional only so `SOMETHING_ELSE_OPTION` (which
+   * needs none) doesn't require one.
+   */
+  description?: string;
   noBackground?: true;
 }
 
 export const COMPOSITION_POOLS: Record<ConceptShape, CompositionOption[]> = {
   single_emblem: [
-    { label: "Isolated, no background", noBackground: true },
-    { label: "Contained emblem" },
-    { label: "Subject with subtle supporting detail" },
-    { label: "Open composition with negative space" },
+    { label: "Isolated, no background", description: "Just the subject on its own, nothing around it.", noBackground: true },
+    { label: "Contained emblem", description: "The subject sits inside a simple bordered shape, like a badge or seal." },
+    { label: "Subject with subtle supporting detail", description: "The subject stays the clear focus, with one small extra detail nearby." },
+    { label: "Open composition with negative space", description: "The subject sits with open space around it, using that space as part of the design." },
   ],
   paired_elements: [
-    { label: "Isolated pair, no background", noBackground: true },
-    { label: "Interlocking" },
-    { label: "Mirrored or balanced" },
-    { label: "One primary with one accent" },
-    { label: "Shared frame" },
+    { label: "Isolated pair, no background", description: "Both elements together on their own, nothing around them.", noBackground: true },
+    { label: "Interlocking", description: "The two elements physically overlap or connect into one combined shape." },
+    { label: "Mirrored or balanced", description: "The two elements sit in matching or balanced positions, like reflections of each other." },
+    { label: "One primary with one accent", description: "One element is the clear main subject; the other is a smaller supporting detail beside it." },
+    { label: "Shared frame", description: "Both elements sit together inside one shared border or shape." },
   ],
   multi_element: [
-    { label: "Isolated cluster, no background", noBackground: true },
-    { label: "Layered" },
-    { label: "Collage" },
-    { label: "Anchored primary with orbiting supporting elements" },
-    { label: "Contained arrangement" },
+    { label: "Isolated cluster, no background", description: "All the elements grouped together on their own, nothing around them.", noBackground: true },
+    { label: "Layered", description: "The elements overlap in layers, some sitting in front of others." },
+    { label: "Collage", description: "The elements sit together loosely, like pieces gathered on a page rather than one continuous scene." },
+    { label: "Anchored primary with orbiting supporting elements", description: "One main element anchors the design, with the others arranged around it." },
+    { label: "Contained arrangement", description: "All the elements sit together inside one shared border or shape." },
   ],
   narrative_scene: [
-    { label: "Connected narrative" },
-    { label: "Immersive environment" },
-    { label: "Framed scene" },
-    { label: "Primary subject emerging from environment" },
-    { label: "Flowing composition" },
-    { label: "No background — keep elements isolated", noBackground: true },
+    { label: "Connected narrative", description: "The elements read in sequence, like frames of one unfolding story." },
+    { label: "Immersive environment", description: "Everything sits together inside one continuous scene or setting." },
+    { label: "Framed scene", description: "The whole scene sits inside a border, like looking through a window." },
+    { label: "Primary subject emerging from environment", description: "One subject stands out clearly, set against or growing out of its surroundings." },
+    { label: "Flowing composition", description: "The elements flow into each other with no hard edges between them." },
+    { label: "No background — keep elements isolated", description: "The elements on their own, with nothing filling in around them.", noBackground: true },
   ],
   text_led: [
-    { label: "Text alone, no background", noBackground: true },
-    { label: "Text with single accent" },
-    { label: "Text integrated into an element" },
-    { label: "Text as containing shape" },
+    { label: "Text alone, no background", description: "Just the words, nothing else around them.", noBackground: true },
+    { label: "Text with single accent", description: "The words plus one small supporting mark or symbol." },
+    { label: "Text integrated into an element", description: "The words are worked directly into another design element, not sitting separately." },
+    { label: "Text as containing shape", description: "The words themselves form the outline or shape of the design." },
   ],
   portrait_led: [
-    { label: "Isolated likeness, no background", noBackground: true },
-    { label: "Likeness with symbolic accent" },
-    { label: "Likeness within an environment" },
-    { label: "Framed portrait" },
+    { label: "Isolated likeness, no background", description: "Just the likeness on its own, nothing around it.", noBackground: true },
+    { label: "Likeness with symbolic accent", description: "The likeness plus one small symbolic detail nearby." },
+    { label: "Likeness within an environment", description: "The likeness sits inside a setting or scene, not isolated." },
+    { label: "Framed portrait", description: "The likeness sits inside a border, like a framed picture." },
   ],
 };
 
-export const SOMETHING_ELSE_OPTION: CompositionOption = { label: "Something else" };
+export const SOMETHING_ELSE_OPTION: CompositionOption = { label: "Something else", description: "Describe your own idea for how this should come together." };
 
 /**
  * Returns the candidate pool for a shape, with "Something else" always

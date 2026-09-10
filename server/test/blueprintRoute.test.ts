@@ -23,7 +23,13 @@ const MODEL_RESPONSE = {
   placement: "Forearm, medium.",
   design_considerations: ["Keep linework bold enough to hold up at this size."],
   statement_of_inspiration: "This is who I am becoming.",
-  artist_brief: "Client wants a clean, isolated koi fish, no background, medium forearm placement.",
+  artist_brief: {
+    intro: "This is a client-led project.",
+    confirmed_priorities: ["A clean, isolated koi fish, no background, medium forearm placement."],
+    open_decisions: [],
+    avoid: [],
+    closing_notes: "",
+  },
 };
 
 beforeEach(() => {

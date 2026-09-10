@@ -148,6 +148,29 @@ export interface ContradictionRecord {
   resolutions: string[];
 }
 
+/**
+ * 2026-09-09, live-reported: the Artist Brief used to be one flat string --
+ * the model wrote genuinely structured content (confirmed priorities, open
+ * decisions, things to avoid, closing notes) but had nowhere to put that
+ * structure except inline " - " dashes inside one dense paragraph, which
+ * read as a wall of text with no visible sections. Split into the shape the
+ * content actually already had (confirmed by the prompt's own pre-existing
+ * "priorities plus open decisions" calibration language), so the renderer
+ * can give each part its own subheading/column instead of parsing free text.
+ */
+export interface ArtistBrief {
+  /** One or two framing sentences -- what kind of brief this is and why (the creative-control calibration in plain terms). Empty string is valid when there's nothing worth framing. */
+  intro: string;
+  /** What's already decided and should be treated as fixed, calibrated to creative control (client-led: precise requirements; collaborative: shared priorities; artist-led/surrendered: meaning and non-negotiables). */
+  confirmed_priorities: string[];
+  /** What's genuinely still open for the client and artist to finalise together. Empty when creative control leaves nothing open (e.g. client-led with everything already decided, or artist-led/surrendered, which preserve interpretation rather than list open items). */
+  open_decisions: string[];
+  /** Concrete execution-level things the artist should avoid (a technical/craft guardrail, e.g. "avoid uniform line weight") -- distinct from the client's own stated symbolic avoidances, which live in Section 9/avoid_list, not here. Empty when there's nothing specific to flag. */
+  avoid: string[];
+  /** Anything left over that doesn't fit the three lists above -- typically reference/status caveats (e.g. no reference images supplied, current visuals are concept sketches only). Empty string when there's nothing more to say. */
+  closing_notes: string;
+}
+
 /** §9.2 — AI Action A: Discovery analysis output. */
 export interface DiscoveryResult {
   primary_viewpoint: Viewpoint;
@@ -316,7 +339,7 @@ export interface ProjectState {
     placement: string;
     design_considerations: string[];
     statement_of_inspiration: string;
-    artist_brief: string;
+    artist_brief: ArtistBrief;
     readiness: ReadinessState | "";
   };
 }
@@ -433,7 +456,7 @@ export function createEmptyProjectState(projectId: string, now: string): Project
       placement: "",
       design_considerations: [],
       statement_of_inspiration: "",
-      artist_brief: "",
+      artist_brief: { intro: "", confirmed_priorities: [], open_decisions: [], avoid: [], closing_notes: "" },
       readiness: "",
     },
   };

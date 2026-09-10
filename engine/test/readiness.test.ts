@@ -74,26 +74,27 @@ describe("describeReadinessComponents", () => {
 
   describe("meaning", () => {
     it("is confirmed when the caller reports meaning captured", () => {
-      expect(componentById(baseInputs({ meaningCaptured: true }), "meaning")).toEqual({ id: "meaning", status: "confirmed", detail: [] });
+      expect(componentById(baseInputs({ meaningCaptured: true }), "meaning")).toEqual({ id: "meaning", status: "confirmed", detail: [], nextSteps: [] });
     });
 
     it("is not_yet_captured otherwise -- not an unconditional label (Sites migration spec §4.3 defect 4)", () => {
-      expect(componentById(baseInputs({ meaningCaptured: false }), "meaning")).toEqual({ id: "meaning", status: "not_yet_captured", detail: [] });
+      expect(componentById(baseInputs({ meaningCaptured: false }), "meaning")).toEqual({ id: "meaning", status: "not_yet_captured", detail: [], nextSteps: [] });
     });
   });
 
   describe("visual_direction", () => {
     it("is clear when there is no unresolved primary imagery and no other contradiction", () => {
-      expect(componentById(baseInputs(), "visual_direction")).toEqual({ id: "visual_direction", status: "clear", detail: [] });
+      expect(componentById(baseInputs(), "visual_direction")).toEqual({ id: "visual_direction", status: "clear", detail: [], nextSteps: [] });
     });
 
     it("is open_decisions and names unresolved primary imagery specifically", () => {
       const component = componentById(baseInputs({ hasUnresolvedPrimaryImagery: true }), "visual_direction")!;
       expect(component.status).toBe("open_decisions");
       expect(component.detail).toEqual(["One or more primary visual elements are still an open decision for the client, not yet a concrete idea."]);
+      expect(component.nextSteps).toEqual([]);
     });
 
-    it("is open_decisions and names the actual contradiction and its resolutions -- not a generic restatement", () => {
+    it("is open_decisions and names the actual contradiction plainly, with its resolutions kept as a separate 'next steps' list rather than appended onto the same string (2026-09-09, live-reported: previously read as one run-on paragraph)", () => {
       const component = componentById(
         baseInputs({
           otherContradictions: [
@@ -103,10 +104,8 @@ describe("describeReadinessComponents", () => {
         "visual_direction",
       )!;
       expect(component.status).toBe("open_decisions");
-      expect(component.detail).toHaveLength(1);
-      expect(component.detail[0]).toContain("An exact artefact is specified with no uploaded reference.");
-      expect(component.detail[0]).toContain("Upload a reference photo");
-      expect(component.detail[0]).toContain("switch to an interpretive rendering");
+      expect(component.detail).toEqual(["An exact artefact is specified with no uploaded reference."]);
+      expect(component.nextSteps).toEqual(["Upload a reference photo, or switch to an interpretive rendering"]);
     });
 
     it("names a contradiction with no resolutions attached without inventing one", () => {
@@ -115,6 +114,7 @@ describe("describeReadinessComponents", () => {
         "visual_direction",
       )!;
       expect(component.detail).toEqual(["Two incompatible placements were both confirmed."]);
+      expect(component.nextSteps).toEqual([]);
     });
 
     it("names both the primary-imagery reason and every contradiction when all signals are present", () => {
@@ -138,6 +138,7 @@ describe("describeReadinessComponents", () => {
         id: "references",
         status: "not_required",
         detail: [],
+        nextSteps: [],
       });
     });
 
@@ -146,6 +147,7 @@ describe("describeReadinessComponents", () => {
         id: "references",
         status: "available",
         detail: [],
+        nextSteps: [],
       });
     });
 
@@ -165,6 +167,7 @@ describe("describeReadinessComponents", () => {
         id: "artist_discussion",
         status: "ready",
         detail: [],
+        nextSteps: [],
       });
     });
 
@@ -173,6 +176,7 @@ describe("describeReadinessComponents", () => {
         id: "artist_discussion",
         status: "not_yet_captured",
         detail: [],
+        nextSteps: [],
       });
     });
   });
@@ -183,6 +187,7 @@ describe("describeReadinessComponents", () => {
         id: "final_artwork",
         status: "not_yet_begun_brief_ready",
         detail: [],
+        nextSteps: [],
       });
     });
 
@@ -192,6 +197,7 @@ describe("describeReadinessComponents", () => {
           id: "final_artwork",
           status: "not_yet_begun_pending_items",
           detail: [],
+          nextSteps: [],
         });
       }
     });

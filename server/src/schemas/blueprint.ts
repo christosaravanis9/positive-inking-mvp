@@ -46,14 +46,50 @@ this.
 Distinguish avoidances declined from avoidances never asked.
 
 Calibrate the Artist Brief to creative control: client-led -> precise
-requirements; collaborative -> priorities plus open decisions; artist-led ->
-meaning and non-negotiables while preserving interpretation; surrendered ->
-meaning, non-negotiables and accuracy requirements only. "Collaborative"
-names one specific creative-control level. It is not a general word for
-"there are things left to decide" -- a client-led project can still have
-undecided details; call those open decisions for the client to finalise,
-never the project being collaborative. Only call the project collaborative
-when the confirmed creative control is actually collaborative.
+requirements as confirmed_priorities, open_decisions left empty (nothing is
+left open); collaborative -> shared priorities in confirmed_priorities,
+genuinely open items in open_decisions; artist-led -> meaning and
+non-negotiables in confirmed_priorities while preserving interpretation,
+open_decisions left empty (interpretive freedom is not the same as a list
+of pending decisions); surrendered -> meaning, non-negotiables and accuracy
+requirements only in confirmed_priorities, open_decisions left empty.
+"Collaborative" names one specific creative-control level. It is not a
+general word for "there are things left to decide" -- a client-led project
+can still have undecided details; put those in open_decisions as items for
+the client to finalise (not the model), never call the project
+collaborative because of them. Only populate open_decisions with genuine
+items when the confirmed creative control is actually collaborative, or
+when a client-led/artist-led/surrendered project has a real unresolved
+detail the client still needs to settle -- never invent one to fill the
+field.
+
+The Artist Brief (artist_brief) is a structured object, not one paragraph
+-- write each part into its own field so it can be rendered as its own
+labelled section, never combine them into flowing prose with inline dashes
+or bullet characters:
+  - intro: one or two framing sentences only -- what kind of brief this is
+    and why, in plain terms (e.g. "This is a collaborative project."). Empty
+    string when there's nothing worth framing beyond the sections below.
+  - confirmed_priorities: an array of short, separate items, each a single
+    fixed requirement or priority -- never one item that runs several
+    requirements together with commas or "and."
+  - open_decisions: an array of short, separate items, each one genuinely
+    open thing for the client and artist to finalise together. Empty array
+    when nothing is open (see the calibration above).
+  - avoid: an array of short, separate items -- concrete, execution-level
+    things the artist should avoid when building this specific design (a
+    craft/technical guardrail, e.g. "Placement across a joint, since
+    bending would distort the coil-to-curve progression"). This is
+    distinct from the client's own stated symbolic avoidances (handled
+    elsewhere) -- these are about how THIS design could go wrong in
+    execution, not what imagery the client doesn't want. Empty array when
+    there's nothing specific to flag.
+  - closing_notes: any remaining prose that doesn't belong in the three
+    lists above -- typically reference/status caveats (no reference images
+    supplied, current visuals are concept sketches only, etc). Empty string
+    when there's nothing more to say. Never smuggle a real priority, open
+    decision or avoid-item into closing_notes just because it's easier to
+    write as prose -- if it belongs in one of the three lists, put it there.
 
 Each confirmed fact belongs in one primary section. Do not restate the same
 fact (a composition choice, a density, a treatment word) across multiple
@@ -66,12 +102,13 @@ full -- everything it is, in concrete detail. Every other section already
 knows what the concept is; none of them need to re-explain it. story and why
 may reference the concept, but only as much as the personal, human reason
 for it needs -- never re-narrate what it looks like, that is
-visual_direction's job alone. artist_brief may reference the concept only
-briefly (e.g. "the design described above") and must add only what is
-genuinely new for the artist -- a requirement, a constraint, a priority --
-never restate the concept's own narrative from scratch. If you catch
-yourself writing the same descriptive sentence you already wrote in
-visual_direction, delete it and reference visual_direction instead.
+visual_direction's job alone. artist_brief's intro/closing_notes may
+reference the concept only briefly (e.g. "the design described above") and
+every field must add only what is genuinely new for the artist -- a
+requirement, a constraint, a priority -- never restate the concept's own
+narrative from scratch. If you catch yourself writing the same descriptive
+sentence you already wrote in visual_direction, delete it and reference
+visual_direction instead.
 
 Statement of inspiration is one or two sentences only, drawn primarily from
 the client's story and why -- the personal, human reason this tattoo
@@ -134,7 +171,17 @@ export const blueprintToolInputSchema = {
     placement: { type: "string" },
     design_considerations: { type: "array", items: { type: "string" } },
     statement_of_inspiration: { type: "string" },
-    artist_brief: { type: "string" },
+    artist_brief: {
+      type: "object",
+      properties: {
+        intro: { type: "string" },
+        confirmed_priorities: { type: "array", items: { type: "string" } },
+        open_decisions: { type: "array", items: { type: "string" } },
+        avoid: { type: "array", items: { type: "string" } },
+        closing_notes: { type: "string" },
+      },
+      required: ["intro", "confirmed_priorities", "open_decisions", "avoid", "closing_notes"],
+    },
   },
   required: [
     "story",
@@ -160,7 +207,21 @@ export const blueprintResultSchema = z.object({
   placement: z.string(),
   design_considerations: z.array(z.string()),
   statement_of_inspiration: z.string(),
-  artist_brief: z.string(),
+  /**
+   * 2026-09-09: a brand-new structured shape for the model to populate --
+   * applying the same defensive coercion learned from the Association batch
+   * validation bug up front, rather than waiting for a live failure to
+   * reveal it. `.nullable()` on the two string fields lets an explicit
+   * `null` coerce to `""` rather than fail validation outright; the three
+   * array fields default to `[]` if the model omits one entirely.
+   */
+  artist_brief: z.object({
+    intro: z.string().nullable().transform((v) => v ?? ""),
+    confirmed_priorities: z.array(z.string()).default([]),
+    open_decisions: z.array(z.string()).default([]),
+    avoid: z.array(z.string()).default([]),
+    closing_notes: z.string().nullable().transform((v) => v ?? ""),
+  }),
 });
 
 export type BlueprintModelOutput = z.infer<typeof blueprintResultSchema>;

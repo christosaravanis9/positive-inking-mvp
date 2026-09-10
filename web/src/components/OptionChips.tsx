@@ -1,6 +1,7 @@
 export interface Option {
   value: string;
   label: string;
+  description?: string;
   noBackground?: boolean;
 }
 
@@ -20,10 +21,17 @@ export function OptionChips({
         <button
           key={option.value}
           type="button"
-          className={`option-chip${selected.includes(option.value) ? " selected" : ""}${option.noBackground ? " no-background" : ""}`}
+          className={`option-chip${option.description ? " option-chip-card" : ""}${selected.includes(option.value) ? " selected" : ""}${option.noBackground ? " no-background" : ""}`}
           onClick={() => onSelect(option.value)}
         >
-          {option.label}
+          {option.description ? (
+            <>
+              <span className="option-chip-title">{option.label}</span>
+              <span className="option-chip-description">{option.description}</span>
+            </>
+          ) : (
+            option.label
+          )}
         </button>
       ))}
     </div>

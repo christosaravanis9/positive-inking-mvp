@@ -381,7 +381,16 @@ function blueprintInput() {
     placement: "Forearm, medium scale, contained composition.",
     design_considerations: ["Keep linework structured enough to hold up at this scale."],
     statement_of_inspiration: "A quiet daily reminder of being greeted and loved.",
-    artist_brief: "Client-led project. See the design above for the two candidate concepts. Whichever the client finalises: black and grey, no background, medium forearm placement.",
+    artist_brief: {
+      intro: "This is a client-led project.",
+      confirmed_priorities: [
+        "See the design above for the two candidate concepts.",
+        "Whichever concept is finalised: black and grey, no background, medium forearm placement.",
+      ],
+      open_decisions: [],
+      avoid: [],
+      closing_notes: "",
+    },
     readiness: "blueprint_ready",
   };
 }

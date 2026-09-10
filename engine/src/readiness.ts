@@ -73,20 +73,30 @@ export function referenceRequirementFor(kind: ReferenceFeatureKind): ReferenceRe
  * component's "open_decisions" detail below -- this is the one place that
  * phrasing is generated, so Screen 13's "Open decisions" row and the
  * Blueprint's Visual direction component can never drift apart.
+ *
+ * 2026-09-09, live-reported: "Possible next steps: ..." used to be appended
+ * onto the SAME string as its own contradiction's description, which made
+ * it read as a continuous run-on paragraph -- indistinguishable from the
+ * main "what's unresolved" text it was actually a distinct answer to.
+ * Returned separately now so the caller can render it as its own labeled
+ * line/subheading instead of gluing it on.
  */
-function unresolvedVisualDirectionDetail(hasUnresolvedPrimaryImagery: boolean, otherContradictions: ContradictionRecord[]): string[] {
+function unresolvedVisualDirectionDetail(
+  hasUnresolvedPrimaryImagery: boolean,
+  otherContradictions: ContradictionRecord[],
+): { reasons: string[]; nextSteps: string[] } {
   const reasons: string[] = [];
+  const nextSteps: string[] = [];
   if (hasUnresolvedPrimaryImagery) {
     reasons.push("One or more primary visual elements are still an open decision for the client, not yet a concrete idea.");
   }
   for (const contradiction of otherContradictions) {
-    const nextSteps =
-      contradiction.resolutions.length > 0
-        ? ` Possible next step${contradiction.resolutions.length > 1 ? "s" : ""}: ${contradiction.resolutions.join(", or ")}.`
-        : "";
-    reasons.push(`${contradiction.description}${nextSteps}`);
+    reasons.push(contradiction.description);
+    if (contradiction.resolutions.length > 0) {
+      nextSteps.push(contradiction.resolutions.join(", or "));
+    }
   }
-  return reasons;
+  return { reasons, nextSteps };
 }
 
 export type MeaningStatus = "confirmed" | "not_yet_captured";
@@ -110,6 +120,15 @@ export interface ReadinessComponent {
   status: MeaningStatus | VisualDirectionStatus | ReferencesStatus | ArtistDiscussionStatus | FinalArtworkStatus;
   /** Factual detail lines naming *which* thing is unresolved/missing -- never invented, always a name or description the caller already has. Empty when the status needs no elaboration. */
   detail: string[];
+  /**
+   * Concrete actions that would resolve an unresolved item in `detail` --
+   * kept as its own field, never appended onto a `detail` string, so a
+   * caller can render it as its own distinct "Possible next steps" line
+   * rather than a run-on continuation of the description. Only ever
+   * populated for "visual_direction"; every other component's is always
+   * empty (no other component currently has a resolutions concept).
+   */
+  nextSteps: string[];
 }
 
 export interface ReadinessComponentInputs {
@@ -154,26 +173,32 @@ export function describeReadinessComponents(inputs: ReadinessComponentInputs): R
       id: "meaning",
       status: inputs.meaningCaptured ? "confirmed" : "not_yet_captured",
       detail: [],
+      nextSteps: [],
     },
     (() => {
       const open = inputs.hasUnresolvedPrimaryImagery || inputs.otherContradictions.length > 0;
+      const { reasons, nextSteps } = open
+        ? unresolvedVisualDirectionDetail(inputs.hasUnresolvedPrimaryImagery, inputs.otherContradictions)
+        : { reasons: [], nextSteps: [] };
       return {
         id: "visual_direction" as const,
         status: open ? ("open_decisions" as const) : ("clear" as const),
-        detail: open ? unresolvedVisualDirectionDetail(inputs.hasUnresolvedPrimaryImagery, inputs.otherContradictions) : [],
+        detail: reasons,
+        nextSteps,
       };
     })(),
     (() => {
-      if (!inputs.referenceRequirementExists) return { id: "references" as const, status: "not_required" as const, detail: [] };
+      if (!inputs.referenceRequirementExists) return { id: "references" as const, status: "not_required" as const, detail: [], nextSteps: [] };
       if (inputs.missingReferenceDescriptions.length > 0) {
-        return { id: "references" as const, status: "still_needed" as const, detail: inputs.missingReferenceDescriptions };
+        return { id: "references" as const, status: "still_needed" as const, detail: inputs.missingReferenceDescriptions, nextSteps: [] };
       }
-      return { id: "references" as const, status: "available" as const, detail: [] };
+      return { id: "references" as const, status: "available" as const, detail: [], nextSteps: [] };
     })(),
     {
       id: "artist_discussion",
       status: inputs.creativeControlSet ? "ready" : "not_yet_captured",
       detail: [],
+      nextSteps: [],
     },
   ];
 
@@ -182,6 +207,7 @@ export function describeReadinessComponents(inputs: ReadinessComponentInputs): R
       id: "final_artwork",
       status: inputs.readiness === "blueprint_ready" ? "not_yet_begun_brief_ready" : "not_yet_begun_pending_items",
       detail: [],
+      nextSteps: [],
     });
   }
 

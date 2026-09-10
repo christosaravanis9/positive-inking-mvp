@@ -56,3 +56,22 @@ export function reportJourneyCompleted(journeyMode: JourneyMode, elapsedMs: numb
     journey_mode: journeyMode,
   });
 }
+
+/**
+ * 2026-09-09: the "6 artists" device-rotation system (docs/PROJECT_STATUS.md
+ * session log has the full design). deviceId is the candidate's own
+ * device_id from the Association response -- both functions are no-ops
+ * when it's undefined (an unrecognised value the server already sanitized
+ * out, see VisualCandidate's own doc comment), since there's nothing
+ * meaningful to attribute the signal to.
+ */
+export function reportDeviceImpression(deviceId: string | undefined): void {
+  if (!deviceId) return;
+  send({ event: "device_impression", session_id: sessionId, device_id: deviceId });
+}
+
+/** hadRefinementInput: whether the client typed something (a build-upon edit, a rejection reason, a follow-up detail answer) -- deliberately never the text itself, matching this module's own never-free-text discipline. */
+export function reportDeviceOutcome(deviceId: string | undefined, decision: "keep" | "build_upon" | "not_this_one", hadRefinementInput: boolean): void {
+  if (!deviceId) return;
+  send({ event: "device_outcome", session_id: sessionId, device_id: deviceId, decision, had_refinement_input: hadRefinementInput });
+}

@@ -3,8 +3,9 @@ import { z } from "zod";
 import { callModelForStructuredOutput } from "../modelClient.js";
 import { sendModelErrorResponse } from "../errors.js";
 import { abortSignalForRequest } from "../requestAbort.js";
-import { ASSOCIATION_SYSTEM_PROMPT, associationToolInputSchema, parseAssociationResult } from "../schemas/association.js";
+import { buildAssociationSystemPrompt, associationToolInputSchema, parseAssociationResult } from "../schemas/association.js";
 import { logAssociationCandidateDropped } from "../modelTiming.js";
+import { getActiveDeviceRoster } from "../deviceRosterStore.js";
 
 const requestSchema = z.object({
   confirmed_meaning_or_provenance: z.string().min(1),
@@ -106,9 +107,14 @@ associationRouter.post("/api/associations", async (req, res) => {
     .join("\n\n");
 
   try {
+    // 2026-09-09: the roster is read fresh per request, not cached at
+    // module load -- a review can change it between calls, and every call
+    // should see the current active set, not whatever was active when the
+    // server started.
+    const roster = await getActiveDeviceRoster();
     const result = await callModelForStructuredOutput({
       stage: "association",
-      system: ASSOCIATION_SYSTEM_PROMPT,
+      system: buildAssociationSystemPrompt(roster),
       userMessage,
       tool: {
         name: "record_associations",
@@ -136,7 +142,27 @@ associationRouter.post("/api/associations", async (req, res) => {
       return;
     }
 
-    res.json({ data: validated });
+    // 2026-09-09: a device_id the model got wrong (typo'd, or an id that
+    // isn't in the real catalog at all) shouldn't cost the candidate its
+    // place in the batch -- CONCRETENESS/INSPIRE still govern whether it's
+    // good, not whether its own self-reported tracking tag is well-formed.
+    // Null it out instead so the client never echoes a bad id back into an
+    // analytics event that would just fail validation there and silently
+    // lose the signal -- and log it, since a real, recurring mismatch here
+    // would mean the DEVICE VOCABULARY instruction itself needs attention.
+    const knownDeviceIds = new Set([...roster.active, ...roster.reserve].map((d) => d.id));
+    const sanitized = {
+      ...validated,
+      visual_candidates: validated.visual_candidates.map((c) => {
+        if (c.device_id && !knownDeviceIds.has(c.device_id)) {
+          console.warn(`[device-roster] unrecognised device_id from model: "${c.device_id}"`);
+          return { ...c, device_id: undefined };
+        }
+        return c;
+      }),
+    };
+
+    res.json({ data: sanitized });
   } catch (err) {
     sendModelErrorResponse(res, err);
   }

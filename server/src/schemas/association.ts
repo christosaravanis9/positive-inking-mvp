@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DEVICE_CATALOG, INITIAL_ACTIVE_DEVICE_IDS, type DeviceDefinition } from "@positive-inking/engine";
 
 /**
  * §11, §19.3 — the Association / Visual Specification Engine. V3.0 §11
@@ -15,7 +16,39 @@ import { z } from "zod";
  * here and not in engine/.
  */
 
-export const ASSOCIATION_SYSTEM_PROMPT = `You are the Positive Inking Visual Specification Engine.
+export const ASSOCIATION_SYSTEM_PROMPT = buildAssociationSystemPrompt();
+
+/**
+ * 2026-09-09: the DEVICE VOCABULARY section is now built from the live
+ * device roster (engine/src/deviceRoster.ts, server/src/deviceRosterStore.ts)
+ * rather than a fixed, hand-written list -- see the session log entry for
+ * the full "6 artists" bandit-rotation design. Defaults to the roster's own
+ * initial split (INITIAL_ACTIVE_DEVICE_IDS / everything else) when called
+ * with no arguments, so ASSOCIATION_SYSTEM_PROMPT above still works as a
+ * plain constant for anything that doesn't have a live roster to pass in
+ * (diagnostics.ts, tests) -- the real route always calls this itself with
+ * the actual current roster from getActiveDeviceRoster().
+ *
+ * The five active devices are each explicitly assigned to one of the first
+ * five candidates, in order -- this is what makes device tracking accurate
+ * without relying on the model to self-classify its own candidate after
+ * the fact (an unreliable step this design deliberately avoids). Devices
+ * beyond the five may draw on anything in the full active+reserve list --
+ * the reserve pool still needs real content to serve when the client asks
+ * for "something else," and restricting THOSE candidates to only the five
+ * currently-favoured devices would undermine the very exploration the
+ * roster's own review cycle depends on.
+ */
+export function buildAssociationSystemPrompt(
+  roster: { active: DeviceDefinition[]; reserve: DeviceDefinition[] } = {
+    active: INITIAL_ACTIVE_DEVICE_IDS.map((id) => DEVICE_CATALOG.find((d) => d.id === id)!),
+    reserve: DEVICE_CATALOG.filter((d) => !INITIAL_ACTIVE_DEVICE_IDS.includes(d.id)),
+  },
+): string {
+  const activeList = roster.active.map((d, i) => `  ${i + 1}. [device_id: "${d.id}"] ${d.promptDescription}`).join("\n");
+  const reserveList = roster.reserve.map((d) => `  - [device_id: "${d.id}"] ${d.promptDescription}`).join("\n");
+
+  return `You are the Positive Inking Visual Specification Engine.
 
 Do not produce a finished tattoo. Convert confirmed meaning or provenance into
 personal visual material and a set of candidate elements for the user to react
@@ -65,6 +98,35 @@ screen). Before finalising the batch, check it against itself: if two
 candidates would look and mean nearly the same thing to the client, keep
 the stronger one and use the freed slot for something that actually
 differs.
+
+DEVICE VOCABULARY — this app tracks, across real client outcomes, which
+visual approaches actually resonate, and periodically rotates the active
+set based on that real data (not a fixed list this prompt invents). Assign
+each of the first ${roster.active.length} candidates you propose to exactly
+one of the following devices, in this exact order, and set that
+candidate's device_id to the exact string shown for it — this is the one
+part of your output actually measured, so get the id string exactly right,
+character for character:
+${activeList}
+Every worked example anywhere in this prompt illustrates a required QUALITY
+(concreteness, plain wording, an inspiring level of visual life) for a
+device — never a technique to imitate regardless of device. Build each of
+these ${roster.active.length} candidates as a genuinely different execution
+of ITS OWN assigned device, not a variation on whichever worked example
+elsewhere in this prompt happens to be most memorable.
+Beyond those ${roster.active.length}, propose the rest of the batch (up to
+the 9-12 total above) drawing on any device from the full list below
+(the ${roster.active.length} above, plus this reserve) — tag each with its
+own device_id the same way:
+${reserveList}
+Across the WHOLE batch, no single device should account for more than one
+or two candidates, even one of the five explicitly assigned above — if a
+candidate you're about to propose echoes the structure of another
+candidate already in this batch, choose a different device instead.
+If the accompanying message asks for a single replacement or refined
+candidate rather than a full batch, this per-slot assignment does not
+apply -- just assign it whichever one device from the full list above
+genuinely fits best, and tag it with that device_id.
 
 2. PERSONAL PRIORITY — Prioritise personal artefacts, new material created for
 the project, specific people, places and objects, then broader symbolism, then
@@ -133,10 +195,13 @@ category name for information you do not have yet.
   already forbids, just spread across several beats instead of one.
   BAD (a sequence described only in the abstract): "a few panels showing
   the arc of the friendship over time."
-  BETTER (each part a real, specific proposition): "Three small linked
-  panels, no border between them: a figure at a fork in the path. A hand
-  resting on a compass. The figure walking on alone, the path now faded
-  behind them." Format is open to whatever actually suits
+  BETTER (each part a real, specific proposition -- one possible format
+  among many; see the format-is-open note just below, and DEVICE
+  VOCABULARY above -- do not default to "linked panels with no border"
+  just because it is the example shown here): "Three small linked panels,
+  no border between them: a figure at a fork in the path. A hand resting
+  on a compass. The figure walking on alone, the path now faded behind
+  them." Format is open to whatever actually suits
   the story — linked panels, polaroid-style fragments, a morph/collage
   blending two forms into one, a still scene with the person only implied
   by what they left behind, or a figure integrated directly into its
@@ -207,10 +272,13 @@ instead of qualified.
   drawing, kept exactly as you drew it — not cleaned up, not improved." /
   "This is the actual drawing that got you noticed, not a symbol standing in
   for it."
-  A second calibration, for an exploratory or technique-based idea: "Imagine
-  the tattoo starting sharp and photographic on one side, then fading into
-  loose linework on the other — echoing how clear the memory still is, even
-  as it gets further away."
+  A second calibration, for an exploratory or technique-based idea (one
+  illustration among the many devices listed above -- see DEVICE
+  VOCABULARY; do not treat this specific fade/contrast device as the
+  default move for an exploratory candidate): "Imagine the tattoo starting
+  sharp and photographic on one side, then fading into loose linework on
+  the other — echoing how clear the memory still is, even as it gets
+  further away."
 
 10. INSPIRE, DON'T FLATTEN OR OVERLOAD — A candidate exists to make the
 client feel something real is possible and want to see more of it, not
@@ -242,6 +310,7 @@ that rule's letter and still fail its purpose, in either of two directions
   it toward the batch.
 
 11. OUTPUT — valid structured data via the record_associations tool.`;
+}
 
 const resolutionStateEnum = ["concrete", "needs_client_specific_detail"] as const;
 
@@ -279,9 +348,10 @@ export const associationToolInputSchema = {
           source_category: { type: "string", enum: sourceCategoryEnum },
           resolution_state: { type: "string", enum: resolutionStateEnum },
           follow_up_prompt: { type: "string" },
+          device_id: { type: "string" },
           ...rankingProps,
         },
-        required: ["description", "personal_meaning", "source_category", "resolution_state", ...Object.keys(rankingProps)],
+        required: ["description", "personal_meaning", "source_category", "resolution_state", "device_id", ...Object.keys(rankingProps)],
       },
     },
     place_role: { type: "string", enum: ["none", "subject", "setting", "ambiguous"] },
@@ -331,6 +401,19 @@ const visualCandidateSchema = z
     // schema validation for the whole batch over a single harmless field.
     // Treat null the same as absent.
     follow_up_prompt: z
+      .string()
+      .nullable()
+      .optional()
+      .transform((v) => v ?? undefined),
+    // 2026-09-09: which DEVICE VOCABULARY entry this candidate was built
+    // from -- the roster's own review cycle depends on this being present
+    // and correct, but a malformed/unrecognised value here is a tracking
+    // gap, not a reason to drop an otherwise-good candidate from the
+    // batch. Kept lenient at THIS layer (same null-coercion pattern as
+    // follow_up_prompt above) -- the route is the one place that
+    // cross-checks it against the real catalog and decides what to do
+    // with a value that doesn't match.
+    device_id: z
       .string()
       .nullable()
       .optional()

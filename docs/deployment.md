@@ -10,7 +10,15 @@ entry for what was investigated/verified before this was written.
 
 1. Create a Supabase project (free tier is sufficient for this table).
 2. Open the SQL Editor and run `docs/supabase-schema.sql` once -- it creates
-   the `analytics_events` table anonymous usage analytics writes to.
+   the `analytics_events` table anonymous usage analytics writes to, and
+   (2026-09-09) the `device_roster_state` table the "6 artists"
+   device-rotation system reads/writes. **If a Supabase project already
+   exists from before 2026-09-09** (i.e. `analytics_events` already exists),
+   run `docs/supabase-migration-2026-09-09-device-roster.sql` instead --
+   `create table if not exists` cannot add columns or relax a constraint on
+   a table that's already there, so the plain schema file alone won't pick
+   up the new device_id/decision/had_refinement_input columns on an
+   existing project.
 3. Go to Project Settings -> API and copy two values:
    - **Project URL** -> this is `SUPABASE_URL`.
    - **service_role secret** (not the `anon`/`public` key) -> this is

@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { z } from "zod";
-import { SCREEN_IDS } from "@positive-inking/engine";
+import { SCREEN_IDS, DEVICE_CATALOG } from "@positive-inking/engine";
 import { appendAnalyticsEvent } from "../analyticsStore.js";
+import { maybeReviewDeviceRoster } from "../deviceRosterStore.js";
 
 /**
  * Anonymous usage analytics (privacy notice's own "Anonymous usage
@@ -26,6 +27,13 @@ const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const journeyModeSchema = z.enum(["full", "attraction", "expert", "manual"]);
 const boundedElapsedMs = z.number().int().nonnegative().max(ONE_DAY_MS);
 
+// 2026-09-09: the "6 artists" device-rotation system (docs/PROJECT_STATUS.md
+// session log has the full design). device_id is validated against the REAL
+// catalog, not an open string, for the same reason every other field here is
+// an enum -- structurally impossible to smuggle free text through it.
+const deviceIdValues = DEVICE_CATALOG.map((d) => d.id) as [string, ...string[]];
+const deviceIdSchema = z.enum(deviceIdValues);
+
 const eventSchema = z.discriminatedUnion("event", [
   z.object({
     event: z.literal("screen_reached"),
@@ -40,6 +48,33 @@ const eventSchema = z.discriminatedUnion("event", [
     session_id: z.string().uuid(),
     elapsed_ms: boundedElapsedMs,
     journey_mode: journeyModeSchema,
+  }),
+  /**
+   * Fired once per candidate actually rendered into a visible slot on
+   * Screen 7 (not merely generated into the reserve pool and never shown)
+   * -- the "impression" denominator every device's score is normalised
+   * against. No story or candidate content -- only which device produced
+   * the candidate the client saw.
+   */
+  z.object({
+    event: z.literal("device_impression"),
+    session_id: z.string().uuid(),
+    device_id: deviceIdSchema,
+  }),
+  /**
+   * Fired on Keep / Build upon / Not this one. had_refinement_input
+   * captures WHETHER the client typed something (a build-upon edit, a "why
+   * not" reason, or a follow-up-detail answer) as a training signal, per
+   * the client's own explicit request that refinement engagement count --
+   * deliberately never the text itself, which stays exactly as
+   * privacy-protected as every other field in this schema.
+   */
+  z.object({
+    event: z.literal("device_outcome"),
+    session_id: z.string().uuid(),
+    device_id: deviceIdSchema,
+    decision: z.enum(["keep", "build_upon", "not_this_one"]),
+    had_refinement_input: z.boolean(),
   }),
 ]);
 
@@ -61,6 +96,15 @@ analyticsRouter.post("/api/analytics/event", async (req, res) => {
   try {
     await appendAnalyticsEvent({ ...parsed.data, received_at: new Date().toISOString() });
     res.status(202).json({ ok: true });
+    // 2026-09-09: fire-and-forget, deliberately AFTER responding -- the
+    // client should never wait on a roster review to know its event was
+    // recorded. Only ever does real work on a device_outcome event (the
+    // only event type that advances the review counter); every other
+    // event type is a fast no-op inside this function. See
+    // deviceRosterStore.ts for the full threshold/aggregation/review
+    // cycle -- errors here are caught and logged there, never thrown back
+    // into this request.
+    if (parsed.data.event === "device_outcome") void maybeReviewDeviceRoster();
   } catch {
     // Analytics must never surface as a user-facing failure -- the client
     // already treats this as fire-and-forget and never shows an error for

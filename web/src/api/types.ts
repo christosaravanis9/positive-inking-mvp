@@ -44,6 +44,8 @@ export interface VisualCandidate {
   source_category: string;
   resolution_state: "concrete" | "needs_client_specific_detail";
   follow_up_prompt?: string;
+  /** 2026-09-09: which DEVICE VOCABULARY entry (engine's DEVICE_CATALOG) this candidate was built from -- undefined when the model's own value didn't match a real catalog id (server/src/routes/association.ts sanitizes it before this ever reaches the client). Used only for the device_impression/device_outcome analytics events below; never shown to the client. */
+  device_id?: string;
   personal_relevance: number;
   story_relevance: number;
   visual_potential: number;

@@ -18,14 +18,22 @@ vi.mock("../src/analyticsStore.js", () => ({
   appendAnalyticsEvent: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock("../src/deviceRosterStore.js", () => ({
+  maybeReviewDeviceRoster: vi.fn().mockResolvedValue(undefined),
+}));
+
 const { appendAnalyticsEvent } = await import("../src/analyticsStore.js");
+const { maybeReviewDeviceRoster } = await import("../src/deviceRosterStore.js");
 const { createApp } = await import("../src/app.js");
+const { DEVICE_CATALOG } = await import("@positive-inking/engine");
 
 const STORY_MARKER = "AUDIT-TEST-STORY-a-childhood-memory-about-my-grandmother";
 const SESSION_ID = "11111111-1111-4111-8111-111111111111";
+const REAL_DEVICE_ID = DEVICE_CATALOG[0]!.id;
 
 beforeEach(() => {
   vi.mocked(appendAnalyticsEvent).mockClear();
+  vi.mocked(maybeReviewDeviceRoster).mockClear();
 });
 
 describe("POST /api/analytics/event", () => {
@@ -163,5 +171,106 @@ describe("POST /api/analytics/event", () => {
       });
       expect(response.status, `screen "${screen}" should be accepted`).toBe(202);
     }
+  });
+
+  // 2026-09-09: the "6 artists" device-rotation system's two event types.
+  describe("device_impression / device_outcome (the device-rotation system)", () => {
+    it("accepts a well-formed device_impression event with a real catalog device_id", async () => {
+      const app = createApp();
+      const response = await request(app).post("/api/analytics/event").send({
+        event: "device_impression",
+        session_id: SESSION_ID,
+        device_id: REAL_DEVICE_ID,
+      });
+
+      expect(response.status).toBe(202);
+      expect(appendAnalyticsEvent).toHaveBeenCalledTimes(1);
+      // Only a device_outcome event should ever trigger a roster review --
+      // an impression alone doesn't advance the review counter.
+      expect(maybeReviewDeviceRoster).not.toHaveBeenCalled();
+    });
+
+    it("accepts a well-formed device_outcome event and triggers the roster review check", async () => {
+      const app = createApp();
+      const response = await request(app).post("/api/analytics/event").send({
+        event: "device_outcome",
+        session_id: SESSION_ID,
+        device_id: REAL_DEVICE_ID,
+        decision: "keep",
+        had_refinement_input: false,
+      });
+
+      expect(response.status).toBe(202);
+      expect(appendAnalyticsEvent).toHaveBeenCalledTimes(1);
+      const persisted = vi.mocked(appendAnalyticsEvent).mock.calls[0][0];
+      expect(persisted).toMatchObject({ event: "device_outcome", device_id: REAL_DEVICE_ID, decision: "keep", had_refinement_input: false });
+      expect(maybeReviewDeviceRoster).toHaveBeenCalledTimes(1);
+    });
+
+    it("accepts every real decision value (keep, build_upon, not_this_one)", async () => {
+      const app = createApp();
+      for (const decision of ["keep", "build_upon", "not_this_one"] as const) {
+        const response = await request(app).post("/api/analytics/event").send({
+          event: "device_outcome",
+          session_id: SESSION_ID,
+          device_id: REAL_DEVICE_ID,
+          decision,
+          had_refinement_input: true,
+        });
+        expect(response.status, `decision "${decision}" should be accepted`).toBe(202);
+      }
+    });
+
+    it("rejects a device_id that isn't a real catalog entry -- the enum check blocks a made-up or free-text value", async () => {
+      const app = createApp();
+      const response = await request(app).post("/api/analytics/event").send({
+        event: "device_outcome",
+        session_id: SESSION_ID,
+        device_id: STORY_MARKER,
+        decision: "keep",
+        had_refinement_input: false,
+      });
+
+      expect(response.status).toBe(400);
+      expect(JSON.stringify(response.body)).not.toContain(STORY_MARKER);
+      expect(appendAnalyticsEvent).not.toHaveBeenCalled();
+      expect(maybeReviewDeviceRoster).not.toHaveBeenCalled();
+    });
+
+    it("rejects an invalid decision value", async () => {
+      const app = createApp();
+      const response = await request(app).post("/api/analytics/event").send({
+        event: "device_outcome",
+        session_id: SESSION_ID,
+        device_id: REAL_DEVICE_ID,
+        decision: "loved_it",
+        had_refinement_input: false,
+      });
+
+      expect(response.status).toBe(400);
+      expect(appendAnalyticsEvent).not.toHaveBeenCalled();
+    });
+
+    it("rejects device_outcome with had_refinement_input missing or non-boolean", async () => {
+      const app = createApp();
+      const response = await request(app)
+        .post("/api/analytics/event")
+        .send({ event: "device_outcome", session_id: SESSION_ID, device_id: REAL_DEVICE_ID, decision: "keep", had_refinement_input: "yes" });
+
+      expect(response.status).toBe(400);
+      expect(appendAnalyticsEvent).not.toHaveBeenCalled();
+    });
+
+    it("accepts every real DEVICE_CATALOG id as a valid device_id -- the enum stays in sync with the engine's real catalog", async () => {
+      const app = createApp();
+      for (const device of DEVICE_CATALOG) {
+        const response = await request(app).post("/api/analytics/event").send({
+          event: "device_impression",
+          session_id: SESSION_ID,
+          device_id: device.id,
+        });
+        expect(response.status, `device_id "${device.id}" should be accepted`).toBe(202);
+      }
+    });
   });
 });

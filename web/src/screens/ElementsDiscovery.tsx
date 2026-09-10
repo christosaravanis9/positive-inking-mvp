@@ -7,6 +7,7 @@ import { ModelWaitIndicator } from "../components/ModelWaitIndicator";
 import { ReferenceAttachment, emptyReferenceDraft, type ReferenceDraft } from "../components/ReferenceAttachment";
 import { NEEDS_REFERENCE, statusFromDraft, draftToConsentRecord, draftFromExisting } from "../journey/referenceDraft";
 import { logTelemetryEvent } from "../instrumentation/telemetry";
+import { reportDeviceImpression, reportDeviceOutcome } from "../instrumentation/analytics";
 import type { VisualElement, ElementFidelity, ConsentRecord } from "@positive-inking/engine";
 import {
   suppressGeneratedSymbolicSuggestions,
@@ -313,6 +314,22 @@ export function ElementsDiscovery() {
     return hist[pos] ?? defaultIdx;
   });
 
+  // 2026-09-09: the "6 artists" device-rotation system's impression signal
+  // -- fired once per candidate index the first time it genuinely becomes
+  // visible (the initial 5, and any later reveal via reroll/build-upon),
+  // never for a candidate sitting unseen in the reserve pool. reportedRef
+  // is the source of truth for "already reported," not component state --
+  // this only ever needs to run a side effect, never re-render.
+  const reportedImpressionsRef = useRef<Set<number>>(new Set());
+  useEffect(() => {
+    for (const index of visibleCandidateIndices) {
+      if (reportedImpressionsRef.current.has(index)) continue;
+      reportedImpressionsRef.current.add(index);
+      reportDeviceImpression(state.ui.associationCandidates[index]?.device_id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleCandidateIndices.join(",")]);
+
   // §14.2: only offered when there is exactly one already-confirmed element to
   // possibly replace -- this build has no explicit "set hierarchy to primary"
   // step anywhere, so a lone existing element is the one unambiguous anchor for
@@ -380,6 +397,14 @@ export function ElementsDiscovery() {
         delete next[index];
         return next;
       }
+      // 2026-09-09: only "keep" is logged here as a completed outcome --
+      // marking "build_upon" is the start of an editing flow, not a
+      // finished action; that one is logged at submitBuildUponEdit's
+      // actual submission instead, where hadRefinementInput is genuinely
+      // true. Logging it here too would double-count the same action.
+      if (decision === "keep") {
+        reportDeviceOutcome(state.ui.associationCandidates[index]?.device_id, "keep", false);
+      }
       return { ...prev, [index]: decision };
     });
   }
@@ -433,6 +458,12 @@ export function ElementsDiscovery() {
 
   function submitReroll(slot: number) {
     const reason = (whyDraft[slot] ?? "").trim();
+    const hist = history[slot] ?? [defaultTopIndices[slot]!];
+    const pos = historyPos[slot] ?? 0;
+    // Captured before either branch replaces this slot's candidate -- this
+    // is the device_id the "not this one" outcome belongs to.
+    const currentIndex = hist[pos] ?? defaultTopIndices[slot]!;
+    const currentDeviceId = associationCandidatesRef.current[currentIndex]?.device_id;
     setRerollPromptOpenSlots((prev) => {
       const next = new Set(prev);
       next.delete(slot);
@@ -459,6 +490,7 @@ export function ElementsDiscovery() {
       reserveCursorRef.current += 1;
       setReserveCursor(reserveCursorRef.current);
       appendToHistory(slot, nextCandidate.i);
+      reportDeviceOutcome(currentDeviceId, "not_this_one", false);
       return;
     }
 
@@ -467,6 +499,7 @@ export function ElementsDiscovery() {
     // slot immediately (not inside the async callback) -- it's true the
     // moment the client submits it, independent of whether the call
     // eventually succeeds, times out, or goes stale.
+    reportDeviceOutcome(currentDeviceId, "not_this_one", true);
     const updatedSlotHistory = [...(whyHistoryBySlotRef.current[slot] ?? []), reason];
     whyHistoryBySlotRef.current = { ...whyHistoryBySlotRef.current, [slot]: updatedSlotHistory };
     setWhyHistoryBySlot(whyHistoryBySlotRef.current);
@@ -530,6 +563,12 @@ export function ElementsDiscovery() {
     const candidate = state.ui.associationCandidates[index]!;
     const edit = (buildUponDraft[index] ?? candidate.description).trim();
     if (!edit || edit === candidate.description.trim()) return; // nothing to refine -- never a wasted call
+    // 2026-09-09: this IS the completed "build upon" action -- see decide()'s
+    // own comment for why marking the decision alone isn't logged as one.
+    // hadRefinementInput is unconditionally true here: the guard clause
+    // above already requires the client's text to genuinely differ from
+    // the original before this point is ever reached.
+    reportDeviceOutcome(candidate.device_id, "build_upon", true);
     void runSlotAction(
       slot,
       async (guard) => {

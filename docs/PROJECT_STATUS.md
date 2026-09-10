@@ -353,6 +353,27 @@ visible in the running app (footer + Telemetry panel, dev-only) so
 "is this browser running current code" never again requires leaving it
 to compare terminal output by hand.
 
+**Device rotation ("6 artists"):** Screen 7's candidate generation now
+tags each Association candidate with a `device_id` naming which of a
+fixed 5-device active roster (drawn from a 14-device catalog,
+`engine/src/deviceRoster.ts`) it was built from, logs real client
+Keep/Build-upon/Not-this-one outcomes against that tag anonymously (plus
+whether refinement input was typed, never the text), and periodically
+reviews the roster (`reviewDeviceRoster`, every `reviewThresholdEvents`
+accumulated `device_outcome` events) to swap the worst-scoring active
+device for a better-scoring or unsampled reserve device. This replaces
+the static, hand-written DEVICE VOCABULARY list from the prior
+convergence-bug patch with something that learns from real outcomes
+instead of one person's (or one Claude session's) guess at which visual
+devices are good. Real-model-verified (see the latest session log
+entry): the model reliably tags the first 5 candidates with the exact
+assigned `device_id`, in the assigned order, across every real call
+tested. **The 150-event review threshold
+(`DEFAULT_ROSTER_CONFIG.reviewThresholdEvents`) is untuned and
+provisional** — picked as a plausible starting number, not derived from
+any real traffic volume; revisit once real production event volume
+exists to inform it properly.
+
 **In progress:** nothing actively mid-change right now.
 
 **Open decisions waiting on you:**
@@ -468,6 +489,108 @@ here for you to decide scope on, matching how other open decisions in
 this document are tracked.
 
 ## Session log
+
+### 2026-09-10 — Applied the device-rotation ("6 artists") system: multi-armed-bandit rotation of Screen 7's DEVICE VOCABULARY, replacing the static list
+
+Applied `device-rotation-system.patch` (the client's own design, full
+rationale in `engine/src/deviceRoster.ts`'s own comments), verified it
+for real, then real-model-checked the one thing that can't be confirmed
+without a live call: whether the model actually tags each candidate
+with the `device_id` it was assigned.
+
+**Apply.** `git apply --check --3way` (dry run, clean) then `git apply
+--3way` for real. All 16 touched files applied cleanly, no 3-way
+fallback needed.
+
+**What it does, one line each:** (1) `engine/src/deviceRoster.ts` (new,
+pure/deterministic, no I/O) — a 14-device `DEVICE_CATALOG`, a 5-device
+`INITIAL_ACTIVE_DEVICE_IDS` active roster, `scoreDevice` (Keep×2 +
+Build-upon×1 − blank-reject×1 − reasoned-reject×1.5, over impressions,
+`null` below `minImpressionsPerDevice`=10), and `reviewDeviceRoster`
+(exploit a genuinely better-scoring reserve device if one exists,
+otherwise explore an unsampled one, max 1 swap per review, bounded
+50-entry audit history). (2) `server/src/deviceRosterStore.ts` (new) —
+persistence + the review trigger, same two-backend split as
+`analyticsStore.ts` (Supabase when configured, local JSON file
+otherwise), with a documented known scaling limit (aggregates every
+raw event in Node on every review — fine at current volume, needs real
+SQL aggregation once it isn't). (3) `server/src/routes/analytics.ts` —
+new `device_impression`/`device_outcome` event schemas, `device_id`
+validated against the real catalog as an enum (never an open string);
+`device_outcome` fires `maybeReviewDeviceRoster()` after responding
+202. (4) `server/src/schemas/association.ts` — the system prompt is now
+built by `buildAssociationSystemPrompt(roster)`, a function, not a
+static constant; its DEVICE VOCABULARY section explicitly assigns each
+of the first `roster.active.length` candidates to one specific device
+in order, with the exact `device_id` string the model must echo back.
+`server/src/routes/association.ts` fetches the live roster fresh per
+request (a review can change it between calls) and sanitizes any
+`device_id` the model returns that doesn't match the real roster (nulls
+it, logs it, never drops the candidate). (5) `web/` — impression/outcome
+reporting wired into `ElementsDiscovery.tsx` (one impression per
+candidate index the first time it's visible; `keep`/`build_upon`/
+`not_this_one` outcomes with `had_refinement_input`, never the typed
+text). (6) Supabase schema/migration + privacy-notice updates for the
+new columns and the new anonymous-tracking disclosure.
+
+**Verification.** Rebuilt `engine` first (same stale-`dist` pattern as
+the prior Artist Brief patch — `web`'s typecheck resolves
+`@positive-inking/engine`'s types via its compiled `dist/index.d.ts`).
+`npm run typecheck && npm test && npm run build` all clean across all
+three workspaces: 534 tests total (engine 191, server 97, web 246, +33
+for this patch), zero typecheck errors, all three builds succeed.
+
+**Real-model check (the task's own explicit critical ask) — a key
+supplied for this run only, passed inline as an env var on the actual
+`node`/`tsx` command, never written to disk, deleted with the throwaway
+scripts afterward.** Two full real calls to `/api/associations` against
+the real model, different stories each time. Both confirm the mechanism
+works exactly as designed: candidates 0-4 carried `device_id` values
+`literal_object`, `material_substitution`, `negative_space`,
+`environmental_context`, `geometric_abstraction` — the real active
+roster, in the exact assigned order — on both calls, with zero
+missing/mismatched ids among the first 5 either time. Candidates beyond
+5 drew from the wider active+reserve list, also tagged, also matching
+real catalog ids. This is genuinely the one thing that couldn't have
+been confirmed by schema/unit tests alone (whether the model actually
+follows a per-slot assignment instruction), and it held on both real
+calls tested.
+
+**Supabase: not configured in this sandbox** (`server/.env` absent, no
+`SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` in the process environment —
+checked, not assumed, matching every prior round this session). Step 4
+of the task (`docs/supabase-migration-2026-09-09-device-roster.sql`
+against a real project, confirming a `device_outcome` round-trip) could
+not be run here. The local-JSON-file backend was exercised instead (via
+the real server + real-model calls above, and the existing test suite's
+mocked-Supabase branch coverage in `deviceRosterStore.test.ts`) — the
+Supabase branch itself remains unverified against a real project, same
+gap as every other Supabase-backed feature in this codebase to date.
+
+**Security note, disclosed rather than glossed over:** the API key,
+though never written to any file in the repo or `/tmp` scratchpad (the
+established discipline held — post-use `grep -rl <key fragment>` across
+the repo and `/tmp` confirms this), was captured in plaintext by the
+Claude Code CLI's own internal operational log
+(`/tmp/claude-code.log`, outside the repo, not committed, ephemeral to
+this container) as a side effect of passing it inline on the shell
+command line — the harness logs the full command text it executes. An
+attempt to redact the two occurrences in that log was blocked by this
+environment's own permission classifier; the attempt was not repeated
+or worked around. This is very likely true of every prior round in this
+session that used the same inline-env-var pattern with a real key, not
+a defect newly introduced this round — flagging it now because this is
+the first time the post-use grep swept `/tmp` broadly enough to surface
+it. Worth knowing before treating "never touched disk" as an absolute
+guarantee for this class of verification going forward; the repo itself
+remains clean.
+
+**150-event review threshold, flagged per the task's own explicit
+ask:** `DEFAULT_ROSTER_CONFIG.reviewThresholdEvents` (150) is untuned
+and provisional — a plausible starting number, not derived from real
+traffic. Revisit once real production `device_outcome` volume exists to
+inform what threshold actually balances "reacts to real signal" against
+"reviews on noise."
 
 ### 2026-09-09 (even later still) — Applied a second outside-investigation patch: composition option descriptions, "Mine" label fix, Readiness "Possible next steps" separated, and the Artist Brief restructured from a string to a structured object
 

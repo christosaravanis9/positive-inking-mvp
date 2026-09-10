@@ -124,6 +124,22 @@ stored; it does not change what is collected, and the same "you cannot
 be identified from this information" guarantee applies exactly as
 before.
 
+**Which visual approach a design suggestion is built from.** On the
+screen where we show you candidate design directions, each suggestion
+is built using one of a fixed set of visual techniques (for example, a
+literal object, a material substitution, a scale contrast). We record,
+anonymously, which technique a suggestion used and whether you kept
+it, asked to develop it further, or moved on — and, separately,
+whether you typed anything in response (a reason, an edit, an answer
+to a follow-up question) without ever recording what you typed. This
+lets us learn, in aggregate across everyone who uses the tool, which
+kinds of visual approaches genuinely resonate, and periodically
+rotate the set of techniques on offer toward the ones that do — never
+which candidate, story, or person any of it came from. The same
+content-free schema and Supabase storage described above apply here
+identically: nothing about your specific story, image, or the actual
+words in any suggestion, question, or answer is ever recorded.
+
 ---
 
 ## Sensitive information

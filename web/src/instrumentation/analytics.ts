@@ -75,3 +75,19 @@ export function reportDeviceOutcome(deviceId: string | undefined, decision: "kee
   if (!deviceId) return;
   send({ event: "device_outcome", session_id: sessionId, device_id: deviceId, decision, had_refinement_input: hadRefinementInput });
 }
+
+/**
+ * 2026-09-11: lets completion rate be compared between sessions that used
+ * voice input and those that didn't (see the event schema's own doc
+ * comment, server/src/routes/analytics.ts, for the full design). Deduped
+ * per screen per session here -- calling this again for a screen already
+ * reported this session is a silent no-op, so VoiceInput.tsx can call it
+ * on every non-empty final transcript without worrying about spamming one
+ * event per utterance.
+ */
+const reportedVoiceScreens = new Set<ScreenId>();
+export function reportVoiceInputUsed(screen: ScreenId): void {
+  if (reportedVoiceScreens.has(screen)) return;
+  reportedVoiceScreens.add(screen);
+  send({ event: "voice_input_used", session_id: sessionId, screen });
+}

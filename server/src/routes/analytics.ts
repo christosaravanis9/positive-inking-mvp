@@ -76,6 +76,22 @@ const eventSchema = z.discriminatedUnion("event", [
     decision: z.enum(["keep", "build_upon", "not_this_one"]),
     had_refinement_input: z.boolean(),
   }),
+  /**
+   * 2026-09-11: fired once per screen per session, the first time voice
+   * dictation actually produces real transcribed text on that screen (not
+   * merely tapped/attempted -- see web/src/components/VoiceInput.tsx, fired
+   * from the first non-empty final transcript, so a tap that got denied
+   * mic access or heard nothing never counts). Exists to let completion
+   * rate be compared between sessions that used voice input and those that
+   * didn't -- joined against screen_reached/journey_completed via
+   * session_id, same as every other event here. No transcript content,
+   * only which screen it happened on.
+   */
+  z.object({
+    event: z.literal("voice_input_used"),
+    session_id: z.string().uuid(),
+    screen: z.enum(SCREEN_IDS),
+  }),
 ]);
 
 export const analyticsRouter = Router();

@@ -145,7 +145,7 @@ export function Story() {
           placeholder="Or say it in your own words"
         />
         <AsyncError onRetry={answerDepthExercise} />
-        {pending && <ModelWaitIndicator label="Following up on your story..." />}
+        {pending && <ModelWaitIndicator label="Following up on your story..." route="discovery" />}
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={answerDepthExercise} disabled={depthAnswer.trim().length === 0 || pending}>
             Share it
@@ -177,13 +177,14 @@ export function Story() {
       <VoiceInputButton
         ref={voiceRef}
         value={text}
+        screen="story"
         onChange={(t) => {
           setText(t);
           setUsedVoice(true);
         }}
       />
       <AsyncError onRetry={submit} />
-      {pending && <ModelWaitIndicator label="Understanding your story..." />}
+      {pending && <ModelWaitIndicator label="Understanding your story..." route="discovery" />}
       <button onClick={submit} disabled={text.trim().length === 0 || pending}>
         {pending ? "Finding the meaning…" : "Continue"}
       </button>

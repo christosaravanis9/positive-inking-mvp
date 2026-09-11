@@ -21,6 +21,7 @@ export function ImageDescription() {
       <VoiceInputButton
         ref={voiceRef}
         value={text}
+        screen="image_description"
         onChange={(t) => {
           setText(t);
           setUsedVoice(true);

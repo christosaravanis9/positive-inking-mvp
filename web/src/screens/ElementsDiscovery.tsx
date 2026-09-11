@@ -862,7 +862,7 @@ export function ElementsDiscovery() {
       </div>
       <h2 className="ledger-headline">Let us find what could represent it.</h2>
       <AsyncError onRetry={fetchAssociations} />
-      {fetching && <ModelWaitIndicator label="Finding personal and visual directions..." />}
+      {fetching && <ModelWaitIndicator label="Finding personal and visual directions..." route="association" />}
       {hasCandidates && <p className="supporting">Keep the ones that already feel right, build upon ones that are close, or ask for something else.</p>}
       {hasCandidates && (
         <div className="ledger-list">

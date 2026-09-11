@@ -490,6 +490,72 @@ this document are tracked.
 
 ## Session log
 
+### 2026-09-11 (even later) — Voice-input-usage tracking + budget-paced progress bar replacing the numbers-only loading state
+
+Applied `voice-tracking-and-budget-paced-loading.patch` — two
+independent pieces bundled in one patch: the voice-input-usage
+analytics event (unchanged from an earlier description of it), and a
+new budget-paced progress bar for `ModelWaitIndicator`, the one shared
+loading component used across every model-call wait in the journey.
+
+**Apply.** `git apply --check --3way` (dry run, clean) then `git apply
+--3way` for real. All 18 touched files applied cleanly, no 3-way
+fallback needed.
+
+**What it does, one line each:**
+1. **`voice_input_used` analytics event** (`server/src/routes/analytics.ts`,
+   `web/src/instrumentation/analytics.ts`, `web/src/components/VoiceInput.tsx`) —
+   fires once per screen per session, the first time voice dictation
+   actually produces real transcribed text on that screen (a FINAL,
+   non-empty result — never merely tapping the button, and never on a
+   denied-mic or no-speech session). Lets completion rate be compared
+   between sessions that used voice input and those that didn't, joined
+   via `session_id` against `screen_reached`/`journey_completed` like
+   every other event. No transcript content, only which screen. Every
+   `VoiceInputButton` call site now passes its own `screen` prop
+   (`story`, `image_description`, `image_provenance`).
+2. **Budget-paced progress bar** (`web/src/components/ModelWaitIndicator.tsx`) —
+   replaces the numbers-only "Still working — Ns" text (still present,
+   unchanged, appearing after 5s as before) with a visual progress
+   track paced against each route's own known timeout budget
+   (`MODEL_ROUTE_TIMEOUT_DEFAULTS_MS`, the same real per-route numbers
+   `docs/timeout-matrix.md` already documents). `progressFraction(elapsedMs,
+   budgetMs)` fills linearly to 85% across the expected window, then
+   decelerates asymptotically toward — but by construction never
+   reaching — 100% for however much longer an unusually slow call
+   actually takes (clamped at 99.5%, so even floating-point underflow
+   at extreme elapsed times can't reach exactly 100%). This is the same
+   "never promise what isn't known" reasoning that already ruled out a
+   countdown in this component — applied here in visual form, not just
+   text. Every `ModelWaitIndicator` call site now passes its own
+   `route` prop.
+3. **Supabase** — `docs/supabase-migration-2026-09-11-voice-input-tracking.sql`
+   (new file, for an existing project that already has the 2026-09-09
+   device-roster migration applied) and the updated
+   `docs/supabase-schema.sql` (for a brand-new project) both just widen
+   `analytics_events`'s `event` check constraint to allow
+   `voice_input_used` — no new columns, it reuses the existing `screen`
+   column.
+
+**Verification.** `npm run typecheck && npm test && npm run build` all
+clean across all three workspaces: 555 tests total (engine 191, server
+105 [+4], web 259 [+13]), zero typecheck errors, all three builds
+succeed. No real-model check was needed or attempted, per the task's
+own explicit note — this patch is presentation/timing logic and an
+analytics event shape, neither of which depends on model output
+content.
+
+**Supabase migration: not run.** Same as every prior round this
+session — no Supabase configured in this sandbox (`server/.env`
+absent, no `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` in the process
+environment), and separately, this session's network egress policy
+blocks `*.supabase.co` outright regardless of credentials (established
+earlier this session while investigating the device-roster production
+incident). If/when this migration needs to actually run against the
+real project, it has to happen from outside this sandbox — the
+Supabase SQL Editor, same as the 2026-09-09 device-roster migration
+which is also still outstanding there.
+
 ### 2026-09-11 (later) — Fixed a real bug: the model was inventing the client's own gender from an unrelated detail in their story
 
 Applied `fix-invented-client-gender.patch` — live-reported bug: a story

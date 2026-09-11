@@ -3,6 +3,11 @@ import { createRef } from "react";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import { VoiceInputButton, type VoiceInputHandle } from "./VoiceInput";
 
+vi.mock("../instrumentation/analytics", () => ({
+  reportVoiceInputUsed: vi.fn(),
+}));
+import { reportVoiceInputUsed } from "../instrumentation/analytics";
+
 /**
  * Voice input rebuild, matched to a known-good reference implementation (browser-native Web
  * Speech API only). These tests exercise the exact failure modes the rewrite targets:
@@ -61,6 +66,7 @@ beforeEach(() => {
   FakeSpeechRecognition.instances = [];
   FakeSpeechRecognition.throwOnStart = false;
   (window as unknown as Record<string, unknown>).SpeechRecognition = FakeSpeechRecognition;
+  vi.mocked(reportVoiceInputUsed).mockClear();
 });
 
 afterEach(() => {
@@ -70,7 +76,7 @@ afterEach(() => {
 
 function renderButton(value: string, onChange: (t: string) => void) {
   const ref = createRef<VoiceInputHandle>();
-  const utils = render(<VoiceInputButton ref={ref} value={value} onChange={onChange} />);
+  const utils = render(<VoiceInputButton ref={ref} value={value} screen="story" onChange={onChange} />);
   return { ...utils, ref };
 }
 
@@ -140,7 +146,7 @@ describe("VoiceInputButton -- live interim text (fixes 'only appears after stopp
 
   it("startingText is captured ONCE at session start -- later onChange calls (which change the parent's value) don't get re-captured mid-session", () => {
     const onChange = vi.fn();
-    const { rerender } = render(<VoiceInputButton value="Original." onChange={onChange} />);
+    const { rerender } = render(<VoiceInputButton value="Original." screen="story" onChange={onChange} />);
     fireEvent.click(screen.getByRole("button"));
     act(() => latestInstance().onstart?.());
 
@@ -148,7 +154,7 @@ describe("VoiceInputButton -- live interim text (fixes 'only appears after stopp
     expect(onChange).toHaveBeenLastCalledWith("Original. Part one.");
 
     // Parent re-renders with the new value (as it would after the onChange above committed).
-    rerender(<VoiceInputButton value="Original. Part one." onChange={onChange} />);
+    rerender(<VoiceInputButton value="Original. Part one." screen="story" onChange={onChange} />);
 
     // resultIndex=1 with a 2-entry results array matches the real API's contract: entries
     // below resultIndex were already reported in a previous event and must not be re-summed.
@@ -161,6 +167,58 @@ describe("VoiceInputButton -- live interim text (fixes 'only appears after stopp
     // startingText is still "Original." (captured at session start), and completedText
     // accumulates within THIS session only -- never "Original. Part one. Part one. Part two."
     expect(onChange).toHaveBeenLastCalledWith("Original. Part one. Part two.");
+  });
+});
+
+// 2026-09-11: lets completion rate be compared between sessions that used
+// voice input and those that didn't -- see analytics.ts's own doc comment
+// on reportVoiceInputUsed for the full design.
+describe("VoiceInputButton -- voice-usage tracking (2026-09-11)", () => {
+  it("reports usage (with the passed screen id) the first time a real, non-empty final transcript arrives -- not merely on tapping the button", () => {
+    const onChange = vi.fn();
+    renderButton("", onChange);
+    fireEvent.click(screen.getByRole("button"));
+    act(() => latestInstance().onstart?.());
+    expect(reportVoiceInputUsed).not.toHaveBeenCalled(); // tapping/starting alone is not "used"
+
+    act(() => latestInstance().onresult?.({ resultIndex: 0, results: [{ isFinal: true, 0: { transcript: "Hello." } }] }));
+
+    expect(reportVoiceInputUsed).toHaveBeenCalledTimes(1);
+    expect(reportVoiceInputUsed).toHaveBeenCalledWith("story");
+  });
+
+  it("never reports on an interim-only result -- only once a FINAL result produces real text", () => {
+    const onChange = vi.fn();
+    renderButton("", onChange);
+    fireEvent.click(screen.getByRole("button"));
+    act(() => latestInstance().onstart?.());
+
+    act(() => latestInstance().onresult?.({ resultIndex: 0, results: [{ isFinal: false, 0: { transcript: "hello wor" } }] }));
+
+    expect(reportVoiceInputUsed).not.toHaveBeenCalled();
+  });
+
+  it("never reports when a recognition session starts but no real speech is ever produced (e.g. denied mic, no-speech)", () => {
+    const onChange = vi.fn();
+    renderButton("", onChange);
+    fireEvent.click(screen.getByRole("button"));
+    act(() => latestInstance().onstart?.());
+    act(() => latestInstance().onerror?.({ error: "no-speech" }));
+    act(() => latestInstance().onend?.());
+
+    expect(reportVoiceInputUsed).not.toHaveBeenCalled();
+  });
+
+  it("does not call it again within the same recognition session once already reported -- repeated final results are a local no-op, not a correctness requirement (the module itself also dedupes), but still avoided", () => {
+    const onChange = vi.fn();
+    renderButton("", onChange);
+    fireEvent.click(screen.getByRole("button"));
+    act(() => latestInstance().onstart?.());
+
+    act(() => latestInstance().onresult?.({ resultIndex: 0, results: [{ isFinal: true, 0: { transcript: "First." } }] }));
+    act(() => latestInstance().onresult?.({ resultIndex: 1, results: [{ isFinal: true, 0: { transcript: "Second." } }] }));
+
+    expect(reportVoiceInputUsed).toHaveBeenCalledTimes(1);
   });
 });
 

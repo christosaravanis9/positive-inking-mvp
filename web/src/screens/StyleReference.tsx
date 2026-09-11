@@ -100,7 +100,7 @@ export function StyleReference() {
     return (
       <div className="screen">
         <h2>Is there a particular style, medium, or tradition in mind?</h2>
-        <ModelWaitIndicator label="Working out what that points toward..." />
+        <ModelWaitIndicator label="Working out what that points toward..." route="style_reference" />
       </div>
     );
   }

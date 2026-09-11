@@ -55,7 +55,7 @@ export function Avoidances() {
       <h2 className="screen-heading">Is there anything you definitely do not want?</h2>
       <p className="supporting">These likely failure modes come from this concept. Keep, remove or add to them.</p>
       <AsyncError onRetry={fetchSuggestions} />
-      {fetching && <ModelWaitIndicator label="Thinking about what could go wrong for this concept..." />}
+      {fetching && <ModelWaitIndicator label="Thinking about what could go wrong for this concept..." route="avoidance" />}
       {!fetching && state.ui.avoidanceSuggestions.length > 0 && (
         <p className="progress-note">Suggestions generated for this specific concept.</p>
       )}

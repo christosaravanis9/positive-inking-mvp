@@ -259,7 +259,7 @@ export function DesignConfirmation() {
         </div>
       )}
       <AsyncError onRetry={build} />
-      {pending && <ModelWaitIndicator label="Building your Blueprint..." />}
+      {pending && <ModelWaitIndicator label="Building your Blueprint..." route="blueprint" />}
       <div style={{ display: "flex", gap: 8 }}>
         <button onClick={build} disabled={pending || needsFidelityTreatment}>
           {pending ? "Working..." : "Build my Blueprint"}

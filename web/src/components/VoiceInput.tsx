@@ -1,4 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import type { ScreenId } from "@positive-inking/engine";
+import { reportVoiceInputUsed } from "../instrumentation/analytics";
 
 /**
  * Voice input, rebuilt to match a known-good reference implementation using the browser's
@@ -80,8 +82,8 @@ export interface VoiceInputHandle {
   stop: () => void;
 }
 
-export const VoiceInputButton = forwardRef<VoiceInputHandle, { value: string; onChange: (text: string) => void; disabled?: boolean }>(
-  function VoiceInputButton({ value, onChange, disabled }, ref) {
+export const VoiceInputButton = forwardRef<VoiceInputHandle, { value: string; onChange: (text: string) => void; disabled?: boolean; screen: ScreenId }>(
+  function VoiceInputButton({ value, onChange, disabled, screen }, ref) {
     const [supported] = useState(() => getSpeechRecognitionConstructor() !== null);
     const [status, setStatus] = useState<VoiceStatus>("idle");
     const [message, setMessage] = useState<string | null>(supported ? null : UNSUPPORTED_MESSAGE);
@@ -152,6 +154,13 @@ export const VoiceInputButton = forwardRef<VoiceInputHandle, { value: string; on
       const startingText = value.trim();
       let completedText = "";
       let errorShown = false;
+      // 2026-09-11: fires once real content exists, not on the mere attempt
+      // -- see analytics.ts's own doc comment on reportVoiceInputUsed for
+      // why (a tap that got denied mic access or heard nothing must never
+      // count as "used"). The module itself also dedupes per screen per
+      // session, so this local flag only avoids redundant no-op calls
+      // during one long recognition session, not a correctness requirement.
+      let reportedThisSession = false;
 
       recognition.onstart = () => {
         guardRef.current = "listening";
@@ -168,6 +177,10 @@ export const VoiceInputButton = forwardRef<VoiceInputHandle, { value: string; on
           } else {
             interimText += transcript;
           }
+        }
+        if (!reportedThisSession && completedText.trim().length > 0) {
+          reportedThisSession = true;
+          reportVoiceInputUsed(screen);
         }
         onChange([startingText, completedText.trim(), interimText.trim()].filter(Boolean).join(" "));
       };

@@ -16,7 +16,7 @@
 
 create table if not exists public.analytics_events (
   id bigint generated always as identity primary key,
-  event text not null check (event in ('screen_reached', 'journey_completed', 'device_impression', 'device_outcome')),
+  event text not null check (event in ('screen_reached', 'journey_completed', 'device_impression', 'device_outcome', 'voice_input_used')),
   session_id uuid not null,
   journey_mode text,
   -- screen_reached only:

@@ -105,7 +105,7 @@ export function Clarification() {
       )}
       <input type="text" value={answer} onChange={(e) => setAnswer(e.target.value)} placeholder="Or describe it in your own words" />
       <AsyncError onRetry={() => submit(false)} />
-      {pending && <ModelWaitIndicator label="Following up on your story..." />}
+      {pending && <ModelWaitIndicator label="Following up on your story..." route="discovery" />}
       <div style={{ display: "flex", gap: 8 }}>
         <button onClick={() => submit(false)} disabled={answer.trim().length === 0 || pending}>
           Continue

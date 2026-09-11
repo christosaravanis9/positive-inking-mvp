@@ -18,7 +18,11 @@ entry for what was investigated/verified before this was written.
    `create table if not exists` cannot add columns or relax a constraint on
    a table that's already there, so the plain schema file alone won't pick
    up the new device_id/decision/had_refinement_input columns on an
-   existing project.
+   existing project. **If that migration has already been run and you're
+   only missing the 2026-09-11 voice-input-tracking addition**, run
+   `docs/supabase-migration-2026-09-11-voice-input-tracking.sql` instead --
+   it only widens the `event` check constraint to allow the new
+   `voice_input_used` value; no new columns are needed for it.
 3. Go to Project Settings -> API and copy two values:
    - **Project URL** -> this is `SUPABASE_URL`.
    - **service_role secret** (not the `anon`/`public` key) -> this is

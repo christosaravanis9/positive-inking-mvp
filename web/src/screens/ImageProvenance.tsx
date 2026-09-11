@@ -146,9 +146,9 @@ export function ImageProvenance() {
       <div className="screen">
         <h2>Tell me more about {reentrySubject}</h2>
         <textarea value={elaborationText} onChange={(e) => setElaborationText(e.target.value)} />
-        <VoiceInputButton ref={elaborationVoiceRef} value={elaborationText} onChange={setElaborationText} />
+        <VoiceInputButton ref={elaborationVoiceRef} value={elaborationText} screen="image_provenance" onChange={setElaborationText} />
         <AsyncError onRetry={submitElaboration} />
-        {elaborationPending && <ModelWaitIndicator label="Making sense of what you added..." />}
+        {elaborationPending && <ModelWaitIndicator label="Making sense of what you added..." route="discovery" />}
         <button onClick={submitElaboration} disabled={elaborationText.trim().length === 0 || elaborationPending}>
           {elaborationPending ? "Working..." : "Continue"}
         </button>
@@ -179,9 +179,9 @@ export function ImageProvenance() {
         connected to anyone?
       </p>
       <textarea value={text} onChange={(e) => setText(e.target.value)} />
-      <VoiceInputButton ref={voiceRef} value={text} onChange={setText} />
+      <VoiceInputButton ref={voiceRef} value={text} screen="image_provenance" onChange={setText} />
       <AsyncError onRetry={submit} />
-      {provenancePending && <ModelWaitIndicator label="Recording where this comes from..." />}
+      {provenancePending && <ModelWaitIndicator label="Recording where this comes from..." route="provenance" />}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button onClick={submit} disabled={text.trim().length === 0 || provenancePending}>
           {provenancePending ? "Working..." : "Continue"}

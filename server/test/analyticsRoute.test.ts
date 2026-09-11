@@ -273,4 +273,64 @@ describe("POST /api/analytics/event", () => {
       }
     });
   });
+
+  // 2026-09-11: lets completion rate be compared between sessions that used
+  // voice input and those that didn't -- see the event schema's own doc
+  // comment for the full design.
+  describe("voice_input_used (voice-usage tracking)", () => {
+    it("accepts a well-formed voice_input_used event with a real screen id", async () => {
+      const app = createApp();
+      const response = await request(app).post("/api/analytics/event").send({
+        event: "voice_input_used",
+        session_id: SESSION_ID,
+        screen: "story",
+      });
+
+      expect(response.status).toBe(202);
+      expect(appendAnalyticsEvent).toHaveBeenCalledTimes(1);
+      const persisted = vi.mocked(appendAnalyticsEvent).mock.calls[0][0];
+      expect(persisted).toMatchObject({ event: "voice_input_used", screen: "story" });
+      // Unlike device_outcome, this event type must never trigger a roster review.
+      expect(maybeReviewDeviceRoster).not.toHaveBeenCalled();
+    });
+
+    it("accepts every real SCREEN_IDS value as a valid screen", async () => {
+      const app = createApp();
+      for (const s of SCREEN_IDS) {
+        const response = await request(app).post("/api/analytics/event").send({
+          event: "voice_input_used",
+          session_id: SESSION_ID,
+          screen: s,
+        });
+        expect(response.status, `screen "${s}" should be accepted`).toBe(202);
+      }
+    });
+
+    it("rejects a screen that isn't a real SCREEN_IDS value", async () => {
+      const app = createApp();
+      const response = await request(app).post("/api/analytics/event").send({
+        event: "voice_input_used",
+        session_id: SESSION_ID,
+        screen: STORY_MARKER,
+      });
+
+      expect(response.status).toBe(400);
+      expect(JSON.stringify(response.body)).not.toContain(STORY_MARKER);
+      expect(appendAnalyticsEvent).not.toHaveBeenCalled();
+    });
+
+    it("carries no transcript or other free-text field -- only event, session_id, and screen", async () => {
+      const app = createApp();
+      await request(app).post("/api/analytics/event").send({
+        event: "voice_input_used",
+        session_id: SESSION_ID,
+        screen: "story",
+        transcript: STORY_MARKER, // an extra field a caller should never be able to smuggle through
+      });
+
+      const persisted = vi.mocked(appendAnalyticsEvent).mock.calls[0]?.[0];
+      expect(JSON.stringify(persisted)).not.toContain(STORY_MARKER);
+      expect(Object.keys(persisted as object).sort()).toEqual(["event", "received_at", "screen", "session_id"]);
+    });
+  });
 });

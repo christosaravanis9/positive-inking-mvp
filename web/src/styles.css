@@ -901,6 +901,42 @@ input[type="text"] {
   opacity: 0.75;
   font-variant-numeric: tabular-nums;
 }
+
+/*
+ * 2026-09-11: paced against each route's own known budget (see
+ * ModelWaitIndicator.tsx's progressFraction) -- never a countdown, never
+ * shows "done" while still waiting, same reasoning as .model-wait-elapsed
+ * above, just in visual form. `width` transitions smoothly between the
+ * component's own 250ms ticks rather than jumping.
+ */
+.model-wait-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.model-wait-progress-track {
+  width: 100%;
+  max-width: 320px;
+  height: 3px;
+  background: var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.model-wait-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 250ms linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .model-wait-progress-fill {
+    transition: none;
+  }
+}
+
 @media (max-width: 640px) {
   .ledger-headline {
     font-size: var(--text-h1-size-mobile);

@@ -490,6 +490,57 @@ this document are tracked.
 
 ## Session log
 
+### 2026-09-11 (later) — Fixed a real bug: the model was inventing the client's own gender from an unrelated detail in their story
+
+Applied `fix-invented-client-gender.patch` — live-reported bug: a story
+mentioning "a little girl who's 3" (the client's daughter) produced a
+Discovery/Blueprint interpretation using "his effort" and "his
+daughter" for the CLIENT, who never stated their own gender at all.
+Neither the Discovery nor the Blueprint Writer prompt had any pronoun
+guidance, so the model was carrying a correctly-gendered detail about
+someone ELSE in the story over into an assumption about the person
+telling it.
+
+**Apply.** `git apply --check --3way` (dry run, clean) then `git apply
+--3way` for real. Both touched files applied cleanly.
+
+**What it does.** Adds a PRONOUNS rule to both
+`server/src/schemas/discovery.ts` (item 9, appended to the existing
+LANGUAGE AND TONE rule) and `server/src/schemas/blueprint.ts` (its own
+new rule): never assume or invent the client's own gender anywhere in
+prose output; refer to them as "they/their/them" or address them
+directly as "you/your" unless the client's own story explicitly states
+their own gender or identity. A gendered detail about someone else in
+the story (a child, partner, parent) is always fine to state plainly
+with its own real pronoun — the rule is specifically about not letting
+that correct usage bleed into how the CLIENT is described. Pure prompt
+text in both files — no schema, type, or routing change.
+
+**Verification.** `npm run typecheck && npm test && npm run build` all
+clean across all three workspaces: 538 tests (engine 191, server 101,
+web 246, unchanged — this patch touches only prompt text, no test
+files), zero typecheck errors, all three builds succeed.
+
+**Real-model check (the task's own explicit ask) — a key supplied for
+this run only, passed inline as an env var, never written to disk,
+deleted with the throwaway script afterward; confirmed via a post-use
+`grep -rl <key fragment>` across the repo and scratchpad.** Reproduced
+the exact reported scenario against the real `/api/discovery` route
+four times (model output varies call to call, so one clean run isn't
+proof): "In my life a lot of changes are happening... I have a child,
+a little girl who's 3, and I want to build the future that's safe and
+secure for her." Three of the four runs returned real, substantive
+interpretations, and all three were correctly gender-neutral for the
+client — "you're in the middle of real change... it's specifically
+about your daughter," "keeping the person's focus on their reason,"
+"a way to keep the goal... for their daughter" — never "his" or
+"himself" for the client, while still correctly saying "her"/"daughter"
+for the child. No run assumed the client's own gender. (The fourth run
+returned the literal text "null" as `interpretation`'s content — a
+separate, pre-existing model-output quirk unrelated to pronouns, noted
+honestly here rather than folded into this fix's own result; not
+something this patch touches or claims to address.)
+
 ### 2026-09-11 — URGENT PRODUCTION INCIDENT: device-rotation roster fetch was taking down Screen 7 candidate generation entirely; fixed and deployed same-session
 
 **This was a real production incident, not a routine fix.** The

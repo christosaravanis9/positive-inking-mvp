@@ -126,6 +126,17 @@ that dimension (do not write "Graphic realism style"; write something like
 
 Never call an unverified generated image print-ready or final.
 
+PRONOUNS — never assume or invent the client's own gender anywhere in this
+document (story, why, what_matters_most, visual_direction, artistic_direction,
+artist_brief, or any other prose field). Refer to the client with
+gender-neutral language ("they/their/them") or address them directly
+("you/your") unless the client's own story explicitly states their own
+gender or identity. A gendered detail about someone ELSE in the story (a
+child, partner, parent) is always fine to state plainly with its own real
+pronoun -- the mistake this rule exists to prevent is letting a correctly-
+gendered mention of another person in the story quietly carry over into an
+assumption about the client telling it, which live testing found happening.
+
 WORDING — write every field in plain, common words and short, direct
 sentences -- the same register already required of the Association
 candidates this Blueprint is built from, extended here to the whole

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { callModelForStructuredOutput } from "../modelClient.js";
 import { sendModelErrorResponse } from "../errors.js";
 import { abortSignalForRequest } from "../requestAbort.js";
-import { buildAssociationSystemPrompt, associationToolInputSchema, parseAssociationResult } from "../schemas/association.js";
+import { buildAssociationSystemPrompt, associationToolInputSchema, parseAssociationResult, DEFAULT_DEVICE_ROSTER } from "../schemas/association.js";
 import { logAssociationCandidateDropped } from "../modelTiming.js";
 import { getActiveDeviceRoster } from "../deviceRosterStore.js";
 
@@ -106,12 +106,31 @@ associationRouter.post("/api/associations", async (req, res) => {
     .filter(Boolean)
     .join("\n\n");
 
+  // 2026-09-09/10: the roster is read fresh per request, not cached at
+  // module load -- a review can change it between calls, and every call
+  // should see the current active set, not whatever was active when the
+  // server started.
+  //
+  // 2026-09-10, live-reported PRODUCTION-BREAKING BUG, fixed: this used to
+  // sit inside the same try/catch as the model call itself, so any storage
+  // failure (confirmed live: the device_roster_state table did not exist
+  // yet in the real Supabase project -- the migration script had been
+  // generated but never actually run there) took down candidate generation
+  // ENTIRELY, surfacing as a raw database error in place of the Association
+  // response. The device-rotation system is a supplementary optimisation on
+  // top of candidate generation, never a hard dependency of it -- it must
+  // degrade to a safe, reasonable default roster on ANY failure, silently
+  // from the client's point of view, rather than ever block the core
+  // feature. Logged, never thrown further.
+  let roster: { active: Awaited<ReturnType<typeof getActiveDeviceRoster>>["active"]; reserve: Awaited<ReturnType<typeof getActiveDeviceRoster>>["reserve"] };
   try {
-    // 2026-09-09: the roster is read fresh per request, not cached at
-    // module load -- a review can change it between calls, and every call
-    // should see the current active set, not whatever was active when the
-    // server started.
-    const roster = await getActiveDeviceRoster();
+    roster = await getActiveDeviceRoster();
+  } catch (err) {
+    console.error("[device-roster] falling back to default roster -- getActiveDeviceRoster failed:", err instanceof Error ? err.message : err);
+    roster = DEFAULT_DEVICE_ROSTER;
+  }
+
+  try {
     const result = await callModelForStructuredOutput({
       stage: "association",
       system: buildAssociationSystemPrompt(roster),

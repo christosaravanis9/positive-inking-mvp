@@ -16,6 +16,12 @@ import { DEVICE_CATALOG, INITIAL_ACTIVE_DEVICE_IDS, type DeviceDefinition } from
  * here and not in engine/.
  */
 
+/** Used both as buildAssociationSystemPrompt's own default parameter and as the Association route's fallback when the live roster store is unavailable (see server/src/routes/association.ts) -- one shared source of truth for "what a safe, reasonable roster looks like with no live data available." */
+export const DEFAULT_DEVICE_ROSTER: { active: DeviceDefinition[]; reserve: DeviceDefinition[] } = {
+  active: INITIAL_ACTIVE_DEVICE_IDS.map((id) => DEVICE_CATALOG.find((d) => d.id === id)!),
+  reserve: DEVICE_CATALOG.filter((d) => !INITIAL_ACTIVE_DEVICE_IDS.includes(d.id)),
+};
+
 export const ASSOCIATION_SYSTEM_PROMPT = buildAssociationSystemPrompt();
 
 /**
@@ -40,10 +46,7 @@ export const ASSOCIATION_SYSTEM_PROMPT = buildAssociationSystemPrompt();
  * roster's own review cycle depends on.
  */
 export function buildAssociationSystemPrompt(
-  roster: { active: DeviceDefinition[]; reserve: DeviceDefinition[] } = {
-    active: INITIAL_ACTIVE_DEVICE_IDS.map((id) => DEVICE_CATALOG.find((d) => d.id === id)!),
-    reserve: DEVICE_CATALOG.filter((d) => !INITIAL_ACTIVE_DEVICE_IDS.includes(d.id)),
-  },
+  roster: { active: DeviceDefinition[]; reserve: DeviceDefinition[] } = DEFAULT_DEVICE_ROSTER,
 ): string {
   const activeList = roster.active.map((d, i) => `  ${i + 1}. [device_id: "${d.id}"] ${d.promptDescription}`).join("\n");
   const reserveList = roster.reserve.map((d) => `  - [device_id: "${d.id}"] ${d.promptDescription}`).join("\n");

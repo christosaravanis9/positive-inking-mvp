@@ -19,9 +19,10 @@ import { UnderstandingPanel } from "../components/UnderstandingPanel";
 vi.mock("../api/discovery", () => ({ requestDiscovery: vi.fn() }));
 const { requestDiscovery } = await import("../api/discovery");
 
-function seedStoryState() {
+function seedStoryState(overrides: { project?: Partial<ReturnType<typeof createInitialJourneyState>["project"]> } = {}) {
   const state = createInitialJourneyState();
   state.ui = { ...state.ui, pastWelcome: true, viewpointSelected: true };
+  state.project = { ...state.project, ...overrides.project };
   savePersistedState(state);
   return state;
 }
@@ -208,21 +209,58 @@ describe("Story -- meaning-depth gate", () => {
   });
 });
 
-describe("Story -- sensitive-information notice (privacy notice's 'Sensitive information' section)", () => {
-  it("renders the notice near the story input, visible before submission", () => {
-    seedStoryState();
+describe("Story -- viewpoint-conditional 'who or what is involved' copy (2026-09-11, live-requested)", () => {
+  it("shows the past-tense phrasing when user_viewpoint is 'past'", () => {
+    seedStoryState({ project: { user_viewpoint: "past" } });
     render(
       <JourneyProvider>
         <Story />
       </JourneyProvider>,
     );
-
-    screen.getByText(
-      "Your story may include sensitive information such as health, recovery, religion, or sexuality. Including this is entirely optional.",
-    );
+    screen.getByText(/who or what was involved, why it mattered/);
   });
 
-  it("never blocks Continue -- disclosure only, no consent-gating", async () => {
+  it("shows the present-tense phrasing when user_viewpoint is 'present'", () => {
+    seedStoryState({ project: { user_viewpoint: "present" } });
+    render(
+      <JourneyProvider>
+        <Story />
+      </JourneyProvider>,
+    );
+    screen.getByText(/who or what is involved right now, why it matters to you today/);
+  });
+
+  it("shows the future-tense phrasing when user_viewpoint is 'future'", () => {
+    seedStoryState({ project: { user_viewpoint: "future" } });
+    render(
+      <JourneyProvider>
+        <Story />
+      </JourneyProvider>,
+    );
+    screen.getByText(/remind you of as you move toward it/);
+  });
+
+  it("shows the mixed phrasing when user_viewpoint is 'mixed'", () => {
+    seedStoryState({ project: { user_viewpoint: "mixed" } });
+    render(
+      <JourneyProvider>
+        <Story />
+      </JourneyProvider>,
+    );
+    screen.getByText(/who or what is involved across this/);
+  });
+
+  it("falls back to the default phrasing when user_viewpoint is null (the rare case it hasn't been set yet)", () => {
+    seedStoryState({ project: { user_viewpoint: null } });
+    render(
+      <JourneyProvider>
+        <Story />
+      </JourneyProvider>,
+    );
+    screen.getByText("Mention who or what is involved, why it matters, and what you want to remember, express or become. Don't worry about imagery yet.");
+  });
+
+  it("the sensitive-information notice (removed 2026-09-11) no longer renders, and nothing else fills its old gating role -- Continue is still governed purely by non-empty text", async () => {
     vi.mocked(requestDiscovery).mockResolvedValue(notThinResult());
     seedStoryState();
     render(
@@ -231,16 +269,25 @@ describe("Story -- sensitive-information notice (privacy notice's 'Sensitive inf
       </JourneyProvider>,
     );
 
-    // The notice is present and Continue is enabled purely based on the existing
-    // non-empty-text rule -- the notice itself has no checkbox and adds no gate.
-    screen.getByText(/Your story may include sensitive information/);
+    expect(screen.queryByText(/sensitive information/i)).toBeNull();
     const continueButton = screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement;
-    expect(continueButton.disabled).toBe(true); // still empty text -- unrelated to the notice
+    expect(continueButton.disabled).toBe(true); // still empty text
 
     fireEvent.change(screen.getByPlaceholderText("Start wherever the story begins…"), { target: { value: "A short story." } });
     expect((screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement).disabled).toBe(false);
 
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     await waitFor(() => expect(requestDiscovery).toHaveBeenCalledTimes(1));
+  });
+
+  it("shows the new motivating line, replacing the word 'system' with a plain, non-technical phrasing", () => {
+    seedStoryState();
+    render(
+      <JourneyProvider>
+        <Story />
+      </JourneyProvider>,
+    );
+    screen.getByText(/Two honest sentences is enough to start/);
+    expect(screen.queryByText(/\bsystem\b/i)).toBeNull();
   });
 });

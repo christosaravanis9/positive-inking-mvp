@@ -31,6 +31,27 @@ import type { Viewpoint } from "@positive-inking/engine";
  * a still-thin second answer is accepted rather than looping. This keeps MeaningReflection
  * completely untouched: it only ever renders a single, final, settled Discovery result.
  */
+/**
+ * 2026-09-11, live-requested: the "who or what is involved" instruction now
+ * varies by the viewpoint already chosen on the previous screen (past,
+ * present, future, mixed), plus a default for the rare case user_viewpoint
+ * isn't set yet -- 5 sets total. Same underlying ask (who/what, why it
+ * matters, what to remember/express/become) in each, phrased to fit the
+ * temporal lens already established rather than reading generically once
+ * a viewpoint has already been chosen.
+ */
+const STORY_PROMPT_BY_VIEWPOINT: Record<"past" | "present" | "future" | "mixed" | "default", string> = {
+  past: "Mention who or what was involved, why it mattered, and what you want to remember or carry forward from it. Don't worry about imagery yet.",
+  present: "Mention who or what is involved right now, why it matters to you today, and what you want this to express about where you are. Don't worry about imagery yet.",
+  future: "Mention who or what this is about, why it matters, and what you want this tattoo to remind you of as you move toward it. Don't worry about imagery yet.",
+  mixed: "Mention who or what is involved across this, why it matters, and what you want to remember, express or become. Don't worry about imagery yet.",
+  default: "Mention who or what is involved, why it matters, and what you want to remember, express or become. Don't worry about imagery yet.",
+};
+
+function storyPromptForViewpoint(viewpoint: string | null): string {
+  return STORY_PROMPT_BY_VIEWPOINT[(viewpoint as keyof typeof STORY_PROMPT_BY_VIEWPOINT) ?? "default"] ?? STORY_PROMPT_BY_VIEWPOINT.default;
+}
+
 export function Story() {
   const { state, patchProject, patchUI } = useJourney();
   const { run, pending } = useAsyncAction();
@@ -162,14 +183,21 @@ export function Story() {
     <div className="screen">
       <p className="screen-eyebrow">Tell it naturally</p>
       <h2 className="screen-heading">What do you want this tattoo to be about?</h2>
+      {/*
+        2026-09-11, live-requested: a motivating line encouraging people to
+        just start, with a flexible sense of "enough" (a couple of
+        sentences, or several minutes of talking) rather than implying a
+        long, effortful write-up is expected -- plus a plain-language
+        version of "this works better the more it knows about you" that
+        avoids the word "system" (too technical/clinical a noun for a
+        screen this personal) by rephrasing as what WE (Positive Inking)
+        can do with more, not what a system needs.
+      */}
       <p className="supporting">
-        Mention who or what is involved, why it matters, and what you want to remember, express or become. Do not
-        worry about imagery yet.
+        Two honest sentences is enough to start — or talk it out loud for five minutes if that's easier. The more you
+        share, the more precisely we can bring it to life.
       </p>
-      <p className="reference-note">
-        Your story may include sensitive information such as health, recovery, religion, or sexuality. Including this
-        is entirely optional.
-      </p>
+      <p className="supporting">{storyPromptForViewpoint(state.project.user_viewpoint)}</p>
       <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Start wherever the story begins…" />
       <p className="supporting">
         {trimmedLength < 20 ? "A few honest sentences are enough." : "That gives us enough to interpret the meaning."}

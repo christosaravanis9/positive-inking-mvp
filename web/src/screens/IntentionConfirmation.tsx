@@ -9,7 +9,9 @@ export function IntentionConfirmation() {
       <p className="screen-eyebrow">Your intention</p>
       <h2 className="screen-heading">Statement of Inspiration</h2>
       <p className="supporting">Worth remembering for when someone asks why you got it.</p>
-      <div className="reflection-box">{state.project.statement_of_intention}</div>
+      <div className="statement-quote">
+        <p className="statement-quote-text">{state.project.statement_of_intention}</p>
+      </div>
       <div style={{ display: "flex", gap: 8 }}>
         <button onClick={() => patchUI({ intentionConfirmed: true })}>Continue</button>
         <button className="secondary" onClick={() => patchUI({ themesSelected: false })}>

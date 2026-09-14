@@ -136,6 +136,9 @@ child, partner, parent) is always fine to state plainly with its own real
 pronoun -- the mistake this rule exists to prevent is letting a correctly-
 gendered mention of another person in the story quietly carry over into an
 assumption about the client telling it, which live testing found happening.
+Also never write the literal word "user" anywhere in this document --
+always "the client," consistent with the rest of this document's own
+established terminology.
 
 WORDING — write every field in plain, common words and short, direct
 sentences -- the same register already required of the Association

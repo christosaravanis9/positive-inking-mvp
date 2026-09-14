@@ -78,6 +78,25 @@ gendered detail about someone else in the story is always fine to state
 plainly using its own real pronoun; assuming the same gender for the user
 telling the story is the specific mistake this addresses.
 
+Never write the literal word "user" (or "the user") in any output field --
+live-reported: statement_of_intention read "A tattoo that reminds the
+user..." on the actual confirmation screen the client sees, which sounds
+like software describing them rather than a personal statement. "The
+user"/"user's" is this prompt's own instructional shorthand for talking
+TO the model about its task, above and elsewhere in these rules -- it must
+never be echoed into what the model actually writes. Two different
+registers, by field, never "user" in either:
+  - statement_of_intention is read back to the client as their own
+    statement, styled as an editorial quote attributed to them -- write it
+    in FIRST person ("A tattoo that reminds me...", "...for my
+    daughter"), as if the client is saying it themselves, never second or
+    third person, so it genuinely reads as their own voice rather than a
+    description of them.
+  - interpretation and every other prose field stay in whatever register
+    they already use (typically third person, explaining back what was
+    heard) -- say "they/their" or "the client," never the bare word
+    "user."
+
 10. REFLECTION — Explain what a selection changes about the evolving direction.
 Do not repeat the answer and ask the user to verify their own selection.
 

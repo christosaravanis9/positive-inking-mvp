@@ -309,6 +309,67 @@ input[type="text"] {
   font-family: inherit;
 }
 
+/**
+ * 2026-09-11, live-requested: "Statement of Inspiration" redesigned as an
+ * editorial-style pull quote with a speech-bubble tail -- it's meant to
+ * read as the client's own words on why they got this, not a form-field
+ * summary box, so it gets genuine quote-feature treatment: a large
+ * decorative opening quotation mark, italic serif setting (the same
+ * Georgia/Times New Roman family .screen-heading already uses -- no new
+ * font introduced), and a small tail pointing out from the box like it's
+ * being said aloud. Deliberately its own class, not a restyle of the
+ * shared .reflection-box (also used by ImageProvenance.tsx and
+ * MeaningReflection.tsx, both untouched, exactly the same "scope visual
+ * changes narrowly" discipline the app's other one-screen-only visual
+ * directions already follow).
+ */
+.statement-quote {
+  position: relative;
+  background: rgba(138, 51, 36, 0.06);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 36px 28px 26px;
+  margin: 4px 0 8px;
+}
+
+.statement-quote::before {
+  content: "\201C";
+  position: absolute;
+  top: -4px;
+  left: 22px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 76px;
+  line-height: 1;
+  color: var(--accent);
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.statement-quote-text {
+  font-family: Georgia, "Times New Roman", serif;
+  font-style: italic;
+  font-size: clamp(18px, 2.4vw, 22px);
+  line-height: 1.55;
+  margin: 0;
+  position: relative;
+  z-index: 1;
+}
+
+/* The speech-bubble tail -- a rotated square sharing the box's own background/border, so it reads as one continuous shape rather than a separate decoration. */
+.statement-quote::after {
+  content: "";
+  position: absolute;
+  bottom: -9px;
+  left: 34px;
+  width: 18px;
+  height: 18px;
+  background: inherit;
+  border-left: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  border-radius: 0 0 0 3px;
+  transform: rotate(-45deg);
+}
+
 .reflection-box {
   background: rgba(138, 51, 36, 0.06);
   border: 1px solid var(--border);

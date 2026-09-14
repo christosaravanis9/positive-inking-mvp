@@ -152,11 +152,6 @@ include sensitive information, it is processed only for the purpose
 of creating your Blueprint, in the same way as the rest of your story,
 as described above.
 
-Before the story field, the app shows a short notice that your story
-may include sensitive information of this kind and that including it
-is entirely optional — a reminder shown at the point of entry, not a
-consent step you have to act on.
-
 ---
 
 ## Photographs of other people

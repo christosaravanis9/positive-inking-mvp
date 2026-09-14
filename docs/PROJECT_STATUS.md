@@ -490,6 +490,105 @@ this document are tracked.
 
 ## Session log
 
+### 2026-09-14 — Cumulative patch: fixed a "the user" leak, Statement of Inspiration editorial-quote redesign, removed the sensitive-info notice, viewpoint-conditional Story guidance, new motivating copy
+
+Applied `full-cumulative-update.patch` (~630 lines) — computed from an
+older base, so it re-included the already-applied 2026-09-11 voice-
+tracking/budget-paced-loading changes (see the entry below) alongside
+this round's five genuinely new items. `git apply --3way` correctly
+3-way-merged the already-applied hunks as no-ops (the blobs from the
+prior commit were already in the object store) and applied only the
+new content cleanly — confirmed by `git status` afterward showing only
+the 9 files this round's five items actually touch, not all 18 the
+patch's diff covers.
+
+**Apply.** `git apply --check --3way` (dry run, clean, one file needed
+the 3-way fallback) then `git apply --3way` for real. Verified against
+`git status` that only genuinely new content landed.
+
+**What it does, one line each:**
+1. **Fixed a real "the user" leak** (`server/src/schemas/discovery.ts`,
+   `server/src/schemas/blueprint.ts`) — live-reported:
+   `statement_of_intention` read "A tattoo that reminds the user..." on
+   the actual confirmation screen, sounding like software describing
+   the client rather than their own statement. Discovery's prompt now
+   explicitly forbids the literal word "user"/"the user" in any output
+   field, and gives `statement_of_intention` its own register rule:
+   write it in FIRST person ("A tattoo that reminds me...", "...for my
+   daughter"), as if the client is saying it themselves — never second
+   or third person. `interpretation` and other prose fields keep their
+   existing third-person register ("they/their"/"the client"), just
+   never the bare word "user." Blueprint's prompt gained the same
+   "never write the literal word 'user'" rule, consistent with its
+   existing "the client" terminology.
+2. **Statement of Inspiration redesigned as an editorial pull-quote**
+   (`web/src/screens/IntentionConfirmation.tsx` + new
+   `IntentionConfirmation.test.tsx`, `web/src/styles.css`) — its own
+   `.statement-quote`/`.statement-quote-text` classes (large decorative
+   opening quotation mark, italic serif setting, a speech-bubble tail),
+   deliberately not a restyle of the shared `.reflection-box` also used
+   by `ImageProvenance.tsx`/`MeaningReflection.tsx`. Presentation-only —
+   Continue/Edit-this behavior unchanged, locked in by the new test file.
+3. **Removed the sensitive-information notice** from Story
+   (`docs/positive-inking-privacy-notice.md`, `web/public/privacy.html`,
+   `web/src/screens/Story.tsx`) — the standalone "Your story may
+   include sensitive information... including this is entirely
+   optional" reminder is gone from the screen and both privacy-facing
+   docs updated to match; it never gated Continue, so nothing else
+   fills its old role.
+4. **Story rewritten with viewpoint-conditional guidance**
+   (`web/src/screens/Story.tsx`) — the "who or what is involved"
+   instruction now has 5 variants (past/present/future/mixed/default)
+   matching the viewpoint already chosen on the previous screen,
+   instead of one generic instruction regardless of temporal framing.
+5. **New motivating copy** (`web/src/screens/Story.tsx`) — replaces
+   the old flat instruction with an inviting line ("Two honest
+   sentences is enough to start — or talk it out loud for five minutes
+   if that's easier...") and rephrases the "more detail helps" idea
+   away from the word "system" (too clinical for a screen this
+   personal) toward what Positive Inking itself can do with more.
+
+**Verification.** `npm run typecheck && npm test && npm run build` all
+clean across all three workspaces: 563 tests total (engine 191, server
+105, web 267 [+8 net: +3 `IntentionConfirmation.test.tsx`, +5 net in
+`Story.test.tsx`]), zero typecheck errors, all three builds succeed.
+
+**Real-model check (the task's own explicit ask) — a key supplied for
+this run only, passed inline as an env var, never written to disk,
+deleted with the throwaway script afterward; confirmed via a post-use
+`grep -rl <key fragment>` across the repo and scratchpad.** Four real
+calls to `/api/discovery` (two different stories, two repeat calls on
+the first) all confirm: `statement_of_intention` never contains the
+literal word "user," and is consistently written in first person
+("A tattoo that reminds me what I'm working towards...", "A tattoo
+that marks two years of quitting drinking... something I did entirely
+for myself") — never second person. This is exactly what the prompt
+itself instructs (first person, "never second or third person").
+
+**Flagging a discrepancy rather than silently resolving it:** the
+task's own instruction asked to confirm `statement_of_intention`
+"reads in second person," but the patch's own prompt text explicitly
+requires FIRST person and explicitly forbids second person — and the
+real model output consistently matches the prompt (first person,
+never "you"/"your"). Worth a second look at whether "second person"
+in the task description was a slip (meant "first person," i.e. the
+client's own voice, as opposed to Discovery's other fields which stay
+third person) or whether the actual product intent was for the
+statement to address the client directly as "you" — in which case the
+prompt text itself (not just verification) would need to change. Not
+resolved unilaterally here since the two sources of truth (the prompt
+this session was handed, and the task's stated check) disagree with
+each other, not just with an observation.
+
+**Supabase migration: not run.** Same blockers as every prior round
+this session — no Supabase configured in this sandbox, and separately
+this session's network egress policy blocks `*.supabase.co` outright.
+Two migrations remain outstanding against the real project
+(2026-09-09 device-roster, 2026-09-11 voice-input-tracking) — this
+patch touched neither the schema nor a new migration file (it reuses
+the already-migrated `analytics_events` shape), so nothing new is
+added to that backlog this round.
+
 ### 2026-09-11 (even later) — Voice-input-usage tracking + budget-paced progress bar replacing the numbers-only loading state
 
 Applied `voice-tracking-and-budget-paced-loading.patch` — two

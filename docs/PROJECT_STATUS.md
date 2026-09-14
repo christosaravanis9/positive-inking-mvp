@@ -454,6 +454,23 @@ decision); nothing else newly introduced this session. See
 `docs/timeout-matrix.md`) for the detailed history behind how the codebase
 got to its current, tested state.
 
+**⚠ Supabase migration backlog: 3 deep, none confirmed run against
+production.** `docs/supabase-migration-2026-09-09-device-roster.sql`,
+`docs/supabase-migration-2026-09-11-voice-input-tracking.sql`, and
+`docs/supabase-migration-2026-09-14-idea-tracking.sql` — none of the
+sessions that produced these had Supabase access to run them (this
+sandbox has never had real Supabase credentials, and separately its
+network policy blocks `*.supabase.co` outright). Until they're run, in
+that order, against the real project: the device-rotation system keeps
+silently falling back to its static default roster (harmless, per the
+2026-09-11 production-incident fix, but not actually rotating), and
+`voice_input_used`/`idea_added` events will fail to persist (the event
+schemas accept them; the real table doesn't have the columns/allowed
+values yet). Run all three via the Supabase SQL Editor, in date order,
+or just run the current `docs/supabase-schema.sql` directly if this
+is actually still a brand-new project with no `analytics_events` table
+at all.
+
 ## Data-minimization / privacy audit
 
 Tracked separately from the §15.7 production-launch-blockers list above
@@ -489,6 +506,70 @@ here for you to decide scope on, matching how other open decisions in
 this document are tracked.
 
 ## Session log
+
+### 2026-09-14 (later) — Voice-first "add an idea" redesign, anonymous bucketed idea-submission tracking, Readiness traffic-light/meter visual
+
+Applied `voice-first-ideas-and-readiness-meter.patch` — three items,
+all UI/tracking/presentation only, none dependent on model output
+content.
+
+**Apply.** `git apply --check --3way` (dry run, clean, several hunks
+needed the 3-way fallback against files this session's own earlier
+patches had already touched) then `git apply --3way` for real. All 17
+files applied cleanly.
+
+**What it does, one line each:**
+1. **Voice-first "add an idea" redesign** (`web/src/screens/
+   ElementsDiscovery.tsx`) — Screen 7's free-text idea box now leads
+   with a large, primary "Speak your idea" voice button; typing is a
+   real, always-visible secondary button ("I'd prefer to write my
+   idea") that focuses the text field rather than hiding/revealing it,
+   so a spoken transcript stays reviewable/correctable before Add and
+   the voice button never disappears mid-speech. Built on two new
+   `VoiceInputButton` props (`variant`, `idleLabel`) — every other call
+   site (Story, ImageDescription, ImageProvenance) omits both and keeps
+   its unchanged secondary/"Talk about it" behaviour. Also softened the
+   voice error messages from "type your story below" to "type below"
+   (a leftover Story-specific phrasing that had leaked into every
+   screen's copy, including this new non-Story one).
+2. **Anonymous bucketed idea-submission tracking** (new `idea_added`
+   event, `server/src/routes/analytics.ts`,
+   `web/src/instrumentation/analytics.ts`) — fires once per real
+   submission (committed or demoted to notes, both count), bucketed by
+   four booleans the client already computes for its own logic
+   (`had_voice_input`, `replaces_existing`, `involves_likeness_or_place`,
+   `adds_scene`) — never the idea's own text, and deliberately no new
+   model call to classify content (a real cost/latency/taxonomy
+   decision the task explicitly didn't authorize here). Matches the
+   same "no individual submission should weigh heavily, only aggregate
+   patterns" philosophy the device-rotation system already applies to
+   model-generated candidates.
+3. **Readiness traffic-light/meter** (new `web/src/components/
+   ReadinessMeter.tsx`, wired into both `BlueprintView.tsx` Section 12
+   and `DesignConfirmation.tsx`/Screen 13) — a row of small coloured
+   dots (green/amber/red) plus a plain "N of M ready" count, purely a
+   different lens on the same five (or four, pre-Blueprint) Readiness
+   components already computed — never a new signal, and always shown
+   alongside, never instead of, the existing detailed status list that
+   still carries the actual reasons/next steps. `readinessComponentLight()`
+   maps every real engine status value to one of the three colours.
+
+**Verification.** `npm run typecheck && npm test && npm run build` all
+clean across all three workspaces: 585 tests total (engine 191, server
+110 [+5], web 284 [+17]), zero typecheck errors, all three builds
+succeed.
+
+**No real-model check** — correctly skipped per the task's own explicit
+note, since nothing in this patch depends on model output content.
+
+**Supabase migration: not run** — same blockers as every round this
+session (no local config, network policy blocks `*.supabase.co`
+outright). **The migration backlog is now 3 deep** — see the new
+⚠ note added to "Current status" above, so this doesn't get lost:
+`docs/supabase-migration-2026-09-09-device-roster.sql`,
+`docs/supabase-migration-2026-09-11-voice-input-tracking.sql`, and
+this round's new `docs/supabase-migration-2026-09-14-idea-tracking.sql`
+all remain unrun against the real project, in that dependency order.
 
 ### 2026-09-14 — Cumulative patch: fixed a "the user" leak, Statement of Inspiration editorial-quote redesign, removed the sensitive-info notice, viewpoint-conditional Story guidance, new motivating copy
 

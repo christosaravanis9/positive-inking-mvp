@@ -862,3 +862,52 @@ describe("ElementsDiscovery -- 'Build upon' direct-edit refinement", () => {
     vi.unstubAllGlobals();
   });
 });
+
+// 2026-09-14, live-requested: speaking an idea is now the primary, invited
+// path for "add an idea" -- typing is a real, visible secondary option, not
+// hidden behind speech.
+describe("ElementsDiscovery -- voice-first 'add an idea' redesign (2026-09-14)", () => {
+  it("shows the primary 'Speak your idea' voice button and the 'I'd prefer to write my idea' secondary button together, both visible immediately", () => {
+    seedElementsDiscoveryState({ hasCandidates: true });
+    render(
+      <JourneyProvider>
+        <ElementsDiscovery />
+      </JourneyProvider>,
+    );
+
+    const voiceButton = screen.getByRole("button", { name: "Speak your idea" });
+    expect(voiceButton.className).toBe("voice-input-primary-button");
+    screen.getByRole("button", { name: "I'd prefer to write my idea" });
+    // The text field is never hidden -- always present and editable, so a
+    // spoken transcript stays reviewable/correctable before Add.
+    screen.getByPlaceholderText("Describe the new idea");
+  });
+
+  it("clicking 'I'd prefer to write my idea' focuses the text field rather than hiding or revealing anything", () => {
+    seedElementsDiscoveryState({ hasCandidates: true });
+    render(
+      <JourneyProvider>
+        <ElementsDiscovery />
+      </JourneyProvider>,
+    );
+
+    const textField = screen.getByPlaceholderText("Describe the new idea");
+    expect(document.activeElement).not.toBe(textField);
+    fireEvent.click(screen.getByRole("button", { name: "I'd prefer to write my idea" }));
+    expect(document.activeElement).toBe(textField);
+    // Still present, not swapped for something else.
+    screen.getByRole("button", { name: "Speak your idea" });
+  });
+
+  it("typing directly into the field and clicking Add still works exactly as before -- the redesign doesn't require using voice", () => {
+    seedElementsDiscoveryState({ hasCandidates: true });
+    render(
+      <JourneyProvider>
+        <ElementsDiscovery />
+      </JourneyProvider>,
+    );
+
+    addIdea("A hand-carved wooden bird my grandfather made.");
+    screen.getByText("A hand-carved wooden bird my grandfather made.");
+  });
+});

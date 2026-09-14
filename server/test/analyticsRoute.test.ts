@@ -333,4 +333,110 @@ describe("POST /api/analytics/event", () => {
       expect(Object.keys(persisted as object).sort()).toEqual(["event", "received_at", "screen", "session_id"]);
     });
   });
+
+  // 2026-09-14, live-requested: Screen 7's own free-text "add an idea" box,
+  // bucketed by attributes the client already computes, never the idea's
+  // own text.
+  describe("idea_added (Screen 7 free-text idea bucketing)", () => {
+    it("accepts a well-formed idea_added event with all four booleans", async () => {
+      const app = createApp();
+      const response = await request(app).post("/api/analytics/event").send({
+        event: "idea_added",
+        session_id: SESSION_ID,
+        had_voice_input: true,
+        replaces_existing: false,
+        involves_likeness_or_place: false,
+        adds_scene: false,
+      });
+
+      expect(response.status).toBe(202);
+      expect(appendAnalyticsEvent).toHaveBeenCalledTimes(1);
+      const persisted = vi.mocked(appendAnalyticsEvent).mock.calls[0][0];
+      expect(persisted).toMatchObject({
+        event: "idea_added",
+        had_voice_input: true,
+        replaces_existing: false,
+        involves_likeness_or_place: false,
+        adds_scene: false,
+      });
+      // Never triggers a roster review -- that's device_outcome only.
+      expect(maybeReviewDeviceRoster).not.toHaveBeenCalled();
+    });
+
+    it("accepts every combination of the four booleans", async () => {
+      const app = createApp();
+      for (const had_voice_input of [true, false]) {
+        for (const replaces_existing of [true, false]) {
+          const response = await request(app).post("/api/analytics/event").send({
+            event: "idea_added",
+            session_id: SESSION_ID,
+            had_voice_input,
+            replaces_existing,
+            involves_likeness_or_place: false,
+            adds_scene: false,
+          });
+          expect(response.status).toBe(202);
+        }
+      }
+    });
+
+    it("rejects a request missing any one of the four required booleans", async () => {
+      const app = createApp();
+      const response = await request(app).post("/api/analytics/event").send({
+        event: "idea_added",
+        session_id: SESSION_ID,
+        had_voice_input: true,
+        replaces_existing: false,
+        involves_likeness_or_place: false,
+        // adds_scene deliberately omitted
+      });
+
+      expect(response.status).toBe(400);
+      expect(appendAnalyticsEvent).not.toHaveBeenCalled();
+    });
+
+    it("carries no idea text or other free-text field -- only the four booleans plus event/session_id", async () => {
+      const app = createApp();
+      await request(app)
+        .post("/api/analytics/event")
+        .send({
+          event: "idea_added",
+          session_id: SESSION_ID,
+          had_voice_input: false,
+          replaces_existing: false,
+          involves_likeness_or_place: false,
+          adds_scene: false,
+          idea_text: STORY_MARKER, // an extra field a caller should never be able to smuggle through
+        });
+
+      const persisted = vi.mocked(appendAnalyticsEvent).mock.calls[0]?.[0];
+      expect(JSON.stringify(persisted)).not.toContain(STORY_MARKER);
+      expect(Object.keys(persisted as object).sort()).toEqual([
+        "adds_scene",
+        "event",
+        "had_voice_input",
+        "involves_likeness_or_place",
+        "received_at",
+        "replaces_existing",
+        "session_id",
+      ]);
+    });
+
+    it("rejects a non-boolean value for any of the four fields", async () => {
+      const app = createApp();
+      const response = await request(app)
+        .post("/api/analytics/event")
+        .send({
+          event: "idea_added",
+          session_id: SESSION_ID,
+          had_voice_input: "yes",
+          replaces_existing: false,
+          involves_likeness_or_place: false,
+          adds_scene: false,
+        });
+
+      expect(response.status).toBe(400);
+      expect(appendAnalyticsEvent).not.toHaveBeenCalled();
+    });
+  });
 });

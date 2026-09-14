@@ -91,3 +91,27 @@ export function reportVoiceInputUsed(screen: ScreenId): void {
   reportedVoiceScreens.add(screen);
   send({ event: "voice_input_used", session_id: sessionId, screen });
 }
+
+/**
+ * 2026-09-14, live-requested: Screen 7's own free-text "add an idea" box
+ * had no tracking at all before this. Bucketed by attributes the client
+ * already computes for its own logic (never the idea's own text) -- see
+ * the event schema's own doc comment, server/src/routes/analytics.ts, for
+ * the full reasoning, including why this doesn't add a new model call to
+ * classify content.
+ */
+export function reportIdeaAdded(
+  hadVoiceInput: boolean,
+  replacesExisting: boolean,
+  involvesLikenessOrPlace: boolean,
+  addsScene: boolean,
+): void {
+  send({
+    event: "idea_added",
+    session_id: sessionId,
+    had_voice_input: hadVoiceInput,
+    replaces_existing: replacesExisting,
+    involves_likeness_or_place: involvesLikenessOrPlace,
+    adds_scene: addsScene,
+  });
+}

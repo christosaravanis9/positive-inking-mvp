@@ -18,6 +18,7 @@ import {
   readinessComponentStatusText,
 } from "../journey/readinessComponentLabels";
 import { logTelemetryEvent } from "../instrumentation/telemetry";
+import { ReadinessMeter } from "../components/ReadinessMeter";
 import {
   buildReferenceChecklist,
   isReferenceEntrySatisfied,
@@ -503,6 +504,7 @@ export function BlueprintView() {
         <span className="blueprint-section-number">12</span>
         <h3 className="blueprint-section-heading">Readiness</h3>
         <p>{READINESS_LABEL[blueprint.readiness] ?? blueprint.readiness}</p>
+        <ReadinessMeter components={readinessComponents(project, blueprint.readiness)} />
         <dl className="summary-list">
           {readinessComponents(project, blueprint.readiness).map((c) => {
             const detail = readinessComponentDetail(c, project);

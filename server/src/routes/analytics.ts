@@ -92,6 +92,31 @@ const eventSchema = z.discriminatedUnion("event", [
     session_id: z.string().uuid(),
     screen: z.enum(SCREEN_IDS),
   }),
+  /**
+   * 2026-09-14, live-requested: Screen 7's "add an idea" free-text box
+   * (ElementsDiscovery.tsx) had no tracking at all before this -- the
+   * client's own explicit concern was that any one person's individual
+   * free-text submission shouldn't "weigh heavily," and asked for some
+   * form of bucketing/segmentation so patterns only emerge in aggregate,
+   * over a real sample size, matching the same philosophy the "6 artists"
+   * device-rotation system already applies to model-generated candidates
+   * (see device_impression/device_outcome above). Deliberately reuses
+   * attributes the client-side form ALREADY computes for its own logic
+   * (whether the idea replaces an existing element, involves a likeness/
+   * real place, or adds a scene) as the bucketing scheme, rather than
+   * adding a new model call to classify the idea's actual content -- that
+   * would be a real cost/latency/taxonomy decision needing its own
+   * sign-off, not something to add silently here. No idea text itself is
+   * ever sent.
+   */
+  z.object({
+    event: z.literal("idea_added"),
+    session_id: z.string().uuid(),
+    had_voice_input: z.boolean(),
+    replaces_existing: z.boolean(),
+    involves_likeness_or_place: z.boolean(),
+    adds_scene: z.boolean(),
+  }),
 ]);
 
 export const analyticsRouter = Router();

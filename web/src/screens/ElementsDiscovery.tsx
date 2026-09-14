@@ -5,9 +5,10 @@ import { requestAssociations, requestAssociationAlternative, requestAssociationR
 import { AsyncError } from "../components/AsyncError";
 import { ModelWaitIndicator } from "../components/ModelWaitIndicator";
 import { ReferenceAttachment, emptyReferenceDraft, type ReferenceDraft } from "../components/ReferenceAttachment";
+import { VoiceInputButton, type VoiceInputHandle } from "../components/VoiceInput";
 import { NEEDS_REFERENCE, statusFromDraft, draftToConsentRecord, draftFromExisting } from "../journey/referenceDraft";
 import { logTelemetryEvent } from "../instrumentation/telemetry";
-import { reportDeviceImpression, reportDeviceOutcome } from "../instrumentation/analytics";
+import { reportDeviceImpression, reportDeviceOutcome, reportIdeaAdded } from "../instrumentation/analytics";
 import type { VisualElement, ElementFidelity, ConsentRecord } from "@positive-inking/engine";
 import {
   suppressGeneratedSymbolicSuggestions,
@@ -283,6 +284,20 @@ export function ElementsDiscovery() {
   }, [hasCandidates]);
 
   const [newIdeaText, setNewIdeaText] = useState("");
+  // 2026-09-14: which input produced the CURRENT draft's most recent edit --
+  // feeds reportIdeaAdded's had_voice_input bucket, reset after each real
+  // Add. Deliberately tracks "most recent edit," not "ever used voice at
+  // all this draft" -- if someone speaks then manually corrects a word,
+  // the submission is fairly described as edited/typed by that point.
+  const [ideaViaVoice, setIdeaViaVoice] = useState(false);
+  // 2026-09-14, live-requested: speaking an idea is the PRIMARY, invited
+  // path here -- "I'd prefer to write my idea" (below) focuses this field
+  // rather than hiding/revealing it, so the voice button never disappears
+  // mid-speech (it would if visibility were gated on transcript content
+  // instead) and whatever gets transcribed always stays visible and
+  // editable before Add is pressed.
+  const addIdeaVoiceRef = useRef<VoiceInputHandle>(null);
+  const addIdeaTextRef = useRef<HTMLInputElement>(null);
   const [replacesChoice, setReplacesChoice] = useState("");
   const [isLikenessOrPlaceChecked, setIsLikenessOrPlaceChecked] = useState(false);
   const [addsSceneChecked, setAddsSceneChecked] = useState(false);
@@ -592,6 +607,7 @@ export function ElementsDiscovery() {
     setReplacesChoice("");
     setIsLikenessOrPlaceChecked(false);
     setAddsSceneChecked(false);
+    setIdeaViaVoice(false);
   }
 
   function currentIterationNumber(): number {
@@ -636,6 +652,11 @@ export function ElementsDiscovery() {
   function addIdea() {
     if (newIdeaText.trim().length === 0) return;
     const text = newIdeaText.trim();
+    addIdeaVoiceRef.current?.stop();
+    // 2026-09-14: fired once per real submission, whether it ends up
+    // committed or demoted to notes below -- both are a real contribution
+    // worth counting. Captured here, before either path resets the form.
+    reportIdeaAdded(ideaViaVoice, Boolean(replacesChoice), isLikenessOrPlaceChecked, addsSceneChecked);
     // Core invariant (live-test regression): a client must always have some path to a
     // real visual element, however long the journey has run or how many iterations have
     // passed -- both demotion triggers below are monotonic and never reset, so without
@@ -1057,9 +1078,37 @@ export function ElementsDiscovery() {
           </label>
         )}
 
+        <div className="add-idea-voice-section">
+          <VoiceInputButton
+            ref={addIdeaVoiceRef}
+            value={newIdeaText}
+            onChange={(t) => {
+              setNewIdeaText(t);
+              setIdeaViaVoice(true);
+            }}
+            screen="elements_discovery"
+            variant="primary"
+            idleLabel="Speak your idea"
+          />
+          <button type="button" className="secondary" onClick={() => addIdeaTextRef.current?.focus()}>
+            I'd prefer to write my idea
+          </button>
+        </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <input type="text" value={newIdeaText} onChange={(e) => setNewIdeaText(e.target.value)} placeholder="Describe the new idea" />
-          <button className="secondary" onClick={addIdea}>
+          <input
+            ref={addIdeaTextRef}
+            type="text"
+            value={newIdeaText}
+            onChange={(e) => {
+              setNewIdeaText(e.target.value);
+              setIdeaViaVoice(false);
+            }}
+            placeholder="Describe the new idea"
+          />
+          <button
+            className="secondary"
+            onClick={addIdea}
+          >
             Add
           </button>
         </div>

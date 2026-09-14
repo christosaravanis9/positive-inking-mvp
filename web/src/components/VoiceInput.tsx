@@ -62,12 +62,12 @@ function getSpeechRecognitionConstructor(): (new () => SpeechRecognitionLike) | 
  */
 type VoiceStatus = "idle" | "starting" | "listening" | "stopping";
 
-const UNSUPPORTED_MESSAGE = "Live dictation is not supported by this browser. You can still type your story below.";
-const MIC_DENIED_MESSAGE = "Microphone access was denied. You can still type your story below.";
+const UNSUPPORTED_MESSAGE = "Live dictation is not supported by this browser. You can still type below.";
+const MIC_DENIED_MESSAGE = "Microphone access was denied. You can still type below.";
 const NO_SPEECH_MESSAGE = "No speech detected — tap to try again.";
 const ABORTED_MESSAGE = "Dictation stopped.";
 const UNEXPECTED_MESSAGE = "Dictation paused unexpectedly. Your existing transcript has been preserved.";
-const MIC_START_FAILED_MESSAGE = "Microphone could not start. You can still type your story below.";
+const MIC_START_FAILED_MESSAGE = "Microphone could not start. You can still type below.";
 const STOPPED_MESSAGE = "Dictation stopped. You can edit the transcript before continuing.";
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -82,8 +82,30 @@ export interface VoiceInputHandle {
   stop: () => void;
 }
 
-export const VoiceInputButton = forwardRef<VoiceInputHandle, { value: string; onChange: (text: string) => void; disabled?: boolean; screen: ScreenId }>(
-  function VoiceInputButton({ value, onChange, disabled, screen }, ref) {
+export const VoiceInputButton = forwardRef<
+  VoiceInputHandle,
+  {
+    value: string;
+    onChange: (text: string) => void;
+    disabled?: boolean;
+    screen: ScreenId;
+    /**
+     * 2026-09-14, live-requested: most call sites treat voice as a modest
+     * supplement to a primary textarea ("secondary", the default -- unchanged
+     * behaviour for every existing call site). "primary" is for the rare
+     * screen where speaking IS the primary, invited path and typing is the
+     * deliberately secondary option (Screen 7's "add an idea" -- see
+     * ElementsDiscovery.tsx) -- renders larger or the button's own
+     * .voice-input-primary-button styling instead of the plain .secondary
+     * button class, everything else (recognition logic, error handling,
+     * analytics) is completely unchanged.
+     */
+    variant?: "primary" | "secondary";
+    /** Overrides the idle-state button label ("Talk about it" by default) -- lets a call site invite speech in its own words ("Speak your idea") without a hardcoded assumption baked into this shared component. */
+    idleLabel?: string;
+  }
+>(
+  function VoiceInputButton({ value, onChange, disabled, screen, variant = "secondary", idleLabel = "Talk about it" }, ref) {
     const [supported] = useState(() => getSpeechRecognitionConstructor() !== null);
     const [status, setStatus] = useState<VoiceStatus>("idle");
     const [message, setMessage] = useState<string | null>(supported ? null : UNSUPPORTED_MESSAGE);
@@ -221,11 +243,17 @@ export const VoiceInputButton = forwardRef<VoiceInputHandle, { value: string; on
       else start();
     }
 
-    const label = status === "listening" ? "Stop listening" : status === "starting" ? "Starting…" : status === "stopping" ? "Stopping…" : "Talk about it";
+    const label = status === "listening" ? "Stop listening" : status === "starting" ? "Starting…" : status === "stopping" ? "Stopping…" : idleLabel;
 
     return (
-      <div className="voice-input">
-        <button type="button" className="secondary" onClick={toggle} disabled={disabled || !supported} aria-pressed={status === "listening"}>
+      <div className={variant === "primary" ? "voice-input voice-input-primary" : "voice-input"}>
+        <button
+          type="button"
+          className={variant === "primary" ? "voice-input-primary-button" : "secondary"}
+          onClick={toggle}
+          disabled={disabled || !supported}
+          aria-pressed={status === "listening"}
+        >
           {label}
         </button>
         {message && <p className="supporting">{message}</p>}

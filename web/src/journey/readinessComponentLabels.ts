@@ -49,6 +49,37 @@ export function readinessComponentStatusText(component: ReadinessComponent): str
 }
 
 /**
+ * 2026-09-14, live-requested: a traffic-light/meter-style visual summary of
+ * the five Readiness components, additive alongside the existing detailed
+ * status list (never a replacement for it -- the meter is a fast glance,
+ * the list underneath still carries the actual reasons and next steps).
+ * Three states only, mapped from the engine's own real status values --
+ * never a new signal, purely a different lens on data already computed:
+ *   - green: genuinely resolved (confirmed/clear/ready/not_required/etc.)
+ *   - amber: something is open or pending, but not blocking outright
+ *     (open_decisions, available -- a reference COULD be provided but
+ *     hasn't been yet)
+ *   - red: actually blocking (not_yet_captured, still_needed, or the
+ *     "not yet begun, and something above still needs resolving" case)
+ */
+const STATUS_LIGHT: Record<ReadinessComponent["status"], "green" | "amber" | "red"> = {
+  confirmed: "green",
+  not_yet_captured: "red",
+  clear: "green",
+  open_decisions: "amber",
+  not_required: "green",
+  available: "amber",
+  still_needed: "red",
+  ready: "green",
+  not_yet_begun_brief_ready: "green",
+  not_yet_begun_pending_items: "red",
+};
+
+export function readinessComponentLight(component: ReadinessComponent): "green" | "amber" | "red" {
+  return STATUS_LIGHT[component.status] ?? "amber";
+}
+
+/**
  * The component's own detail lines (missing reference names, contradiction
  * text) plus, for "artist_discussion" specifically, the actual chosen
  * authorship style -- the engine only knows creative_control was *set*, not

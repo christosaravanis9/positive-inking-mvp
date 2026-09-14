@@ -321,8 +321,8 @@ describe("VoiceInputButton -- onend (browser auto-stop): no auto-restart", () =>
 
 describe("VoiceInputButton -- error mapping", () => {
   it.each([
-    ["not-allowed", "Microphone access was denied. You can still type your story below."],
-    ["service-not-allowed", "Microphone access was denied. You can still type your story below."],
+    ["not-allowed", "Microphone access was denied. You can still type below."],
+    ["service-not-allowed", "Microphone access was denied. You can still type below."],
     ["no-speech", "No speech detected — tap to try again."],
     ["aborted", "Dictation stopped."],
     ["some-unknown-error", "Dictation paused unexpectedly. Your existing transcript has been preserved."],
@@ -353,7 +353,7 @@ describe("VoiceInputButton -- error mapping", () => {
     const button = screen.getByRole("button") as HTMLButtonElement;
 
     fireEvent.click(button);
-    screen.getByText("Microphone could not start. You can still type your story below.");
+    screen.getByText("Microphone could not start. You can still type below.");
     expect(button.textContent).toBe("Talk about it");
     expect(button.disabled).toBe(false);
   });
@@ -367,7 +367,7 @@ describe("VoiceInputButton -- unsupported browser", () => {
 
     const button = screen.getByRole("button") as HTMLButtonElement;
     expect(button.disabled).toBe(true);
-    screen.getByText("Live dictation is not supported by this browser. You can still type your story below.");
+    screen.getByText("Live dictation is not supported by this browser. You can still type below.");
   });
 });
 
@@ -385,5 +385,45 @@ describe("VoiceInputButton -- imperative stop() handle (for 'stop before submitt
     const { ref } = renderButton("", vi.fn());
     expect(() => ref.current?.stop()).not.toThrow();
     expect(FakeSpeechRecognition.instances).toHaveLength(0);
+  });
+});
+
+// 2026-09-14, live-requested: Screen 7's "add an idea" box makes speaking
+// the primary, invited path (see ElementsDiscovery.tsx) -- these two props
+// are what that redesign is built on. Every existing call site (Story,
+// ImageDescription, ImageProvenance) omits both and keeps its unchanged
+// "secondary"/"Talk about it" behaviour, confirmed by the "configuration"
+// and other describe blocks above never passing either.
+describe("VoiceInputButton -- variant/idleLabel (2026-09-14)", () => {
+  it("defaults to variant='secondary' and idleLabel='Talk about it' when neither is passed -- every pre-existing call site's behaviour is unchanged", () => {
+    render(<VoiceInputButton value="" onChange={vi.fn()} screen="story" />);
+    const button = screen.getByRole("button");
+    expect(button.className).toBe("secondary");
+    expect(button.textContent).toBe("Talk about it");
+  });
+
+  it("variant='primary' renders the primary button class instead of 'secondary'", () => {
+    render(<VoiceInputButton value="" onChange={vi.fn()} screen="elements_discovery" variant="primary" idleLabel="Speak your idea" />);
+    const button = screen.getByRole("button");
+    expect(button.className).toBe("voice-input-primary-button");
+    expect(button.className).not.toContain("secondary");
+  });
+
+  it("idleLabel overrides the idle-state label without affecting the listening/starting/stopping labels", () => {
+    render(<VoiceInputButton value="" onChange={vi.fn()} screen="elements_discovery" variant="primary" idleLabel="Speak your idea" />);
+    screen.getByText("Speak your idea");
+
+    fireEvent.click(screen.getByRole("button"));
+    act(() => latestInstance().onstart?.());
+    screen.getByText("Stop listening"); // unaffected by idleLabel -- only the idle state's own label changes
+  });
+
+  it("a primary-variant button still fires reportVoiceInputUsed on real transcribed content, identically to a secondary one", () => {
+    render(<VoiceInputButton value="" onChange={vi.fn()} screen="elements_discovery" variant="primary" idleLabel="Speak your idea" />);
+    fireEvent.click(screen.getByRole("button"));
+    act(() => latestInstance().onstart?.());
+    act(() => latestInstance().onresult?.({ resultIndex: 0, results: [{ isFinal: true, 0: { transcript: "A new idea." } }] }));
+
+    expect(reportVoiceInputUsed).toHaveBeenCalledWith("elements_discovery");
   });
 });

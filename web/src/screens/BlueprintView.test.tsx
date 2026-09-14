@@ -705,3 +705,20 @@ describe("BlueprintView -- twelve-section restructure (Sites migration spec §7)
     });
   });
 });
+
+// 2026-09-14, live-requested: a traffic-light/meter visual summary above
+// the existing detailed Readiness status list -- confirms it's actually
+// wired into Section 12, not just built in isolation (see
+// components/ReadinessMeter.test.tsx for the meter's own unit coverage).
+describe("BlueprintView -- Readiness meter (2026-09-14)", () => {
+  it("renders the meter with 5 dots inside the Readiness section", () => {
+    seedBlueprintState({});
+    render(
+      <JourneyProvider>
+        <BlueprintView />
+      </JourneyProvider>,
+    );
+    const section = screen.getByRole("heading", { name: "Readiness" }).closest("section")!;
+    expect(section.querySelectorAll(".readiness-meter-dot")).toHaveLength(5);
+  });
+});

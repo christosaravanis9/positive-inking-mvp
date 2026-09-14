@@ -16,7 +16,7 @@
 
 create table if not exists public.analytics_events (
   id bigint generated always as identity primary key,
-  event text not null check (event in ('screen_reached', 'journey_completed', 'device_impression', 'device_outcome', 'voice_input_used')),
+  event text not null check (event in ('screen_reached', 'journey_completed', 'device_impression', 'device_outcome', 'voice_input_used', 'idea_added')),
   session_id uuid not null,
   journey_mode text,
   -- screen_reached only:
@@ -35,6 +35,14 @@ create table if not exists public.analytics_events (
   device_id text,
   decision text check (decision is null or decision in ('keep', 'build_upon', 'not_this_one')),
   had_refinement_input boolean,
+  -- idea_added only (2026-09-14): Screen 7's own free-text "add an idea"
+  -- box, bucketed by attributes the client already computes for its own
+  -- logic -- never the idea's own text. See server/src/routes/analytics.ts's
+  -- own doc comment for the full reasoning.
+  had_voice_input boolean,
+  replaces_existing boolean,
+  involves_likeness_or_place boolean,
+  adds_scene boolean,
   received_at timestamptz not null default now()
 );
 

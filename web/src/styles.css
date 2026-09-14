@@ -101,6 +101,104 @@ button.secondary {
   color: var(--accent);
 }
 
+/**
+ * 2026-09-14, live-requested: Screen 7's "add an idea" box makes speaking
+ * the PRIMARY, invited path -- voice as the obvious first move, typing as
+ * a clearly visible but secondary option (see ElementsDiscovery.tsx's own
+ * "I'd prefer to write my idea" toggle). Every other VoiceInputButton call
+ * site (Story, ImageDescription, ImageProvenance) is completely unchanged
+ * -- this only applies when variant="primary" is explicitly passed.
+ */
+.voice-input-primary {
+  margin: 4px 0;
+}
+
+.voice-input-primary-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 18px 24px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: white;
+  cursor: pointer;
+}
+
+.voice-input-primary-button::before {
+  content: "\1F3A4"; /* microphone glyph */
+  font-size: 1.15rem;
+}
+
+.voice-input-primary-button[aria-pressed="true"] {
+  animation: voice-input-primary-listening 1.4s ease-in-out infinite;
+}
+
+@keyframes voice-input-primary-listening {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(138, 51, 36, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(138, 51, 36, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-input-primary-button[aria-pressed="true"] {
+    animation: none;
+  }
+}
+
+/**
+ * 2026-09-14, live-requested: the Readiness traffic-light/meter visual --
+ * see components/ReadinessMeter.tsx for the full design reasoning. A
+ * title attribute on each dot carries the real status text for anyone
+ * who hovers/inspects; the dots are also wrapped in one labelled
+ * role="img" for screen readers, since a row of bare coloured circles
+ * conveys nothing on its own otherwise.
+ */
+.readiness-meter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0 16px;
+}
+
+.readiness-meter-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.readiness-meter-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.readiness-meter-dot-green {
+  background: #3f6b48;
+}
+
+.readiness-meter-dot-amber {
+  background: #a15b1f;
+}
+
+.readiness-meter-dot-red {
+  background: #8a3324;
+}
+
+.readiness-meter-count {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: 0;
+}
+
 .error-banner {
   background: var(--error-bg);
   color: var(--error-fg);

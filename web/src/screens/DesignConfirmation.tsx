@@ -5,6 +5,7 @@ import { requestBlueprint } from "../api/blueprint";
 import { AsyncError } from "../components/AsyncError";
 import { ModelWaitIndicator } from "../components/ModelWaitIndicator";
 import { ReferenceAttachment, emptyReferenceDraft, type ReferenceDraft } from "../components/ReferenceAttachment";
+import { ReadinessMeter } from "../components/ReadinessMeter";
 import { NEEDS_REFERENCE, statusFromDraft, draftToConsentRecord, draftFromExisting } from "../journey/referenceDraft";
 import { formatPlacementSummary } from "../journey/placementSummary";
 import { labelForDimensionValue } from "../journey/artisticDimensionLabels";
@@ -54,7 +55,8 @@ export function DesignConfirmation() {
   // two screens can never drift into different readiness models or
   // different wording for the same status. ("Still needed" above is a
   // separate, pre-existing §8 bullet, not one of the five components.)
-  const visualDirectionComponent = describeReadinessComponents(buildReadinessComponentInputs(project, null)).find((c) => c.id === "visual_direction")!;
+  const readinessComponentsPreview = describeReadinessComponents(buildReadinessComponentInputs(project, null));
+  const visualDirectionComponent = readinessComponentsPreview.find((c) => c.id === "visual_direction")!;
 
   // Screen 7's redesign (2026-09-07) moved fidelity refinement + reference
   // collection here, per candidate -- only Association-sourced elements
@@ -143,6 +145,7 @@ export function DesignConfirmation() {
       <p className="screen-eyebrow">Complete direction</p>
       <h2 className="screen-heading">Ready to build your Blueprint</h2>
       <p className="supporting">Everything being confirmed remains visible here. Continue or go back to change it.</p>
+      <ReadinessMeter components={readinessComponentsPreview} />
       <dl className="summary-list">
         <dt>Main subject</dt>
         <dd>{project.visual_elements.find((e) => e.hierarchy === "primary")?.description ?? project.visual_elements[0]?.description ?? "—"}</dd>

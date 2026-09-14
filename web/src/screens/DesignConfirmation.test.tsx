@@ -253,3 +253,20 @@ describe("DesignConfirmation -- per-candidate fidelity dropdown + fidelity_treat
     expect((screen.getByRole("button", { name: "Build my Blueprint" }) as HTMLButtonElement).disabled).toBe(true);
   });
 });
+
+// 2026-09-14, live-requested: a traffic-light/meter visual summary of the
+// four (pre-Blueprint) Readiness components, above the existing detailed
+// summary list -- confirms it's actually wired in here, not just built in
+// isolation (see components/ReadinessMeter.test.tsx for the meter's own
+// unit coverage).
+describe("DesignConfirmation -- Readiness meter (2026-09-14)", () => {
+  it("renders the meter with 4 dots (readiness: null pre-Blueprint has no final_artwork component)", () => {
+    seedDesignConfirmationState({});
+    render(
+      <JourneyProvider>
+        <DesignConfirmation />
+      </JourneyProvider>,
+    );
+    expect(document.querySelectorAll(".readiness-meter-dot")).toHaveLength(4);
+  });
+});

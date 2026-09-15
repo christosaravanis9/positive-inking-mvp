@@ -270,3 +270,18 @@ describe("DesignConfirmation -- Readiness meter (2026-09-14)", () => {
     expect(document.querySelectorAll(".readiness-meter-dot")).toHaveLength(4);
   });
 });
+
+// 2026-09-15, live-requested: reinforces the same honest expectation as
+// Welcome.tsx, right at the actual payoff moment this time.
+describe("DesignConfirmation -- Blueprint payoff pre-framing (2026-09-15)", () => {
+  it("states plainly, right before the build action, that this produces a written brief, not a finished image", () => {
+    seedDesignConfirmationState({});
+    render(
+      <JourneyProvider>
+        <DesignConfirmation />
+      </JourneyProvider>,
+    );
+    screen.getByText(/produces a written brief for your artist/i);
+    screen.getByText(/not a finished image/i);
+  });
+});

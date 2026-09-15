@@ -93,3 +93,20 @@ describe("Welcome -- 18+ confirmation checkbox", () => {
     expect(stored.ui.ageConfirmed).toBe(true);
   });
 });
+
+// 2026-09-15, live-requested: real beta testers finished the journey
+// expecting something other than a written document -- this states the
+// actual deliverable plainly, up front, rather than letting it be
+// discovered as a surprise at the end.
+describe("Welcome -- Blueprint payoff pre-framing (2026-09-15)", () => {
+  it("states plainly, up front, that the deliverable is a written brief, not a finished image", () => {
+    seedState();
+    render(
+      <JourneyProvider>
+        <Welcome />
+      </JourneyProvider>,
+    );
+    screen.getByText(/a written creative brief for your artist/i);
+    screen.getByText(/not a finished picture/i);
+  });
+});

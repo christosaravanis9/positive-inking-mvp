@@ -199,6 +199,31 @@ button.secondary {
   margin: 0;
 }
 
+/**
+ * 2026-09-15, live-requested: a plain, always-available Back button --
+ * see components/BackButton.tsx and understandingPanel.ts's
+ * previousStepEditPatch for the full reasoning. Deliberately quiet
+ * (outline style, small), matching how every other Back/Edit affordance
+ * in this app already reads (IntentionConfirmation's "Edit this",
+ * DesignConfirmation's "Change something") -- present and obvious, never
+ * competing visually with the screen's own primary action.
+ */
+.back-button {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  padding: 6px 14px;
+  font-size: 0.85rem;
+  border-radius: 999px;
+  margin-bottom: 16px;
+  cursor: pointer;
+}
+
+.back-button:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 .error-banner {
   background: var(--error-bg);
   color: var(--error-fg);

@@ -190,3 +190,47 @@ describe("Journey -- anonymous usage analytics wiring (step timing / funnel)", (
     expect(reportScreenReached).not.toHaveBeenCalled();
   });
 });
+
+// 2026-09-15, live-requested: "no back and forth button to call upon
+// whenever the anxiety hits" -- a plain, obvious Back button, genuinely
+// equivalent to the panel row round-trip tests above (same underlying
+// mechanism), just discoverable without knowing which row to click.
+describe("Journey -- generic Back button", () => {
+  it("clicking Back from CreativeControl (mid-journey) navigates to the most recently completed screen (Visual material / Screen 7)", () => {
+    seedMidJourneyState();
+    render(
+      <JourneyProvider>
+        <Journey />
+      </JourneyProvider>,
+    );
+
+    expect(screen.queryByText("Let us find what could represent it.")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "← Back" }));
+    screen.getByText("Let us find what could represent it.");
+  });
+
+  it("is completely absent on the very first screen a journey ever reaches -- nothing to go back to yet", () => {
+    const state = createInitialJourneyState();
+    state.ui = { ...state.ui, pastWelcome: true };
+    savePersistedState(state);
+    render(
+      <JourneyProvider>
+        <Journey />
+      </JourneyProvider>,
+    );
+
+    expect(screen.queryByRole("button", { name: "← Back" })).toBeNull();
+  });
+
+  it("is absent on Welcome, the Blueprint, and Working Notes -- the same screens the understanding panel itself is hidden on, each with their own distinct layout/navigation", () => {
+    const state = createInitialJourneyState(); // pastWelcome: false -- lands on Welcome itself
+    savePersistedState(state);
+    render(
+      <JourneyProvider>
+        <Journey />
+      </JourneyProvider>,
+    );
+
+    expect(screen.queryByRole("button", { name: "← Back" })).toBeNull();
+  });
+});

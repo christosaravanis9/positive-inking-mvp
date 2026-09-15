@@ -30,6 +30,7 @@ import { TelemetryInspector } from "../inspector/TelemetryInspector";
 import { StartFreshJourneyButton } from "../dev/StartFreshJourneyButton";
 import { BuildIdentifier } from "../dev/BuildIdentifier";
 import { UnderstandingPanel } from "../components/UnderstandingPanel";
+import { BackButton } from "../components/BackButton";
 
 const SCREEN_COMPONENTS: Record<ScreenId, () => JSX.Element | null> = {
   welcome: Welcome,
@@ -106,6 +107,7 @@ export function Journey() {
     <div className={`app-shell${showUnderstandingPanel ? " journey-with-panel" : ""}`}>
       <div className="journey-stage">
         {showUnderstandingPanel && <UnderstandingPanel variant="details" />}
+        {showUnderstandingPanel && <BackButton />}
         {globalError && (
           <div className="error-banner">
             Unhandled {globalError.source}: {globalError.message}

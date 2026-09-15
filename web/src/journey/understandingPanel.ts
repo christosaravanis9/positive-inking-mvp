@@ -158,6 +158,35 @@ export function deriveUnderstandingRows(project: ProjectState): UnderstandingRow
   return rows;
 }
 
+/**
+ * 2026-09-15, live-requested: "no back and forth button to call upon
+ * whenever the anxiety hits" -- backward navigation already existed via
+ * this panel's own per-row editUiPatch, but only discoverable by knowing
+ * which row corresponds to what you want to change. This gives a plain,
+ * obvious "Back" button the exact same real navigation, computed
+ * generically instead of requiring a specific row: rows are already
+ * pushed in journey order and only appear once their source screen is
+ * genuinely complete, so the LAST row with an editUiPatch is, by
+ * construction, the most recently completed screen -- going there IS
+ * "back one step" from wherever the journey currently is. No new
+ * navigation history, no new state, no new invalidation logic -- reuses
+ * the identical "flip the gating flag back to false" mechanism every
+ * existing Back/Edit affordance already relies on. Returns null only when
+ * there is genuinely nothing yet to go back to (the very first screen
+ * that ever produces a row hasn't been reached, or -- Treatment/Meaning
+ * in attraction-expert mode -- the only completed rows so far have no
+ * reliable editUiPatch at all, matching deriveUnderstandingRows' own
+ * documented reasons for a row to omit one).
+ */
+export function previousStepEditPatch(project: ProjectState): Partial<UIState> | null {
+  const rows = deriveUnderstandingRows(project);
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const patch = rows[i]!.editUiPatch;
+    if (patch) return patch;
+  }
+  return null;
+}
+
 const SIZE_CLASS_LABEL: Record<string, string> = {
   small: "Small",
   medium: "Medium",

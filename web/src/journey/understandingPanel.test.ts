@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createEmptyProjectState, type ProjectState, type VisualElement } from "@positive-inking/engine";
-import { deriveUnderstandingRows } from "./understandingPanel";
+import { deriveUnderstandingRows, previousStepEditPatch } from "./understandingPanel";
 
 function baseProject(overrides: Partial<ProjectState> = {}): ProjectState {
   return { ...createEmptyProjectState("p1", "2026-01-01T00:00:00.000Z"), ...overrides };
@@ -244,5 +244,55 @@ describe("deriveUnderstandingRows -- Sites migration spec §2.2", () => {
       side: "left",
     });
     expect(deriveUnderstandingRows(project).map((r) => r.id)).not.toContain("emerging_vision");
+  });
+});
+
+// 2026-09-15, live-requested: "no back and forth button to call upon
+// whenever the anxiety hits" -- see the function's own doc comment for
+// the full reasoning (the last row with an editUiPatch IS "one step
+// back," by construction, since rows are pushed in journey order and
+// only appear once genuinely complete).
+describe("previousStepEditPatch (the generic Back button's own logic)", () => {
+  it("returns null on a completely untouched project -- nothing yet to go back to", () => {
+    expect(previousStepEditPatch(baseProject())).toBeNull();
+  });
+
+  it("with exactly one completed row, returns that row's own editUiPatch", () => {
+    const project = baseProject({ user_viewpoint: "past" });
+    expect(previousStepEditPatch(project)).toEqual({ viewpointSelected: false });
+  });
+
+  it("with several completed rows, returns the LAST one's editUiPatch -- 'one step back' from wherever the journey currently is, not the first row", () => {
+    const project = baseProject({
+      user_viewpoint: "past",
+      raw_story: "A story with real content.",
+      confirmed_themes: ["patience"],
+    });
+    // Meaning's own row comes after both Viewpoint's and Story's in journey
+    // order -- Back from here should go to Meaning, not all the way back
+    // to Viewpoint or Story.
+    expect(previousStepEditPatch(project)).toEqual({ themesSelected: false });
+  });
+
+  it("real full-journey case: with every row populated, returns Placement's own patch -- the most recently completed step in the fixed row order", () => {
+    const project = baseProject({
+      user_viewpoint: "past",
+      raw_story: "story",
+      confirmed_themes: ["a"],
+      visual_elements: [elementFixture({})],
+      composition_type: "x",
+      realism_level: "graphic",
+      side: "left",
+    });
+    expect(previousStepEditPatch(project)).toEqual({ placementDone: false });
+  });
+
+  it("returns exactly one of the real rows' own patches -- never an invented one", () => {
+    const project = baseProject({ user_viewpoint: "present", raw_story: "Something real happened." });
+    const patch = previousStepEditPatch(project);
+    const realPatches = deriveUnderstandingRows(project)
+      .map((r) => r.editUiPatch)
+      .filter(Boolean);
+    expect(realPatches).toContainEqual(patch);
   });
 });

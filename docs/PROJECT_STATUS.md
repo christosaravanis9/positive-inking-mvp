@@ -507,6 +507,58 @@ this document are tracked.
 
 ## Session log
 
+### 2026-09-15 — Generic "Back" button on every intake screen + honest Blueprint payoff pre-framing (Welcome + right before the build)
+
+Applied `back-button-and-blueprint-preframing.patch` — two small,
+independent items, both pure UI/navigation/copy, nothing dependent on
+model output content.
+
+**Apply.** `git apply --check --3way` (dry run, clean, direct
+application for every hunk, no 3-way fallback needed) then `git apply
+--3way` for real. All 10 files applied cleanly (1 new,
+`web/src/components/BackButton.tsx`; 9 modified).
+
+**What it does, one line each:**
+1. **Generic "Back" button** (new `web/src/components/BackButton.tsx`,
+   `web/src/journey/understandingPanel.ts`'s new `previousStepEditPatch`,
+   wired into `Journey.tsx` alongside `UnderstandingPanel`) — reuses
+   the exact same backward-navigation mechanism the understanding
+   panel's per-row "Edit" links already provide (flip the row's own
+   gating flag back to `false`), just computed generically as "the
+   last row with a real `editUiPatch`" instead of requiring the client
+   to know which specific row to click. No new navigation history, no
+   new state. Renders nothing on Welcome, the very first screen a
+   journey ever reaches (nothing to go back to yet), or on the
+   Blueprint/Working Notes (same screens the understanding panel
+   itself is already hidden on) — never a disabled button implying an
+   action that can't do anything.
+2. **Honest Blueprint payoff pre-framing** (`web/src/screens/
+   Welcome.tsx`, `web/src/screens/DesignConfirmation.tsx`) — states
+   plainly, in two places, that the deliverable is a written creative
+   brief for the client's artist, not a finished image: once up front
+   at Welcome ("What you'll get: a written creative brief... not a
+   finished picture"), and again right before the actual build action
+   on Screen 13 ("This produces a written brief for your artist — not
+   a finished image"), reinforcing the same honest expectation at the
+   exact moment it matters most rather than only several minutes
+   earlier. Addresses a live-reported gap: real beta testers finished
+   the whole journey expecting something other than a written document
+   and felt let down at the very end. Deliberately not a bigger fix (an
+   actual generated image is a real, separate, much larger
+   undertaking) — just honest expectation-setting with what already
+   exists.
+
+**Verification.** `npm run typecheck && npm test && npm run build` all
+clean across all three workspaces: 595 tests total (engine 191, server
+110, web 294 [+10]), zero typecheck errors, all three builds succeed.
+
+**No real-model check** — correctly skipped per the task's own explicit
+note, since nothing in this patch depends on model output content. No
+Supabase migration this round either — the patch touches no schema or
+analytics event shape, so the standing 3-deep migration backlog
+(device-roster, voice-input-tracking, idea-tracking — see the ⚠ note
+in "Current status" above) is unchanged, neither grown nor reduced.
+
 ### 2026-09-14 (later) — Voice-first "add an idea" redesign, anonymous bucketed idea-submission tracking, Readiness traffic-light/meter visual
 
 Applied `voice-first-ideas-and-readiness-meter.patch` — three items,

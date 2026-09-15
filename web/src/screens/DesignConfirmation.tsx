@@ -263,6 +263,12 @@ export function DesignConfirmation() {
       )}
       <AsyncError onRetry={build} />
       {pending && <ModelWaitIndicator label="Building your Blueprint..." route="blueprint" />}
+      {/*
+        2026-09-15, live-requested: reinforced right before the actual
+        payoff moment, not just once at Welcome several minutes earlier --
+        the same honest expectation, restated at the point it matters most.
+      */}
+      <p className="supporting">This produces a written brief for your artist -- not a finished image.</p>
       <div style={{ display: "flex", gap: 8 }}>
         <button onClick={build} disabled={pending || needsFidelityTreatment}>
           {pending ? "Working..." : "Build my Blueprint"}

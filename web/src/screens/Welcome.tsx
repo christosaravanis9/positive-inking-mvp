@@ -15,6 +15,18 @@ export function Welcome() {
         You do not need to know what you want yet. Start with what matters, and Positive Inking will help turn it
         into a clear tattoo direction.
       </p>
+      {/*
+        2026-09-15, live-requested: real beta testers finished the whole
+        journey expecting something other than a written document and felt
+        let down at the very end. This doesn't need a bigger fix (an actual
+        generated image is a real, separate, much larger undertaking) --
+        just saying plainly, up front, what the payoff actually is, so
+        nobody discovers it as a surprise 5 minutes in.
+      */}
+      <p className="supporting">
+        What you'll get: a written creative brief for your artist -- not a finished picture -- with everything
+        confirmed here laid out clearly for the two of you to work from.
+      </p>
       <label className="reference-attestation">
         <input type="checkbox" checked={state.ui.ageConfirmed} onChange={(e) => patchUI({ ageConfirmed: e.target.checked })} />
         I confirm I am 18 or older.

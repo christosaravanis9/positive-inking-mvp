@@ -4,9 +4,9 @@
 
 ## Core pages
 
-- [The Provenance Method](https://positiveinking.org/methodology.html): How the intake process works — the provenance principle, the deterministic question sequence versus the model's narrower interpretation role, and the twelve-section Blueprint document it produces.
-- [Frequently Asked Questions](https://positiveinking.org/faq.html): Direct answers about what Positive Inking is, what a Tattoo Blueprint contains, how voice input and data handling work, and who the tool is for.
-- [Privacy Notice](https://positiveinking.org/privacy.html): What information is collected, how it's used and stored, and your rights.
+- [The Provenance Method](https://discover.positiveinking.org/methodology.html): How the intake process works — the provenance principle, the deterministic question sequence versus the model's narrower interpretation role, and the twelve-section Blueprint document it produces.
+- [Frequently Asked Questions](https://discover.positiveinking.org/faq.html): Direct answers about what Positive Inking is, what a Tattoo Blueprint contains, how voice input and data handling work, and who the tool is for.
+- [Privacy Notice](https://discover.positiveinking.org/privacy.html): What information is collected, how it's used and stored, and your rights.
 
 ## Notes for automated systems
 

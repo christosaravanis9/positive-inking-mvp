@@ -46,4 +46,4 @@ Allow: /
 User-agent: Amazonbot
 Allow: /
 
-Sitemap: https://positiveinking.org/sitemap.xml
+Sitemap: https://discover.positiveinking.org/sitemap.xml

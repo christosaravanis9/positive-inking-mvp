@@ -507,6 +507,53 @@ this document are tracked.
 
 ## Session log
 
+### 2026-09-17 — Updated canonical domain from positiveinking.org to discover.positiveinking.org across every static AEO page
+
+Applied `update-canonical-domain-to-subdomain.patch` — the client has
+now confirmed `discover.positiveinking.org` (a subdomain, not the
+previously-assumed root `positiveinking.org`) as the actual domain for
+both the app itself and its static AEO pages, with no separate
+root-domain site planned. Pure content/reference update, no code
+logic changed.
+
+**Apply.** `git apply --check --3way` (dry run, clean, direct
+application for every hunk) then `git apply --3way` for real. All 6
+files applied cleanly: `web/public/faq.html`, `llms.txt`,
+`methodology.html`, `privacy.html`, `robots.txt`, `sitemap.xml`.
+`methodology.html`'s JSON-LD `dateModified` also bumped from
+2026-09-04 to 2026-09-15, reflecting this actual edit rather than
+being left stale.
+
+**Verified nothing was missed** — grepped the whole repo for
+`positiveinking.org` after applying: the only remaining references are
+the two `Christos@positiveinking.org` email addresses in
+`privacy.html` (deliberately untouched, per the task's own explicit
+instruction — an email address on the root domain is unrelated to
+which domain serves the app) and a handful of `docs/` references that
+are either already-correct `discover.positiveinking.org` mentions from
+earlier planning, the same email address, or one historical Session
+Log entry describing a past assumption -- correctly left alone per
+this file's own append-only convention (never rewrite history in the
+log; a correction gets a new entry, not an edit to an old one).
+
+**Verification.** `npm run typecheck && npm test && npm run build` all
+clean across all three workspaces: 595 tests total (engine 191, server
+110, web 294 — unchanged counts, since this patch touches only static
+`web/public/` files, no test files). Zero typecheck errors, all three
+builds succeed.
+
+**Confirmed the actual built output, not just the source files** (the
+task's own explicit ask) — grepped `web/dist/` after the build: every
+canonical link, JSON-LD `url`/`mainEntityOfPage`, the sitemap's `<loc>`
+entries, and `robots.txt`'s `Sitemap:` line all correctly read
+`discover.positiveinking.org` in the actual built artifacts Vite copies
+from `web/public/` into `dist/`, not just in the source files that
+were edited. Zero remaining `https://positiveinking.org` references
+anywhere in `web/dist/` or `web/public/`.
+
+**No real-model check** — correctly skipped per the task's own explicit
+note, since nothing here depends on model output content.
+
 ### 2026-09-15 — Generic "Back" button on every intake screen + honest Blueprint payoff pre-framing (Welcome + right before the build)
 
 Applied `back-button-and-blueprint-preframing.patch` — two small,

@@ -1,27 +1,23 @@
-# Summary: Screen 7 redesign + Screen 13 fidelity/reference relocation — implemented, verified, shipped
+# Summary: Re-verification pass — 5 "approved" items were already shipped; confirmed still working, nothing changed
 
-All three open questions from the Part 1 investigation/Part 3 proposal were approved and Parts 2-4 are now fully implemented, tested, and live-browser-verified.
+A request came in to implement five items in one pass: the Section 4 garbled-text fix, a Blueprint Writer WORDING rule with specific before/after examples, a repetition-ownership restructure, the client-only reserve-pool re-roll swap, and raising the Blueprint timeout to 45000ms.
 
-## What changed
+## What was found
 
-**Screen 7 (`ElementsDiscovery.tsx`):** 5 candidates by default (up from 3). Each candidate now gets one 3-button control — **Keep** (→ `closely_based_on`), **Build upon** (→ `interpretive`), **Not this one** — replacing the old selection checkbox + 4-button fidelity row + text-link re-roll. "Not this one" pages forward for free through anything already generated for that slot; only past the end of that history does it open a "Why?" input (concrete-example placeholder, not just "optional"). Blank submission stays on the free client-only reserve-pool swap; a typed reason triggers exactly one real per-slot model call via a new `useKeyedAsyncAction` hook and `requestAssociationAlternative()`. A small pager lets the client page back through every candidate a slot has ever shown — nothing is ever discarded. The reference-upload requirement is gone from this screen entirely.
+All five were already implemented and pushed to this branch, in earlier commits:
 
-**Server (`association.ts`):** extended (not replaced) with optional `avoid_descriptions`/`dismissal_reason`, used only on the Why-driven path; same response schema, same `visual_candidates[0]` contract.
+- **`3d4891a`** ("Fix Section 4 garbled text, Blueprint Writer register, and repetition") already covers items 1-3 — `DETAIL_SEPARATOR = ". In your own words: "`, the WORDING rule with the exact before/after examples requested (verbatim), and the repetition-ownership rule naming `visual_direction` as the one place the concept is stated in full.
+- **`ecf3c2f`** ("Ship per-candidate re-roll and raise Blueprint's timeout budget") already covers items 4-5 — the reserve-pool re-roll swap and `blueprint: 45000` in `engine/src/modelTimeouts.ts`.
 
-**Screen 13 (`DesignConfirmation.tsx`):** each Kept/Built-upon element now gets a fidelity dropdown (same 4 `ElementFidelity` values), with the reference-upload + consent flow appearing inline only when the selected fidelity needs one. Also re-runs `fidelityTreatmentRequired()` itself — the fix for the real sequencing gap Part 1 found (Screen 11 runs before Screen 13, so an element that only becomes `exact` fidelity here would otherwise skip that question).
+This was reported back before touching anything, rather than silently re-implementing (risk of duplicating or conflicting with the existing prompt rules) or silently doing nothing (the request also asked for fresh verification, screenshots, and a docs update). The answer: re-verify everything as a sanity check, no code changes.
 
-**Part 4 (data model):** required no new fields or storage — there was only ever one source of truth (`VisualElement.fidelity`/`reference_required`/`reference_status`, `consent_records`, `referenceAssets`); only which screen writes to it changed. The Blueprint's existing readers (`blueprintSummary.ts`, `referenceChecklist.ts`, Readiness) already read straight from those fields.
+## Verification performed this round
 
-## A real bug the live browser check caught (not any unit test)
+- `npm run typecheck && npm test && npm run build` — clean, 595 tests (engine 191, server 110, web 294), identical counts to before this round.
+- Live browser re-verification (real server + real Vite + fake-Anthropic double), with screenshots:
+  - **Item 1**: reproduced the exact original garbled-text repro scenario live — the composed description read `"a specific object tied to a shared memory. In your own words: no the tattoo artist ability"`, clean.
+  - **Item 4**: triggered a free "Not this one" reroll on Screen 7 — slot 0's candidate swapped via the reserve pool, confirmed via server logs that no second `/api/associations` call was made.
 
-Per-slot history state was seeded via a `useState` lazy initializer, which runs at first mount — but this screen mounts before the Association fetch resolves. Every unit test seeded candidates synchronously, so none of them hit this; the live check did: an untouched slot silently duplicated a just-generated candidate once ranking shifted. Fixed by moving the seed into a one-time effect gated on candidates actually existing. Re-verified live, fixed.
+## Result
 
-## Verification
-
-Typecheck/tests/build clean across engine (165)/server (65)/web (218, up from 202). Live browser check (real server + Vite + a fake-Anthropic double) walked the full path with screenshots: 5 candidates → Why-driven re-roll → non-destructive paging back → Keep/Build-upon → Continue → Screen 13 dropdown → reference attachment appears → fidelity_treatment gate blocks then clears Build.
-
-## Deliberate scope boundary
-
-"This has given me another idea..." (user-authored ideas) keeps its own unchanged fidelity+reference flow — Parts 2-4 only ever described Association-sourced candidate controls. Flagged as a visible asymmetry for a future round, not silently left inconsistent.
-
-Full detail: `docs/PROJECT_STATUS.md`'s latest session log entry.
+No code changed this round. `docs/PROJECT_STATUS.md`'s latest session log entry has the full detail, including exactly which commit already shipped which item.

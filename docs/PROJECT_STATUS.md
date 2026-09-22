@@ -507,6 +507,79 @@ this document are tracked.
 
 ## Session log
 
+### 2026-09-22 — Re-verification pass: the 5 "approved" items requested this round were already shipped in earlier commits; confirmed all still working, no code changed
+
+A message arrived asking to "implement all of the following in one pass":
+(1) the Section 4 garbled-text fix, (2) a Blueprint Writer WORDING rule
+with specific before/after examples, (3) a repetition-ownership
+restructure naming `visual_direction` as the one place the concept is
+stated in full, (4) the client-only reserve-pool swap for per-candidate
+re-roll, (5) raising the Blueprint timeout to 45000ms.
+
+**Before writing anything, checked the current repo state against each
+item — all five were already implemented, verbatim in several cases:**
+- Item 1: `DETAIL_SEPARATOR = ". In your own words: "` in
+  `ElementsDiscovery.tsx` — already there (commit `3d4891a`).
+- Item 2: `BLUEPRINT_SYSTEM_PROMPT`'s WORDING rule already contains all
+  four before/after examples word-for-word, including "Keep the linework
+  clean and precise. Not loose or sketch-like." and "honours the bond
+  between them" (commit `3d4891a`).
+- Item 3: the repetition-ownership rule is present verbatim — "
+  visual_direction is the one place that states the chosen visual
+  concept in full... artist_brief's intro/closing_notes may reference
+  the concept only briefly (e.g. 'the design described above')" (commit
+  `3d4891a`).
+- Item 4: the reserve-pool re-roll (`reservePool`, `reserveCursorRef`,
+  a synchronous local swap with no server call) is implemented in
+  `ElementsDiscovery.tsx` (commit `ecf3c2f`).
+- Item 5: `engine/src/modelTimeouts.ts` already has `blueprint: 45000`,
+  with a comment citing the same production-timeout evidence the
+  request cited.
+
+Reported this back plainly rather than silently redoing (risk of
+duplicating/conflicting prompt rules) or silently doing nothing (the
+request also asked for verification, screenshots, and a docs entry).
+Asked which of three paths to take; the answer was: **re-verify
+everything as a sanity check, no code changes.**
+
+**Fresh verification, all clean, zero code changes:** `npm run
+typecheck && npm test && npm run build` — 595 tests (engine 191, server
+110, web 294), identical counts to before this round, all passing;
+zero typecheck errors; all three builds succeed.
+
+**Live browser re-verification with screenshots**, real server + real
+Vite + fake-Anthropic double (no real API key needed — this is
+UI/prompt-structure behavior, not model-output-content verification):
+- **Item 1**: reproduced the exact original repro fixture ("a specific
+  object tied to a shared memory," follow-up "What object carries the
+  most memory for you?"), typed the same ungrammatical original client
+  input ("no the tattoo artist ability"), confirmed the candidate. The
+  composed `visual_elements` description read exactly
+  `"a specific object tied to a shared memory. In your own words: no
+  the tattoo artist ability"` — clean, no garbled dash-continuation.
+  Screenshotted mid-entry (`item1-detail-field-filled.png`).
+- **Item 4**: on a fresh Screen 7 with 5 visible + 9 reserve candidates,
+  clicked "Not this one" on slot 0 and submitted with no reason (the
+  free path). Slot 0's candidate swapped from the linked-panels sequence
+  to "a leash coiled into a loose spiral," with the pager correctly
+  showing 2/2 — confirmed via server logs that only the ONE initial
+  `/api/associations` call was ever made across the whole scenario, no
+  second call for the reroll. Screenshotted before
+  (`item4-before-reroll.png`) and after (`item4-after-reroll.png`).
+
+Items 2 and 3 (pure prompt text, not independently live-testable beyond
+what's already covered by the exact-text confirmation above and the
+original round's own real-model verification) were not re-run against a
+real model this round — no real API key was supplied, and the task's
+own instructions didn't ask for a real-model check this time, only
+regression tests "if testable," which the existing suite already
+covers via prompt-content assertions.
+
+**No commit this round** — there is nothing to commit; every file the
+request named is byte-for-byte identical to what's already on this
+branch. `docs/latest-summary.md` rewritten to reflect this finding
+rather than left describing the much older Screen 7/13 redesign round.
+
 ### 2026-09-17 — Updated canonical domain from positiveinking.org to discover.positiveinking.org across every static AEO page
 
 Applied `update-canonical-domain-to-subdomain.patch` — the client has

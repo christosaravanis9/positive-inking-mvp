@@ -146,6 +146,11 @@ async function submitStoryAndMaybeDepthGate(page, persona, report) {
   report.depthGateFired = gateFired;
 
   if (gateFired) {
+    fs.mkdirSync(screenshotsDir, { recursive: true });
+    const gateShotPath = path.join(screenshotsDir, `${persona.id}-depth-gate.png`);
+    await page.screenshot({ path: gateShotPath, fullPage: true });
+    report.depthGateScreenshot = gateShotPath;
+
     if (persona.depthAnswer) {
       await page.fill("input[placeholder='Or say it in your own words']", persona.depthAnswer);
       report.depthAnswerGiven = persona.depthAnswer;
@@ -578,6 +583,7 @@ export function writeReport(persona, report, checks) {
     lines.push(`- [${c.pass ? "PASS" : "FAIL"}] ${c.name} -- ${c.detail}`);
   }
   lines.push("");
+  if (report.depthGateScreenshot) lines.push(`Depth-gate screenshot: ${report.depthGateScreenshot}`);
   if (report.blueprintScreenshot) lines.push(`Blueprint screenshot: ${report.blueprintScreenshot}`);
   if (report.finalScreenshot) lines.push(`Final-state screenshot (did not reach Blueprint): ${report.finalScreenshot}`);
   if (report.errorScreenshot) lines.push(`Error-state screenshot: ${report.errorScreenshot}`);

@@ -504,6 +504,30 @@ cognitive load, and output-resonance being unverifiable against the fake
 double) are UX judgment calls or verification-method gaps, not bugs — left
 open, per the audit's own top-5 list, not acted on in this pass.
 
+**A 5-lane Association expansion is IN PROGRESS — Parts 1-2 of 4 shipped,
+Parts 3-4 deliberately deferred to a follow-up session.** A new
+pre-qualifying question (`VisualStylePreference.tsx`) now asks the client
+which visual approach appeals to them (Abstract & symbolic / Illustrative &
+narrative / Typography-based / Comic-strip / panel style / Montage &
+collage / Not sure), right before Association is ever called for the first
+time, for every journey mode. `ASSOCIATION_SYSTEM_PROMPT`'s rule 1 is
+rewritten around these same 5 lanes (replacing the old 3-shape system);
+each candidate is tagged with a `lane`, the comic_strip lane additionally
+carries a `rendering_style` (realism/anime/artistic_line_art/photographic),
+and a stated preference biases roughly 60% of a batch toward that lane
+(spread evenly across all 5 when the client said "not sure"). **Not done
+yet:** Part 3 (Screen 7's default visible count 5→3, with a second batch of
+3 revealed only after a "failed first pull" — all 3 initial candidates
+rejected, none Kept/Built-upon) and Part 4 (that feature's own live
+verification + regression tests for the biasing percentage and the
+failed-pull reveal trigger, plus a docs pass covering the whole feature).
+See the latest session log entry for the full reasoning on why the pass
+stopped here — the short version: Screen 7's reveal-count/reserve-pool
+mechanic is a separately risky change to an already carefully-tuned
+interaction (its own prompt text explicitly ties total-candidate guidance
+to the visible count), worth its own focused pass rather than folding into
+the same session as the schema/prompt rewrite.
+
 **⚠ Supabase migration backlog: 3 deep, none confirmed run against
 production.** `docs/supabase-migration-2026-09-09-device-roster.sql`,
 `docs/supabase-migration-2026-09-11-voice-input-tracking.sql`, and
@@ -556,6 +580,134 @@ here for you to decide scope on, matching how other open decisions in
 this document are tracked.
 
 ## Session log
+
+### 2026-09-23 — 5-lane Association expansion, Parts 1-2 of 4 (pre-qualifying question + biased generation); Parts 3-4 deferred to a follow-up session
+
+A 4-part feature request: (1) a new pre-qualifying visual-style question,
+(2) expanding Association's 3-shape system into 5 defined lanes with
+preference-biased generation, (3) Screen 7's default-visible count 5→3
+with a second batch revealed only on a "failed first pull," (4) that
+whole feature's own verification pass. The request explicitly invited
+stopping after Part 2 and proposing a split if the scope warranted it —
+it did. Parts 1-2 shipped this session, fully verified on their own
+terms; Part 3 (and the Part 4 verification/tests that depend on it) are
+a genuine follow-up, not started.
+
+**Why stop here, concretely:** Screen 7's reveal-count/reserve-pool
+mechanic is a separately delicate piece of this codebase — its own prompt
+text (rule 1) explicitly ties the 9-12 total-candidate guidance to the
+screen's visible count ("If the screen's own default visible count ever
+changes, this number needs to move with it"), and the reserve pool's
+exhaustion behavior was itself the subject of a dedicated fix earlier in
+this project's history (the 2026-09-08 "off-by-N" live-reported bug).
+Changing the default from 5 to 3 touches that same surface again, plus a
+new "failed first pull" detection state Screen 7 doesn't have any
+precedent for. That's real, separate risk from a schema/prompt rewrite,
+and Part 4's own ask (a live check of the reveal actually triggering, plus
+a statistical regression test for the 60% biasing target across repeated
+runs) only makes sense once Part 3 exists to test. Rushing both into the
+same pass risked doing either one carelessly.
+
+**Part 1 — pre-qualifying visual-style question, shipped:**
+- `engine/src/types.ts`: new `AssociationLane` (`abstract_symbolic` /
+  `illustrative_narrative` / `typography` / `comic_strip` /
+  `montage_collage`) and `VisualStylePreference` (`AssociationLane` |
+  `"not_sure"`) types, and `ProjectState.visual_style_preference`.
+- `engine/src/screenFlow.ts`: new `"visual_style_preference"` `ScreenId`,
+  inserted in the shared tail directly before `elements_discovery` — every
+  journey mode passes through it, matching §7's own convergence rule,
+  since it has to be answered before Association is ever called for the
+  first time regardless of mode.
+- New `web/src/screens/VisualStylePreference.tsx`: the 6 options from the
+  request, in the exact client-facing language given, each a deterministic
+  chip choice (not a model-inferred field — matches how `primary_viewpoint`/
+  `Viewpoint.tsx` already works, and screenFlow.ts's own stated principle
+  that screen-sequencing decisions are never delegated to a model call).
+  "Not sure" writes `"not_sure"`, not `null` — it's a real answer that
+  changes downstream behavior (spread evenly across lanes), not a skip.
+
+**Part 2 — Association expanded to 5 lanes with biasing, shipped:**
+- `server/src/schemas/association.ts`: rule 1 rewritten from the old
+  3-shape system (literal object / pure abstraction / illustrative
+  sequence) to the 5 lanes above. `illustrative_narrative` is genuinely
+  new content, not a renamed existing mode — real feedback was that
+  today's candidates all skewed abstract-metaphor even where the old
+  prompt's own "literal object" mode should have covered it, so this lane
+  gets its own explicit CONCRETENESS (rule 8) example distinguishing a
+  literal depiction ("her kitchen table, the blue apron hanging on its
+  hook") from a technically-an-image-but-still-a-metaphor failure ("a warm
+  scene of togetherness"). `typography` and `montage_collage` are also new
+  lanes with their own CONCRETENESS examples (the client's own actual
+  words; the story's own actual elements combined, not generic imagery).
+  `comic_strip` (was "illustrative sequence") keeps its existing
+  guidance and gains a `rendering_style` sub-attribute
+  (`realism`/`anime`/`artistic_line_art`/`photographic`), required only
+  for that lane via its own `.refine()` — same pattern as the existing
+  `follow_up_prompt` requirement, so a missing value drops just that one
+  candidate via the existing per-candidate salvage mechanism, not the
+  whole batch. New PRE-QUALIFYING PREFERENCE paragraph: ~60% of a batch
+  biases toward a stated lane (remainder spread across the other four as
+  genuine alternatives — a client with no design vocabulary of their own
+  often responds better to something they didn't think to ask for), or
+  spread evenly across all 5 when the answer was "not sure." Both `lane`
+  and `rendering_style` are lenient/nullable at the zod layer (same
+  pattern as `device_id`) — a missing tracking tag never costs a candidate
+  its place, only a genuinely out-of-enum value does (and unlike
+  `device_id`, `lane`'s 5 values are fixed, not a runtime-loaded roster,
+  so no extra route-level sanitization was needed).
+- Threaded `visual_style_preference` through all 3 client API functions
+  (`web/src/api/association.ts`), the server request schema + composed
+  user message (`server/src/routes/association.ts`, using rule 1's own
+  lane labels so the model never has to reconcile two different names for
+  the same lane), and `ElementsDiscovery.tsx`'s 3 call sites.
+- `test-integration/fakeAnthropic.mjs`'s association fixture: tagged the
+  existing 5 default-visible candidates with their lane (no description
+  text changed), and added 2 new reserve-tier candidates (typography,
+  montage_collage) so fixture data genuinely covers all 5 lanes — scored
+  well below the existing top-5 specifically so the default-visible batch,
+  and everything in `test-integration/personas/` and
+  `docs/ux-audit-assets/` that depends on its exact description text by
+  string match, stays unchanged.
+- `test-integration/personas/runner.mjs` updated to click through the new
+  pre-qualifying screen (uniformly "Not sure" for all 5 existing personas
+  — none of them were designed around a lane preference, so this keeps
+  each one's own original intent, not a bias picked for them after the
+  fact). Confirmed all 5 personas still pass end to end against the
+  updated fixture, including heavy-rejector's reserve-pool exhaustion
+  (now 9 free rerolls before exhaustion, not 7, since the fixture gained 2
+  reserve items — its own `expectMinFreeRerolls: 6` was already a lower
+  bound, not an exact count, so this didn't need a test change, only a
+  stale-comment fix).
+
+**Verification:** `npm run typecheck`, `npm test` (engine 191 + server
+121 + web 303 = 615 tests, all green), `npm run build` all clean. New
+regression tests: `engine/test/screenFlow.test.ts` (the new screen's place
+in the converged flow, every mode), `web/src/screens/
+VisualStylePreference.test.tsx` (all 6 options render with the exact
+client-facing labels; each stores the correct value; "not_sure" is a real
+stored answer, not null), `server/test/associationSchema.test.ts` (lane/
+rendering_style leniency, the new comic_strip-only refine, salvage on an
+out-of-enum lane), `server/test/associationRoute.test.ts` (the system
+prompt names all 5 lanes and the biasing instruction; a stated preference
+reaches the composed user message using rule 1's own label; "not_sure"
+gets its own distinct label, not conflated with a real lane; an invalid
+preference value is rejected at the request-schema level). Live-verified
+against the fake double: the pre-qualifying screen renders all 6 options;
+choosing "Illustrative & narrative" stores it and Screen 7's default batch
+(read back from localStorage) carries real `lane` tags spanning all 5
+lanes, including the `comic_strip` candidate's `rendering_style`; zero
+console errors.
+
+**Explicitly not done, flagged rather than silently dropped:** Part 3
+(Screen 7's `VISIBLE_CANDIDATE_COUNT` 5→3, with a second batch of 3
+revealed only after all 3 initial candidates are rejected with none
+Kept/Built-upon — the existing Keep/Build-upon/Not-this-one control,
+per-slot history/pager, and reserve-pool reroll mechanic are meant to stay
+exactly as built, this is a reveal-timing and default-count change only)
+and Part 4 (that feature's own live browser check with screenshots, plus
+regression tests for the ~60% biasing target across repeated fixture runs
+and the failed-first-pull reveal trigger specifically). Recommended as a
+focused follow-up session once this one's own scope is confirmed settled.
 
 ### 2026-09-23 — Fixed the two genuine bugs from the UX audit (docs/ux-audit-2026-09.md)
 

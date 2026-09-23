@@ -504,29 +504,23 @@ cognitive load, and output-resonance being unverifiable against the fake
 double) are UX judgment calls or verification-method gaps, not bugs — left
 open, per the audit's own top-5 list, not acted on in this pass.
 
-**A 5-lane Association expansion is IN PROGRESS — Parts 1-2 of 4 shipped,
-Parts 3-4 deliberately deferred to a follow-up session.** A new
-pre-qualifying question (`VisualStylePreference.tsx`) now asks the client
-which visual approach appeals to them (Abstract & symbolic / Illustrative &
-narrative / Typography-based / Comic-strip / panel style / Montage &
-collage / Not sure), right before Association is ever called for the first
-time, for every journey mode. `ASSOCIATION_SYSTEM_PROMPT`'s rule 1 is
-rewritten around these same 5 lanes (replacing the old 3-shape system);
-each candidate is tagged with a `lane`, the comic_strip lane additionally
-carries a `rendering_style` (realism/anime/artistic_line_art/photographic),
-and a stated preference biases roughly 60% of a batch toward that lane
-(spread evenly across all 5 when the client said "not sure"). **Not done
-yet:** Part 3 (Screen 7's default visible count 5→3, with a second batch of
-3 revealed only after a "failed first pull" — all 3 initial candidates
-rejected, none Kept/Built-upon) and Part 4 (that feature's own live
-verification + regression tests for the biasing percentage and the
-failed-pull reveal trigger, plus a docs pass covering the whole feature).
-See the latest session log entry for the full reasoning on why the pass
-stopped here — the short version: Screen 7's reveal-count/reserve-pool
-mechanic is a separately risky change to an already carefully-tuned
-interaction (its own prompt text explicitly ties total-candidate guidance
-to the visible count), worth its own focused pass rather than folding into
-the same session as the schema/prompt rewrite.
+**The 5-lane Association expansion is COMPLETE — all 4 parts shipped.** A
+new pre-qualifying question (`VisualStylePreference.tsx`) now asks the
+client which visual approach appeals to them (Abstract & symbolic /
+Illustrative & narrative / Typography-based / Comic-strip / panel style /
+Montage & collage / Not sure), right before Association is ever called for
+the first time, for every journey mode. `ASSOCIATION_SYSTEM_PROMPT`'s rule
+1 is rewritten around these same 5 lanes (replacing the old 3-shape
+system); each candidate is tagged with a `lane`, the comic_strip lane
+additionally carries a `rendering_style`
+(realism/anime/artistic_line_art/photographic), and a stated preference
+biases roughly 60% of a batch toward that lane (spread evenly across all 5
+when the client said "not sure"). Screen 7 (`ElementsDiscovery.tsx`) now
+shows 3 candidates by default (down from 5); rejecting all 3 via "Not this
+one" with none Kept/Built-upon reveals a second batch of 3 more, drawn from
+the same reserve pool an ordinary free re-roll already uses — not a fresh
+generation call. See the latest session log entry for full detail on
+Part 3's restructure and Part 4's verification.
 
 **⚠ Supabase migration backlog: 3 deep, none confirmed run against
 production.** `docs/supabase-migration-2026-09-09-device-roster.sql`,
@@ -580,6 +574,117 @@ here for you to decide scope on, matching how other open decisions in
 this document are tracked.
 
 ## Session log
+
+### 2026-09-23 (later) — 5-lane Association expansion, Parts 3-4 of 4 (Screen 7 default-3 + second-batch reveal, plus that whole feature's verification) — completes the split proposed in the previous entry
+
+The explicitly-deferred follow-up to the same session's earlier Parts 1-2
+entry below. Same spec as originally requested: Screen 7's default-visible
+candidate count drops from 5 to 3; rejecting all 3 initial candidates via
+"Not this one" with none Kept or Built-upon reveals a second batch of 3
+more; the existing Keep/Build-upon/Not-this-one control, per-slot
+history/pager, and reserve-pool reroll mechanic stay exactly as built —
+this was a reveal-timing and default-count change, not a rebuild.
+
+**Part 3 — Screen 7 restructure, shipped:**
+- `web/src/screens/ElementsDiscovery.tsx`: `VISIBLE_CANDIDATE_COUNT`
+  changed from 5 to 3 — this constant now governs only the initial
+  ranking-slice/reserve-pool split, not how many slots are ever on screen.
+  New `activeSlotCount` (3, or 6 once revealed) and `secondBatchRevealed`
+  (one-way — once true, it never reverts, even if a client later un-Keeps
+  something in one of the original 3 slots) drive how many slots actually
+  render. New `rejectedSlots: Set<number>`, marked the moment a reroll
+  actually *submits* for a slot (both the free blank-swap branch and the
+  paid/reasoned branch of `submitReroll` — opening the "Why?" box alone
+  doesn't count, only a completed reject does). New `revealSecondBatch()`
+  pops up to 3 more items off the *same* `reservePool`/`reserveCursorRef`
+  an ordinary free "Not this one" swap already draws from — deliberately
+  not a fresh generation call, and deliberately not a dynamic
+  `VISIBLE_CANDIDATE_COUNT` (considered and rejected: shifting the
+  ranking-slice boundary itself would make the reserve cursor's "already
+  consumed" bookkeeping ambiguous the instant the boundary moved). A
+  triggering `useEffect` watches for "all 3 default slots in
+  `rejectedSlots`" AND "none of their *current* occupants has a decision in
+  `decisionByIndex`" — the second check is evaluated live each time, not
+  frozen at rejection time, so a Keep made after all 3 were once rejected
+  correctly prevents the reveal, matching a literal reading of "none
+  Kept/Built-upon." New `histFor(slot)` helper centralizes what was 8
+  separate unsafe `history[slot] ?? [defaultTopIndices[slot]!]` call sites
+  into one safe lookup (slots 3-5 have no "default" the way slots 0-2 do —
+  they exist only once `revealSecondBatch()` has already written real
+  history for them).
+- `server/src/schemas/association.ts`: rule 1's "9 to 12 total candidates"
+  guidance paragraph updated from "5 shown by default" to "3 shown by
+  default," with a new sentence explaining the second-batch reveal reuses
+  the same shared reserve rather than triggering a fresh call — so the
+  reserve needs to cushion both an individual re-roll and a full-batch
+  reveal, not just the former.
+
+**Part 4 — verification, done:**
+- `npm run typecheck`/`npm test`/`npm run build`, all clean across
+  engine (191 tests) / server (121 tests) / web (306 tests — up from 303:
+  6 existing `ElementsDiscovery.test.tsx` tests updated for the new
+  3-visible default instead of 5 that they'd hardcoded reserve-pool
+  candidate indices and counts against, plus 3 new tests described below).
+- New regression tests (`web/src/screens/ElementsDiscovery.test.tsx`):
+  one rewritten test that rejects all 3 default slots (now via a fixture
+  sized for 3 default + 3 reveal + headroom to reroll *within* the
+  revealed slots afterward) and confirms both the reveal itself and that
+  the newly-revealed slots reroll correctly and independently — this
+  folds in the original slot-4/slot-5 off-by-N regression coverage, now
+  re-targeted at the revealed batch instead of the old design's 5th slot;
+  plus 3 new, narrowly-scoped tests: the trigger firing only once all 3
+  are genuinely rejected (checked incrementally — not before 1 of 3, not
+  before 2 of 3), the trigger never firing when any of the 3 is
+  Kept/Built-upon instead of rejected, and the one-way flag never
+  un-revealing after a later Keep.
+- The ~60% biasing-across-repeated-runs statistical test from the
+  original Part 4 ask was **not built, flagged rather than silently
+  dropped**: `test-integration/fakeAnthropic.mjs`'s fake double is a
+  static, stateless fixture with no branching on
+  `visual_style_preference` at all (confirmed by grep) — running it
+  "repeatedly" would return bit-for-bit identical output every time,
+  which would make a percentage-across-runs test either trivially
+  pass-or-fail on one fixed batch or require building real preference-
+  aware branching into the double first, which is out of scope for a
+  verification pass. The already-existing, honestly-testable form of
+  this coverage (`server/test/associationRoute.test.ts`, from Part 2)
+  stays as the real regression here: it asserts the system prompt
+  actually contains the "~60%"/"spread the batch as evenly" biasing
+  instruction text sent to the model, which is what this app controls;
+  whether the real model's *output* actually honors that instruction
+  ~60% of the time is real-model verification's job, same honest
+  limitation already on record for this harness's other statistical
+  claims (see the persona-harness session log entry below).
+- Persona harness (`test-integration/personas/`): investigated and fixed.
+  3 of 5 personas' `keepMatchers` referenced `"a simple line drawing of a
+  house"` by exact description text — that candidate ranked 5th under the
+  old design (visible by default) but now ranks 4th under the reserve
+  pool (no longer visible by default), so the Keep click was silently
+  becoming a no-op (the runner's `card.count() > 0` guard means a missing
+  candidate never throws, it just quietly does nothing). Repointed all 4
+  affected personas (`thinStory`, `articulateUngrounded`,
+  `groundedControl`, `heavyRejector`) at `"a new mark made by overlapping
+  the outlines of both your initials"` instead, which still ranks inside
+  the new top 3. For `heavyRejector` specifically this wasn't just a
+  bonus assertion — with no `detailAnswer` Keep on another candidate,
+  Continue would never have enabled at all — and its `freeRerollCount`
+  (10) needed raising to 13 too, since the reserve pool grew from 9 items
+  (14 total minus the old 5 default-visible) to 11 (14 minus the new 3),
+  so 10 rerolls would no longer reliably force the exhaustion the test
+  asserts. Reran all 5 personas end to end against the updated Screen 7 —
+  all pass.
+- Live-verified against the fake double (throwaway driver script,
+  deleted after use per this project's established pattern): the
+  pre-qualifying screen still renders all 6 options; the first pull shows
+  exactly 3 candidates spanning `comic_strip`/`abstract_symbolic`/
+  `illustrative_narrative` lanes (the fixture's actual top-3 by score,
+  confirmed by hand-computing `visualRanking.ts`'s formula against every
+  fixture candidate); the `comic_strip` candidate's `rendering_style` is
+  `artistic_line_art`; rejecting all 3 default slots via "Not this one"
+  reveals exactly 3 more (6 total), in the exact rank order the reserve
+  pool predicts; zero console errors throughout. Screenshots captured for
+  both states (pre-reveal 3-candidate screen, post-reveal 6-candidate
+  screen) and reviewed directly.
 
 ### 2026-09-23 — 5-lane Association expansion, Parts 1-2 of 4 (pre-qualifying question + biased generation); Parts 3-4 deferred to a follow-up session
 

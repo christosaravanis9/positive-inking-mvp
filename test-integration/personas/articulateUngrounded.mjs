@@ -34,6 +34,10 @@ export default {
     // detail -- a second, distinct fragment shape from persona 1's blunt
     // "no", both of which must still compose cleanly.
     detailAnswer: "that's just how it feels, honestly",
-    keepMatchers: ["a simple line drawing of a house"],
+    // 2026-09-23: was "a simple line drawing of a house", the old
+    // default-top-5's 5th candidate -- no longer visible by default now
+    // that Screen 7 shows only 3; points at the abstract_symbolic
+    // candidate that still ranks inside the new default top 3 instead.
+    keepMatchers: ["a new mark made by overlapping the outlines of both your initials"],
   },
 };

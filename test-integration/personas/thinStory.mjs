@@ -29,8 +29,14 @@ export default {
     // compose cleanly as "...memory. In your own words: no", never a
     // garbled dash-continuation.
     detailAnswer: "no",
-    // A second, low-effort Keep so Continue is actually enabled (this
-    // persona isn't picky -- it accepts what's offered).
-    keepMatchers: ["a simple line drawing of a house"],
+    // A second, low-effort Keep on another default-visible candidate (this
+    // persona isn't picky -- it accepts what's offered). Not needed to
+    // enable Continue (the detailAnswer Keep above already does that), but
+    // exercises a second real Keep click on the same run. 2026-09-23: was
+    // "a simple line drawing of a house", the old default-top-5's 5th
+    // candidate -- no longer visible by default now that Screen 7 shows
+    // only 3, so this points at the abstract_symbolic candidate that still
+    // ranks inside the new default top 3.
+    keepMatchers: ["a new mark made by overlapping the outlines of both your initials"],
   },
 };

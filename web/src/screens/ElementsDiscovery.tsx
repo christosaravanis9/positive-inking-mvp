@@ -76,12 +76,18 @@ function detailPrefix(candidateDescription: string): string {
 }
 
 /**
- * Per-candidate visible cap (2026-09-07 redesign, up from 3). Everything
- * ranked beyond this position in the already-fetched candidate list becomes
- * that fetch's reserve pool for a free "Not this one" -- see notThisOne()
- * and submitReroll() below.
+ * Per-candidate visible cap (2026-09-23, back down to 3 as part of the
+ * pre-qualifying-question/5-lane expansion -- was 5 from the 2026-09-07
+ * redesign). Everything ranked beyond this position in the already-fetched
+ * candidate list becomes that fetch's reserve pool for a free "Not this
+ * one" -- see notThisOne() and submitReroll() below -- and also supplies
+ * the one-time "second batch" reveal (see revealSecondBatch()) on a failed
+ * first pull: all 3 of these default slots rejected via "Not this one"
+ * with none Kept or Built-upon. This governs ONLY the default/first-batch
+ * slot count; the number of slots actually on screen after a reveal is
+ * `activeSlotCount` below, not this constant.
  */
-const VISIBLE_CANDIDATE_COUNT = 5;
+const VISIBLE_CANDIDATE_COUNT = 3;
 
 function composeDescriptionWithDetail(candidateDescription: string, detailAnswer: string): string {
   return `${detailPrefix(candidateDescription)}${detailAnswer}`;
@@ -163,6 +169,21 @@ export function ElementsDiscovery() {
   const defaultTopIndices = rankedAndFiltered.slice(0, VISIBLE_CANDIDATE_COUNT).map((c) => c.i);
   const reservePool = rankedAndFiltered.slice(VISIBLE_CANDIDATE_COUNT);
 
+  // Safe replacement for the old `history[slot] ?? [defaultTopIndices[slot]!]`
+  // pattern repeated at every call site below -- defaultTopIndices only ever
+  // has VISIBLE_CANDIDATE_COUNT (3) real entries, but slots 3-5 (the second
+  // batch, once revealed) have no "default" at all; they only ever exist
+  // once revealSecondBatch() has already written real history for them. This
+  // never actually returns the empty-array branch for slots 3-5 in practice
+  // (see activeSlotCount below), but returns something type-safe rather than
+  // a non-null-asserted undefined either way.
+  function histFor(slot: number): number[] {
+    const existing = history[slot];
+    if (existing) return existing;
+    const defaultIdx = defaultTopIndices[slot];
+    return defaultIdx !== undefined ? [defaultIdx] : [];
+  }
+
   const [decisionByIndex, setDecisionByIndex] = useState<Record<number, "keep" | "build_upon">>(() => {
     const map: Record<number, "keep" | "build_upon"> = {};
     state.ui.associationCandidates.forEach((_, i) => {
@@ -216,6 +237,19 @@ export function ElementsDiscovery() {
   // increment regardless of render timing.
   const reserveCursorRef = useRef(0);
   const [reserveCursor, setReserveCursor] = useState(0);
+  // 2026-09-23: "failed first pull" tracking (Part 3 of the 5-lane
+  // expansion). A slot is added here the moment a reroll actually submits
+  // for it (submitReroll's blank-swap and reasoned/paid branches both mark
+  // it -- opening the why-box alone does not, only an actual submitted
+  // reject does). Historical, not reset when a slot is later Kept/Built
+  // upon or paged -- see the effect below for how "none currently decided"
+  // is checked separately, using this set only for "was every one of the
+  // 3 default slots genuinely rejected at some point."
+  const [rejectedSlots, setRejectedSlots] = useState<Set<number>>(new Set());
+  // One-way -- once the second batch is revealed it stays revealed, even if
+  // the client later Keeps something in one of the original 3 slots. See
+  // revealSecondBatch() and the triggering effect below.
+  const [secondBatchRevealed, setSecondBatchRevealed] = useState(false);
   const [rerollPromptOpenSlots, setRerollPromptOpenSlots] = useState<Set<number>>(new Set());
   const [whyDraft, setWhyDraft] = useState<Record<number, string>>({});
   // 2026-09-09: every reason a client has ever typed for THIS slot, kept
@@ -323,18 +357,72 @@ export function ElementsDiscovery() {
     suitability: SuitabilityConsideration | null;
   } | null>(null);
 
-  const visibleCandidateIndices = defaultTopIndices.map((defaultIdx, slot) => {
-    const hist = history[slot] ?? [defaultIdx];
+  // How many slots are actually on screen right now: the default 3, or 6
+  // once revealSecondBatch() has fired. Deliberately separate from
+  // VISIBLE_CANDIDATE_COUNT, which stays fixed at 3 -- that constant governs
+  // the ranking-slice/reserve-pool split, not how many slots are rendered.
+  const activeSlotCount = secondBatchRevealed ? VISIBLE_CANDIDATE_COUNT * 2 : VISIBLE_CANDIDATE_COUNT;
+  const visibleCandidateIndices = Array.from({ length: activeSlotCount }, (_, slot) => {
+    const hist = histFor(slot);
     const pos = historyPos[slot] ?? 0;
-    return hist[pos] ?? defaultIdx;
-  });
+    return hist[pos];
+  }).filter((i): i is number => i !== undefined);
+
+  /**
+   * "Failed first pull" (Part 3, 2026-09-23): all 3 default slots rejected
+   * via "Not this one" (see rejectedSlots, set in submitReroll) with none of
+   * them currently Kept or Built-upon. Reveals a second batch of 3 by
+   * pulling the next 3 items off the SAME reserve pool an ordinary
+   * "Not this one" free swap already draws from -- reusing that mechanism
+   * exactly, not a fresh generation call. Idempotent (the
+   * `secondBatchRevealed` guard) and one-way -- see its own declaration.
+   */
+  function revealSecondBatch() {
+    if (secondBatchRevealed) return;
+    const newHistory: Record<number, number[]> = {};
+    const newPos: Record<number, number> = {};
+    for (let extra = 0; extra < VISIBLE_CANDIDATE_COUNT; extra++) {
+      if (reserveCursorRef.current >= reservePool.length) break; // genuinely exhausted -- reveal whatever was available
+      const candidate = reservePool[reserveCursorRef.current]!;
+      reserveCursorRef.current += 1;
+      const slot = VISIBLE_CANDIDATE_COUNT + extra;
+      newHistory[slot] = [candidate.i];
+      newPos[slot] = 0;
+    }
+    setReserveCursor(reserveCursorRef.current);
+    setHistory((prev) => ({ ...prev, ...newHistory }));
+    setHistoryPos((prev) => ({ ...prev, ...newPos }));
+    setSecondBatchRevealed(true);
+  }
+
+  // Runs after every render that could change the failed-first-pull
+  // condition (a new rejection, a decision toggled on/off) -- a plain effect
+  // is the right tool here, not the ref-based synchronous patterns used
+  // elsewhere in this file for concurrent async resolutions: this only ever
+  // reacts to synchronous UI events, one render apart is always soon enough,
+  // and the guard above makes a duplicate fire harmless either way.
+  useEffect(() => {
+    if (secondBatchRevealed) return;
+    const defaultSlots = Array.from({ length: VISIBLE_CANDIDATE_COUNT }, (_, slot) => slot);
+    const allRejected = defaultSlots.every((slot) => rejectedSlots.has(slot));
+    if (!allRejected) return;
+    const noneCurrentlyDecided = defaultSlots.every((slot) => {
+      const hist = histFor(slot);
+      const pos = historyPos[slot] ?? 0;
+      const currentIndex = hist[pos];
+      return currentIndex === undefined || !decisionByIndex[currentIndex];
+    });
+    if (noneCurrentlyDecided) revealSecondBatch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rejectedSlots, decisionByIndex, history, historyPos, secondBatchRevealed]);
 
   // 2026-09-09: the "6 artists" device-rotation system's impression signal
   // -- fired once per candidate index the first time it genuinely becomes
-  // visible (the initial 5, and any later reveal via reroll/build-upon),
-  // never for a candidate sitting unseen in the reserve pool. reportedRef
-  // is the source of truth for "already reported," not component state --
-  // this only ever needs to run a side effect, never re-render.
+  // visible (the initial 3, any second-batch reveal, and any later reroll/
+  // build-upon), never for a candidate sitting unseen in the reserve pool.
+  // reportedRef is the source of truth for "already reported," not
+  // component state -- this only ever needs to run a side effect, never
+  // re-render.
   const reportedImpressionsRef = useRef<Set<number>>(new Set());
   useEffect(() => {
     for (const index of visibleCandidateIndices) {
@@ -426,18 +514,18 @@ export function ElementsDiscovery() {
 
   function appendToHistory(slot: number, index: number) {
     setHistory((prev) => {
-      const hist = prev[slot] ?? [defaultTopIndices[slot]!];
+      const hist = prev[slot] ?? histFor(slot);
       return { ...prev, [slot]: [...hist, index] };
     });
     setHistoryPos((prev) => {
-      const hist = history[slot] ?? [defaultTopIndices[slot]!];
+      const hist = histFor(slot);
       return { ...prev, [slot]: hist.length };
     });
   }
 
   function pageSlot(slot: number, delta: number) {
     setHistoryPos((prev) => {
-      const hist = history[slot] ?? [defaultTopIndices[slot]!];
+      const hist = histFor(slot);
       const current = prev[slot] ?? 0;
       const nextPos = Math.min(Math.max(current + delta, 0), hist.length - 1);
       return { ...prev, [slot]: nextPos };
@@ -445,7 +533,7 @@ export function ElementsDiscovery() {
   }
 
   function notThisOne(slot: number) {
-    const hist = history[slot] ?? [defaultTopIndices[slot]!];
+    const hist = histFor(slot);
     const pos = historyPos[slot] ?? 0;
     // Already-generated ground for this slot -- paging forward through it is
     // free, exactly like paging back with the pager below.
@@ -473,7 +561,7 @@ export function ElementsDiscovery() {
 
   function submitReroll(slot: number) {
     const reason = (whyDraft[slot] ?? "").trim();
-    const hist = history[slot] ?? [defaultTopIndices[slot]!];
+    const hist = histFor(slot);
     const pos = historyPos[slot] ?? 0;
     // Captured before either branch replaces this slot's candidate -- this
     // is the device_id the "not this one" outcome belongs to.
@@ -506,6 +594,10 @@ export function ElementsDiscovery() {
       setReserveCursor(reserveCursorRef.current);
       appendToHistory(slot, nextCandidate.i);
       reportDeviceOutcome(currentDeviceId, "not_this_one", false);
+      // A submitted "not this one" marks the slot rejected for the
+      // failed-first-pull check below, independent of whether this swap
+      // came from the free reserve path or the paid/reasoned one.
+      setRejectedSlots((prev) => (prev.has(slot) ? prev : new Set(prev).add(slot)));
       return;
     }
 
@@ -515,13 +607,14 @@ export function ElementsDiscovery() {
     // moment the client submits it, independent of whether the call
     // eventually succeeds, times out, or goes stale.
     reportDeviceOutcome(currentDeviceId, "not_this_one", true);
+    setRejectedSlots((prev) => (prev.has(slot) ? prev : new Set(prev).add(slot)));
     const updatedSlotHistory = [...(whyHistoryBySlotRef.current[slot] ?? []), reason];
     whyHistoryBySlotRef.current = { ...whyHistoryBySlotRef.current, [slot]: updatedSlotHistory };
     setWhyHistoryBySlot(whyHistoryBySlotRef.current);
     void runSlotAction(
       slot,
       async (guard) => {
-        const hist = history[slot] ?? [defaultTopIndices[slot]!];
+        const hist = histFor(slot);
         const thisSlotHistory = hist
           .map((idx) => associationCandidatesRef.current[idx]?.description)
           .filter((d): d is string => Boolean(d));
@@ -907,7 +1000,7 @@ export function ElementsDiscovery() {
           {visibleCandidateIndices.map((i, slot) => {
             const candidate = state.ui.associationCandidates[i]!;
             const decision = decisionByIndex[i];
-            const hist = history[slot] ?? [defaultTopIndices[slot]!];
+            const hist = histFor(slot);
             const pos = historyPos[slot] ?? 0;
             const canPageBack = pos > 0;
             const canPageForward = pos < hist.length - 1;

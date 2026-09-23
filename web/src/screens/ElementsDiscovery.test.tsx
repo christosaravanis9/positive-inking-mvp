@@ -208,7 +208,10 @@ describe("ElementsDiscovery -- core invariant: a real visual element is always r
 /**
  * Screen 7 redesign (2026-09-07): the old selection-radio + 4-button
  * fidelity row + text-link re-roll is replaced by one 3-state control per
- * candidate (Keep / Build upon / Not this one), 5 visible by default, and a
+ * candidate (Keep / Build upon / Not this one), 3 visible by default
+ * (2026-09-23, down from 5 as part of the pre-qualifying-question/5-lane
+ * expansion -- rejecting all 3 with none Kept/Built-upon reveals a second
+ * batch of 3 more, pulled from the same reserve pool), and a
  * non-destructive per-slot history + pager -- "Not this one" either reveals
  * an already-generated later candidate for that slot for free, or -- only
  * once nothing further has been generated for it -- opens a "Why?" input.
@@ -219,7 +222,7 @@ describe("ElementsDiscovery -- core invariant: a real visual element is always r
  */
 function rankedCandidateFixtures(count: number): VisualCandidate[] {
   // Descending scores so rankVisualCandidates' order matches array order
-  // exactly -- index 0-4 land in the default visible top 5, the rest reserve.
+  // exactly -- index 0-2 land in the default visible top 3, the rest reserve.
   return Array.from({ length: count }, (_, n) =>
     candidateFixture({
       description: `Candidate ${n}`,
@@ -267,7 +270,7 @@ function alternativeResponseFixture(description: string) {
 }
 
 describe("ElementsDiscovery -- Keep / Build upon / Not this one, non-destructive per-slot history", () => {
-  it("shows 5 candidates by default, each with Keep/Build upon/Not this one controls", () => {
+  it("shows 3 candidates by default, each with Keep/Build upon/Not this one controls", () => {
     seedRerollState();
     render(
       <JourneyProvider>
@@ -275,12 +278,12 @@ describe("ElementsDiscovery -- Keep / Build upon / Not this one, non-destructive
       </JourneyProvider>,
     );
 
-    for (const n of [0, 1, 2, 3, 4]) screen.getByText(`Candidate ${n}`);
-    expect(screen.queryByText("Candidate 5")).toBeNull();
-    expect(screen.queryByText("Candidate 6")).toBeNull();
-    expect(screen.getAllByRole("button", { name: "Keep" }).length).toBe(5);
-    expect(screen.getAllByRole("button", { name: "Build upon" }).length).toBe(5);
-    expect(screen.getAllByRole("button", { name: "Not this one" }).length).toBe(5);
+    for (const n of [0, 1, 2]) screen.getByText(`Candidate ${n}`);
+    expect(screen.queryByText("Candidate 3")).toBeNull();
+    expect(screen.queryByText("Candidate 4")).toBeNull();
+    expect(screen.getAllByRole("button", { name: "Keep" }).length).toBe(3);
+    expect(screen.getAllByRole("button", { name: "Build upon" }).length).toBe(3);
+    expect(screen.getAllByRole("button", { name: "Not this one" }).length).toBe(3);
   });
 
   it("Keep marks a candidate active; clicking Keep again clears the decision", () => {
@@ -339,7 +342,7 @@ describe("ElementsDiscovery -- Keep / Build upon / Not this one, non-destructive
 
     // Candidate 0 is not discarded -- it's paged past, not removed.
     expect(screen.queryByText("Candidate 0")).toBeNull();
-    screen.getByText("Candidate 5"); // next reserve candidate, in rank order
+    screen.getByText("Candidate 3"); // next reserve candidate, in rank order
     screen.getByText("2/2"); // pager now shows two entries for this slot
 
     fireEvent.click(screen.getByRole("button", { name: "Previous alternative for this slot" }));
@@ -347,40 +350,57 @@ describe("ElementsDiscovery -- Keep / Build upon / Not this one, non-destructive
     screen.getByText("1/2");
 
     fireEvent.click(screen.getByRole("button", { name: "Next alternative for this slot" }));
-    screen.getByText("Candidate 5");
+    screen.getByText("Candidate 3");
   });
 
-  it("'Not this one' works correctly on slot 4 and slot 5 specifically, not just the first 3 -- regression for the off-by-N bug reported live (2026-09-08): the reserve pool wasn't sized for 5 visible slots, so only the first couple of clicks anywhere on the screen actually re-rolled", () => {
-    // 5 visible + 4 reserve so both slot 4 and slot 5 have their own free
-    // reserve candidate available, independent of each other and of
-    // whatever the first 3 slots consume.
-    seedRerollState(9);
+  it("rejecting all 3 default slots via 'Not this one' with none Kept/Built-upon reveals a second batch of 3 more, pulled from the same reserve pool a free swap already draws from -- and each newly-revealed slot rerolls correctly and independently, not just the original 3 -- regression for the off-by-N bug originally reported against the 5-visible design (2026-09-08), now re-verified for the 3+3 design", () => {
+    // 3 visible + 6 reserve: 3 for the failed-first-pull's own free swaps,
+    // 3 more so the reveal itself has material to pop, and the revealed
+    // slots still have something left to reroll into afterward.
+    seedRerollState(12);
     render(
       <JourneyProvider>
         <ElementsDiscovery />
       </JourneyProvider>,
     );
 
-    for (const n of [0, 1, 2, 3, 4]) screen.getByText(`Candidate ${n}`);
+    for (const n of [0, 1, 2]) screen.getByText(`Candidate ${n}`);
+    expect(screen.queryByText("Candidate 6")).toBeNull();
 
-    // Slot 4 (index 3): "Not this one" -> blank submit must swap it, pulling
-    // the first unused reserve candidate (the shared cursor starts at 0
-    // regardless of which slot rerolls first).
+    // Reject all 3 default slots via a blank "Not this one" -- each swaps in
+    // the next reserve candidate (3, 4, 5) without yet triggering a reveal,
+    // since the slots are rejected one at a time.
+    for (const slot of [0, 1, 2]) {
+      fireEvent.click(screen.getAllByRole("button", { name: "Not this one" })[slot]!);
+      fireEvent.click(screen.getByRole("button", { name: "Show me something else" }));
+    }
+    screen.getByText("Candidate 3");
+    screen.getByText("Candidate 4");
+    screen.getByText("Candidate 5");
+
+    // The third rejection completes "all 3 rejected, none Kept/Built-upon" --
+    // the second batch (Candidate 6, 7, 8) is revealed automatically.
+    screen.getByText("Candidate 6");
+    screen.getByText("Candidate 7");
+    screen.getByText("Candidate 8");
+    expect(screen.getAllByRole("button", { name: "Not this one" }).length).toBe(6);
+
+    // Slot 4 (index 3, first of the revealed batch): "Not this one" -> blank
+    // submit must swap it, pulling the next unused reserve candidate.
     fireEvent.click(screen.getAllByRole("button", { name: "Not this one" })[3]!);
     fireEvent.click(screen.getByRole("button", { name: "Show me something else" }));
-    expect(screen.queryByText("Candidate 3")).toBeNull();
-    screen.getByText("Candidate 5"); // first unused reserve candidate
+    expect(screen.queryByText("Candidate 6")).toBeNull();
+    screen.getByText("Candidate 9");
 
-    // Slot 5 (index 4): "Not this one" -> blank submit must also swap it,
-    // independently of slot 4's own swap above, pulling the next one.
+    // Slot 5 (index 4): rerolls independently of slot 4's swap above.
     fireEvent.click(screen.getAllByRole("button", { name: "Not this one" })[4]!);
     fireEvent.click(screen.getByRole("button", { name: "Show me something else" }));
-    expect(screen.queryByText("Candidate 4")).toBeNull();
-    screen.getByText("Candidate 6");
+    expect(screen.queryByText("Candidate 7")).toBeNull();
+    screen.getByText("Candidate 10");
 
-    // Slots 1-3 were never touched -- confirms slot 4/5's re-roll didn't
-    // somehow reroll the wrong slot instead.
-    for (const n of [0, 1, 2]) screen.getByText(`Candidate ${n}`);
+    // The other slots were never touched -- confirms slot 4/5's re-roll
+    // didn't somehow reroll the wrong slot instead.
+    for (const n of [3, 4, 5, 8]) screen.getByText(`Candidate ${n}`);
   });
 
   it("paging back and forth through history never calls the server", () => {
@@ -429,11 +449,9 @@ describe("ElementsDiscovery -- Keep / Build upon / Not this one, non-destructive
     // slot's own history -- a fresh candidate must not duplicate or
     // closely echo something the client can already see elsewhere right
     // now. "Candidate 0" is this slot's own (still included); "Candidate
-    // 1"-"Candidate 4" are the other four default-visible slots.
-    expect(body.avoid_descriptions).toEqual(
-      expect.arrayContaining(["Candidate 0", "Candidate 1", "Candidate 2", "Candidate 3", "Candidate 4"]),
-    );
-    expect(body.avoid_descriptions).toHaveLength(5);
+    // 1"-"Candidate 2" are the other two default-visible slots.
+    expect(body.avoid_descriptions).toEqual(expect.arrayContaining(["Candidate 0", "Candidate 1", "Candidate 2"]));
+    expect(body.avoid_descriptions).toHaveLength(3);
     // Single-round rejection: the history is exactly this one reason.
     expect(body.dismissal_reason_history).toEqual(["not keen on circles"]);
 
@@ -444,7 +462,7 @@ describe("ElementsDiscovery -- Keep / Build upon / Not this one, non-destructive
   it("exhausting the reserve pool: a blank submission is a no-op and the panel says so instead of silently upgrading to a real call", () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
-    seedRerollState(6); // 5 visible + exactly 1 reserve candidate
+    seedRerollState(4); // 3 visible + exactly 1 reserve candidate
 
     render(
       <JourneyProvider>
@@ -454,13 +472,13 @@ describe("ElementsDiscovery -- Keep / Build upon / Not this one, non-destructive
 
     fireEvent.click(screen.getAllByRole("button", { name: "Not this one" })[0]!);
     fireEvent.click(screen.getByRole("button", { name: "Show me something else" })); // consumes the one reserve candidate
-    screen.getByText("Candidate 5");
+    screen.getByText("Candidate 3");
 
     fireEvent.click(screen.getAllByRole("button", { name: "Not this one" })[0]!); // at end of history again, reserve now exhausted
     screen.getByText(/No more free alternatives left for this slot/);
 
     fireEvent.click(screen.getByRole("button", { name: "Show me something else" })); // blank submission -- must not call the model
-    screen.getByText("Candidate 5"); // unchanged
+    screen.getByText("Candidate 3"); // unchanged
 
     expect(fetchMock).not.toHaveBeenCalled();
     vi.unstubAllGlobals();
@@ -685,7 +703,7 @@ describe("ElementsDiscovery -- Keep / Build upon / Not this one, non-destructive
   });
 
   it("two different slots' blank re-rolls dispatched in the same tick (before either re-renders) never hand out the same reserve candidate -- the reserveCursor race reported live", () => {
-    seedRerollState(); // 5 visible + 2 reserve: Candidate 5 and Candidate 6
+    seedRerollState(); // 3 visible + 4 reserve: Candidate 3, 4, 5 and 6
     render(
       <JourneyProvider>
         <ElementsDiscovery />
@@ -714,11 +732,80 @@ describe("ElementsDiscovery -- Keep / Build upon / Not this one, non-destructive
       fireEvent.click(submitSlot1!);
     });
 
-    screen.getByText("Candidate 5");
-    screen.getByText("Candidate 6");
+    screen.getByText("Candidate 3");
+    screen.getByText("Candidate 4");
     // The critical assertion: never the same reserve candidate shown twice.
-    expect(screen.queryAllByText("Candidate 5").length).toBe(1);
-    expect(screen.queryAllByText("Candidate 6").length).toBe(1);
+    expect(screen.queryAllByText("Candidate 3").length).toBe(1);
+    expect(screen.queryAllByText("Candidate 4").length).toBe(1);
+  });
+
+  it("the failed-first-pull reveal fires only once all 3 default slots are rejected, and NOT before -- a minimal, dedicated check of the trigger condition itself (see the fuller reroll-correctness test above for what happens after)", () => {
+    seedRerollState(9); // 3 visible + 6 reserve: enough for 3 rejections + a 3-item reveal
+    render(
+      <JourneyProvider>
+        <ElementsDiscovery />
+      </JourneyProvider>,
+    );
+
+    function rejectSlot(slot: number) {
+      fireEvent.click(screen.getAllByRole("button", { name: "Not this one" })[slot]!);
+      fireEvent.click(screen.getByRole("button", { name: "Show me something else" }));
+    }
+
+    expect(screen.getAllByRole("button", { name: "Not this one" }).length).toBe(3);
+
+    rejectSlot(0);
+    expect(screen.getAllByRole("button", { name: "Not this one" }).length).toBe(3); // 1 of 3 rejected -- not yet
+
+    rejectSlot(1);
+    expect(screen.getAllByRole("button", { name: "Not this one" }).length).toBe(3); // 2 of 3 rejected -- still not yet
+
+    rejectSlot(2);
+    // All 3 rejected, none Kept/Built-upon -- the reveal fires: 3 more slots appear.
+    expect(screen.getAllByRole("button", { name: "Not this one" }).length).toBe(6);
+  });
+
+  it("the failed-first-pull reveal never fires if any of the 3 default slots is Kept or Built-upon, even after the other two are rejected", () => {
+    seedRerollState(9);
+    render(
+      <JourneyProvider>
+        <ElementsDiscovery />
+      </JourneyProvider>,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Keep" })[0]!); // slot 0 Kept -- never rejected
+    fireEvent.click(screen.getAllByRole("button", { name: "Not this one" })[1]!);
+    fireEvent.click(screen.getByRole("button", { name: "Show me something else" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Not this one" })[2]!);
+    fireEvent.click(screen.getByRole("button", { name: "Show me something else" }));
+
+    // Only 2 of the 3 default slots were ever ejected via "Not this one" --
+    // slot 0 was Kept instead -- so "all 3 rejected" is never satisfied.
+    expect(screen.getAllByRole("button", { name: "Not this one" }).length).toBe(3);
+    expect(screen.queryByText("Candidate 5")).toBeNull();
+  });
+
+  it("the failed-first-pull reveal never fires if a slot is Kept AFTER having been rejected -- 'none currently decided' is checked against each slot's live occupant, not just its rejection history", () => {
+    seedRerollState(9);
+    render(
+      <JourneyProvider>
+        <ElementsDiscovery />
+      </JourneyProvider>,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Not this one" })[0]!);
+    fireEvent.click(screen.getByRole("button", { name: "Show me something else" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Not this one" })[1]!);
+    fireEvent.click(screen.getByRole("button", { name: "Show me something else" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Not this one" })[2]!);
+    fireEvent.click(screen.getByRole("button", { name: "Show me something else" }));
+    // All 3 default slots are now rejected -- reveal has already fired.
+    expect(screen.getAllByRole("button", { name: "Not this one" }).length).toBe(6);
+
+    // Un-reveal is impossible (one-way flag) -- keeping something in slot 0
+    // now must not retroactively hide the second batch that already appeared.
+    fireEvent.click(screen.getAllByRole("button", { name: "Keep" })[0]!);
+    expect(screen.getAllByRole("button", { name: "Not this one" }).length).toBe(6);
   });
 });
 

@@ -125,10 +125,14 @@ just to hit the target.
 Propose enough candidates for the client to meaningfully compare and revisit
 later — typically 9 to 12 total, more when the story genuinely supports
 several distinct strong ideas, fewer only when it doesn't. This range is
-deliberately well above the 5 shown by default: the client screen shows
-only the top 5 at once, and everything beyond that is a shared reserve
-drawn on whenever the client asks for something else on any one of the
-5 shown. Too few total candidates starves that shared reserve across the
+deliberately well above the 3 shown by default (2026-09, down from 5): the
+client screen shows only the top 3 at once, and everything beyond that is
+a shared reserve drawn on whenever the client asks for something else on
+any one of the 3 shown — plus, if the client rejects all 3 initial
+candidates without keeping or building upon any of them, a second batch of
+3 more is revealed from that same reserve, not a fresh generation call, so
+the reserve needs to comfortably cushion both uses, not just individual
+re-rolls. Too few total candidates starves that shared reserve across the
 whole screen, not just one candidate — confirmed live: at the low end of
 a smaller range, only the first couple of "not this one" clicks on the
 whole screen actually produce something new, regardless of which

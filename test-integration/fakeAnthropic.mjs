@@ -203,11 +203,14 @@ function associationInput(text = "") {
       },
       // typography lane (2026-09 5-lane expansion) -- the design built from
       // the client's own actual words, not an invented generic phrase.
-      // Reserve-tier scores (kept well below the existing top-5's lowest,
-      // "a simple line drawing of a house" at personal/story 5/6) so this
-      // addition never displaces the default-visible 5 that
-      // test-integration/personas/ and docs/ux-audit-assets/ both already
-      // depend on by exact description text.
+      // Reserve-tier scores (kept well below the top-3's lowest -- see
+      // below) so this addition never displaces the default-visible
+      // candidates that test-integration/personas/ and
+      // docs/ux-audit-assets/ both already depend on by exact description
+      // text. (2026-09-23, Part 3: default visible count dropped from 5 to
+      // 3; "a simple line drawing of a house" and "A drawing you made of
+      // Scout..." moved from default-visible into the reserve pool as a
+      // result, without any score change here.)
       {
         description: "the word 'Scout,' in the same handwriting from his old collar tag",
         personal_meaning: "his name, in the exact lettering that was always on him",
@@ -271,15 +274,18 @@ function associationInput(text = "") {
       },
       // Reserve material (2026-09-07, per-candidate re-roll; count raised
       // 2026-09-08 to match the Association prompt's own rule 1 -- "9 to 12
-      // total," scaled for 5 visible slots not 3, after a live report that
-      // only the first couple of "not this one" clicks anywhere on the
-      // screen actually worked, regardless of which slot). Scored lower on
-      // personal/story relevance and originality than the five above, so
-      // rankVisualCandidates always places these beyond
-      // VISIBLE_CANDIDATE_COUNT -- this is what lets a live journey
-      // actually exercise a blank ("Not this one", no reason given)
-      // re-roll pulling from the free reserve pool, on every visible slot,
-      // not just the first two or three.
+      // total," at the time scaled for 5 visible slots, after a live report
+      // that only the first couple of "not this one" clicks anywhere on the
+      // screen actually worked, regardless of which slot; 2026-09-23, Part
+      // 3: VISIBLE_CANDIDATE_COUNT dropped back to 3, so this material now
+      // also has to comfortably cover a failed-first-pull's second-batch
+      // reveal, not just individual re-rolls -- see association.ts rule 1's
+      // own updated framing). Scored lower on personal/story relevance and
+      // originality than the candidates above, so rankVisualCandidates
+      // always places these beyond VISIBLE_CANDIDATE_COUNT -- this is what
+      // lets a live journey actually exercise a blank ("Not this one", no
+      // reason given) re-roll pulling from the free reserve pool, on every
+      // visible slot, not just the first two or three.
       {
         description: "a small linework paw print, rendered simply",
         personal_meaning: "a straightforward nod to the bond with your dog",

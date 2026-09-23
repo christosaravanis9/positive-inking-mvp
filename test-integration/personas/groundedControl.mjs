@@ -20,7 +20,11 @@ export default {
   expectDepthGate: false,
   screen7: {
     detailAnswer: "her blue apron, the one with the small tear near the pocket",
-    keepMatchers: ["a simple line drawing of a house"],
+    // 2026-09-23: was "a simple line drawing of a house", the old
+    // default-top-5's 5th candidate -- no longer visible by default now
+    // that Screen 7 shows only 3; points at the abstract_symbolic
+    // candidate that still ranks inside the new default top 3 instead.
+    keepMatchers: ["a new mark made by overlapping the outlines of both your initials"],
   },
   // The regression baseline: confirms all three Association candidate
   // modes (literal object, pure abstraction, illustrative sequence) are

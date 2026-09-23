@@ -454,6 +454,39 @@ decision); nothing else newly introduced this session. See
 `docs/timeout-matrix.md`) for the detailed history behind how the codebase
 got to its current, tested state.
 
+**A checked-in synthetic-persona testing harness now exists**
+(`test-integration/personas/`, run via `npm run test:personas`) —
+formalizes the one-off live-browser verification pattern used throughout
+this project (real server + real Vite + the fake-Anthropic double, no
+`ANTHROPIC_API_KEY` needed) into 5 reusable personas driving a real
+Chromium instance through the full journey end to end, each producing a
+Markdown + JSON report and a final screenshot
+(`test-integration/personas/reports/` and `.../screenshots/`, both
+gitignored as regenerated output). The 5 v1 personas and what each
+confirmed on the latest run (all 5 PASS): **thin story** (vague/generic
+answers) and **articulate-but-ungrounded** (confident, well-written prose
+with no concrete detail) both correctly trigger the meaning-depth gate,
+and do so distinctly in behaviour — persona 1 attempts a still-thin
+follow-up answer, persona 2 declines the follow-up outright; **grounded
+control** (a specific, concrete story) does NOT trigger the gate, and
+serves as the regression baseline confirming all three Association
+candidate modes (literal object / pure abstraction / illustrative
+sequence) render on an ordinary run; **heavy rejector** repeatedly rejects
+one slot via "Not this one," confirming the reserve pool holds exactly 7
+alternatives (12 fixture candidates minus 5 visible slots) before falling
+through to a real paid, typed-reason reroll; **editor** uses "Build upon"
+with a genuine edit and confirms the result is built from that edit
+verbatim, not a fresh alternative. The Section 4 detail-answer composition
+(`DETAIL_SEPARATOR`) was also confirmed to stay clean across three
+different typed-answer shapes: a blunt "no," an articulate-sounding
+non-answer, and a real concrete answer. Two harness bugs (not app bugs)
+were found and fixed while building this: a benign `favicon.ico` 404 the
+browser requests regardless of the app, and a stale-locator bug in the
+Build-upon step (see the latest session log entry for detail). **Not in
+v1 scope, flagged as natural v2 additions:** reference-photo upload
+personas, voice-input-specific personas (text-equivalent phrasing stands
+in for now), and backward-navigation-via-panel personas.
+
 **⚠ Supabase migration backlog: 3 deep, none confirmed run against
 production.** `docs/supabase-migration-2026-09-09-device-roster.sql`,
 `docs/supabase-migration-2026-09-11-voice-input-tracking.sql`, and
@@ -506,6 +539,89 @@ here for you to decide scope on, matching how other open decisions in
 this document are tracked.
 
 ## Session log
+
+### 2026-09-23 — Synthetic-persona testing harness for the intake journey (new tooling, no app-code changes)
+
+Built a reusable, checked-in harness so the intake journey can be
+stress-tested with varied client behavior without a real client each
+time — formalizes the live-browser verification pattern used repeatedly
+in earlier sessions (real server + real Vite + the fake-Anthropic double)
+into `test-integration/personas/`: a shared Playwright runner
+(`runner.mjs`) plus one fixture file per persona
+(`thinStory.mjs`, `articulateUngrounded.mjs`, `groundedControl.mjs`,
+`heavyRejector.mjs`, `editor.mjs`) and an entry point (`index.mjs`). Run
+via `npm run test:personas`. Each persona declares its literal answers at
+each Discovery/Clarification step, how it responds to the meaning-depth
+gate if triggered, and its Screen 7 behavior (accept / reroll N times /
+paid typed-reason reroll / Build-upon with an edit); the runner drives a
+real browser through the full journey and writes a Markdown + JSON report
+per persona (screens reached, whether the depth gate fired, which
+Association modes appeared, free vs. paid reroll counts, console/page
+errors, final screenshot).
+
+**First run surfaced 2 harness bugs (not app bugs), both fixed in
+`runner.mjs` before re-running:**
+1. The console-error check flagged the browser's own `favicon.ico` 404
+   (no favicon is configured; Chromium requests it once per session
+   regardless of the app) as a failure. Fixed by filtering console errors
+   whose `msg.location().url` ends in `/favicon.ico`, confirmed via a
+   standalone probe that Chromium does report the failing resource's URL
+   on that field.
+2. The Build-upon step located its target candidate with a Playwright
+   `hasText` locator built from the candidate's PRE-refine description.
+   Refinement replaces that description text in place, so the instant the
+   new text landed the locator stopped matching anything and hung until
+   Playwright's 30s timeout. Fixed by resolving the target by stable
+   position (scan all `.ledger-candidate` cards once for the match, then
+   re-address by `.nth(index)`) instead of by re-matching text that the
+   action itself changes.
+
+**Second run: all 5 personas PASS**, confirming every assertion the task
+asked for:
+- **thin-story** and **articulate-ungrounded** both trigger the
+  meaning-depth gate (`depthGateFired: true`), and do so distinctly in
+  behavior as designed — persona 1 answers the follow-up with another
+  thin answer ("not sure, just felt right"), persona 2 declines it
+  outright (matching its "confident, nothing more to add" character).
+  Note the one honest limit here: against the fake double both personas
+  resolve `meaning_is_thin` via the same `__TEST_THIN__` marker, not
+  independent model judgement — this harness proves the app branches
+  correctly on whatever Discovery returns, not that the real model would
+  judge these two story texts differently. Real-model verification would
+  be needed to close that gap.
+- **grounded-control** does NOT trigger the gate (`depthGateFired:
+  false`), and (as the regression baseline) all three Association
+  candidate modes — literal object, pure abstraction, illustrative
+  sequence — were confirmed present.
+- **heavy-rejector** hit exactly 7 free rerolls before the reserve pool
+  genuinely exhausted (confirming the fixture arithmetic: 12 total
+  candidates − 5 visible slots = 7 reserve items), then completed 1 paid,
+  typed-reason reroll.
+- **editor** used Build-upon with a real edit; the resulting candidate
+  description started with the edit text verbatim
+  ("a small engraved mark shaped like the curve of a hand plane's blade,
+  not the initials, refined: cleaner lines, more deliberate composition"),
+  confirming `refine_user_edit` respects the client's edit rather than
+  reimposing the original structure.
+- Section 4's `DETAIL_SEPARATOR` composition stayed clean
+  (`"...memory. In your own words: <answer>"`, no garbled
+  dash-continuation) across three distinct answer shapes: thin-story's
+  blunt "no", articulate-ungrounded's "that's just how it feels,
+  honestly", and grounded-control's real concrete answer.
+
+**Not in v1 scope, deliberately** (flagged in `index.mjs`'s own doc
+comment as natural v2 additions, not silently skipped): reference-photo
+upload personas, voice-input-specific personas (every persona here types
+directly; text-equivalent phrasing stands in for voice-transcribed text
+since `VoiceInput`'s own `onChange` path is exercised identically either
+way), and backward-navigation-via-panel personas (every persona here only
+moves forward).
+
+`npm run typecheck`, `npm test` (110 server/engine tests + 294 web tests),
+and `npm run build` all stayed green — this is new
+`test-integration/personas/` tooling only; no `engine/server/web` app
+source changed. `test-integration/personas/reports/` and `.../screenshots/`
+are gitignored as regenerated output.
 
 ### 2026-09-22 — Re-verification pass: the 5 "approved" items requested this round were already shipped in earlier commits; confirmed all still working, no code changed
 

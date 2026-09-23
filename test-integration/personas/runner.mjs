@@ -254,20 +254,40 @@ async function driveScreen7(page, persona, report) {
 
   // Build-upon with a genuine edit -- confirms the model's (fixture's)
   // response is built from the client's own edit, not a fresh alternative.
+  // Resolved by POSITION (not by re-matching description text), because
+  // refinement replaces the slot's description in place -- a hasText
+  // locator built from the pre-refine text stops matching anything the
+  // instant the new description lands, which just hangs until timeout.
   if (s7.buildUpon) {
     const { matchDescriptionPrefix, editText } = s7.buildUpon;
-    const card = page.locator(".ledger-candidate", { hasText: matchDescriptionPrefix });
-    await card.first().locator("button:has-text('Build upon')").click();
-    await page.waitForTimeout(150);
-    const textarea = card.first().locator("textarea.ledger-lined-textarea");
-    await textarea.fill(editText);
-    await page.waitForTimeout(100);
-    await card.first().locator("button:text-is('Refine this idea')").click();
-    await page.waitForTimeout(1500);
-    const refinedText = await card.first().locator(".ledger-candidate-body strong").first().textContent();
-    report.buildUponEditText = editText;
-    report.buildUponResultText = refinedText;
-    report.buildUponEditRespected = Boolean(refinedText && refinedText.startsWith(editText));
+    const allCards = page.locator(".ledger-candidate");
+    const cardCount = await allCards.count();
+    let slotIndex = -1;
+    for (let i = 0; i < cardCount; i++) {
+      const text = await allCards.nth(i).innerText();
+      if (text.includes(matchDescriptionPrefix)) {
+        slotIndex = i;
+        break;
+      }
+    }
+    if (slotIndex === -1) {
+      report.buildUponEditText = editText;
+      report.buildUponResultText = "(target candidate not found)";
+      report.buildUponEditRespected = false;
+    } else {
+      const card = allCards.nth(slotIndex);
+      await card.locator("button:has-text('Build upon')").click();
+      await page.waitForTimeout(150);
+      const textarea = card.locator("textarea.ledger-lined-textarea");
+      await textarea.fill(editText);
+      await page.waitForTimeout(100);
+      await card.locator("button:text-is('Refine this idea')").click();
+      await page.waitForTimeout(1500);
+      const refinedText = await card.locator(".ledger-candidate-body strong").first().textContent();
+      report.buildUponEditText = editText;
+      report.buildUponResultText = refinedText;
+      report.buildUponEditRespected = Boolean(refinedText && refinedText.startsWith(editText));
+    }
   }
 
   await page.click("button:text-is('Continue')");
@@ -376,7 +396,12 @@ export async function runPersona(browser, persona) {
 
   const page = await browser.newPage({ viewport: { width: 480, height: 1100 } });
   page.on("console", (msg) => {
-    if (msg.type() === "error") report.consoleErrors.push(msg.text());
+    // The dev server has no favicon.ico configured, so a real browser always
+    // requests and 404s on it once per session -- a Chromium built-in, not
+    // anything caused by (or worth flagging against) the app itself.
+    if (msg.type() === "error" && !msg.location()?.url?.endsWith("/favicon.ico")) {
+      report.consoleErrors.push(msg.text());
+    }
   });
   page.on("pageerror", (err) => report.pageErrors.push(err.message));
 

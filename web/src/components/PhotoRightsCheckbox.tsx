@@ -10,10 +10,22 @@
  */
 export function PhotoRightsCheckbox({ checked, onChange }: { checked: boolean; onChange: (checked: boolean) => void }) {
   return (
-    <label className="reference-attestation">
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-      I confirm I have the right to use this image, and that any identifiable person in it knows and agrees to it being used
-      here.
-    </label>
+    <>
+      <label className="reference-attestation">
+        <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+        I confirm I have the right to use this image, and that any identifiable person in it knows and agrees to it being used
+        here.
+      </label>
+      {/* 2026-09 UX audit: no link to the privacy notice existed at any of
+          this component's 4 render sites (ReferenceAttachment.tsx,
+          StyleReference.tsx, Placement.tsx x2) -- fixed once here since all
+          4 share this component. Kept outside the <label> above so clicking
+          it doesn't also toggle the checkbox via label/input association. */}
+      <p className="reference-note">
+        <a href="/privacy.html" target="_blank" rel="noopener noreferrer">
+          Privacy notice
+        </a>
+      </p>
+    </>
   );
 }

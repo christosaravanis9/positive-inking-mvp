@@ -714,16 +714,26 @@ export function ElementsDiscovery() {
         // resetting it every time this screen's confirm() runs (which happens
         // on every Continue click, not just the first ever visit).
         const existing = state.project.visual_elements.find((e) => e.id === id);
+        const fidelity = existing?.fidelity ?? defaultFidelity;
+        // reference_required/reference_status must be derived from the same
+        // fidelity, not defaulted independently of it (2026-09 UX-audit bug:
+        // "closely_based_on" needs a reference per NEEDS_REFERENCE, but a
+        // hardcoded false/"not_needed" here left that unreflected until the
+        // client happened to touch Screen 13's already-correct dropdown --
+        // which a Blueprint built without that manual step would silently
+        // under-report as "Not needed"). No reference draft exists yet at
+        // this screen (collection itself stays on Screen 13, per above), so
+        // this only ever resolves to "not_needed" or "to_upload".
         return {
           id,
           description,
           personal_meaning: candidate.personal_meaning,
           source_category: candidate.source_category,
           hierarchy: existing?.hierarchy ?? "undecided",
-          fidelity: existing?.fidelity ?? defaultFidelity,
+          fidelity,
           colour_role: existing?.colour_role ?? "undecided",
-          reference_required: existing?.reference_required ?? false,
-          reference_status: existing?.reference_status ?? "not_needed",
+          reference_required: existing?.reference_required ?? NEEDS_REFERENCE.has(fidelity),
+          reference_status: existing?.reference_status ?? statusFromDraft(fidelity, candidate.source_category, undefined),
           origin: "system_suggestion",
           user_selected: true,
           concreteness,

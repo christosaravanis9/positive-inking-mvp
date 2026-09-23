@@ -31,6 +31,16 @@ export function Welcome() {
         <input type="checkbox" checked={state.ui.ageConfirmed} onChange={(e) => patchUI({ ageConfirmed: e.target.checked })} />
         I confirm I am 18 or older.
       </label>
+      {/* 2026-09 UX audit: the privacy notice existed as a doc (privacy.html,
+          served statically) but had no link anywhere in the live app -- not
+          even here, next to the one consent checkbox on this screen. Kept
+          outside the <label> above so clicking it doesn't also toggle the
+          checkbox via label/input association. */}
+      <p className="reference-note">
+        <a href="/privacy.html" target="_blank" rel="noopener noreferrer">
+          Privacy notice
+        </a>
+      </p>
       <button onClick={() => patchUI({ pastWelcome: true })} disabled={!state.ui.ageConfirmed}>
         Discover my tattoo
       </button>

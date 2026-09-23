@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
-import { createEmptyProjectState } from "@positive-inking/engine";
+import { createEmptyProjectState, buildReferenceChecklist } from "@positive-inking/engine";
+import { REFERENCE_STATUS_LABEL } from "../journey/blueprintSummary";
 import { JourneyProvider } from "../journey/JourneyProvider";
 import { createInitialJourneyState, type JourneyState } from "../journey/state";
 import { savePersistedState } from "../journey/persistence";
@@ -531,7 +532,7 @@ describe("ElementsDiscovery -- Keep / Build upon / Not this one, non-destructive
     expect(screen.getAllByRole("button", { name: "Keep" })[0]!.className).toContain("active");
   });
 
-  it("confirming Keep/Build-upon choices produces visual_elements with the right default fidelity, and no reference fields set on this screen anymore", () => {
+  it("confirming Keep/Build-upon choices produces visual_elements with the right default fidelity, and reference_required/reference_status consistent with that fidelity -- not an independently-defaulted pair that only Screen 13 could correct", () => {
     seedRerollState();
     render(
       <JourneyProvider>
@@ -546,10 +547,43 @@ describe("ElementsDiscovery -- Keep / Build upon / Not this one, non-destructive
     const stored = JSON.parse(localStorage.getItem("positive-inking:journey-state:v1")!);
     const kept = stored.project.visual_elements.find((e: { id: string }) => e.id === "candidate-0");
     const builtUpon = stored.project.visual_elements.find((e: { id: string }) => e.id === "candidate-1");
+    // 2026-09 UX-audit bug fix: "closely_based_on" is in NEEDS_REFERENCE, so
+    // Keep must produce a reference_status that actually reflects that --
+    // never the old hardcoded "not_needed" a client would only ever see
+    // corrected by manually touching Screen 13's already-correct dropdown.
     expect(kept.fidelity).toBe("closely_based_on");
-    expect(kept.reference_required).toBe(false);
-    expect(kept.reference_status).toBe("not_needed");
+    expect(kept.reference_required).toBe(true);
+    expect(kept.reference_status).toBe("to_upload");
+    // "interpretive" is NOT in NEEDS_REFERENCE -- Build upon's default correctly stays reference-free.
     expect(builtUpon.fidelity).toBe("interpretive");
+    expect(builtUpon.reference_required).toBe(false);
+    expect(builtUpon.reference_status).toBe("not_needed");
+  });
+
+  it("reference_status stays reconciled with fidelity end-to-end into the Blueprint's reference checklist, with no manual Screen 13 interaction -- regression for the 2026-09 UX-audit bug where a Kept candidate's Blueprint silently read 'Not needed' for an element that needed a reference", () => {
+    seedRerollState();
+    render(
+      <JourneyProvider>
+        <ElementsDiscovery />
+      </JourneyProvider>,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Keep" })[0]!); // Candidate 0 -> closely_based_on -> needs a reference
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    const stored = JSON.parse(localStorage.getItem("positive-inking:journey-state:v1")!);
+    const kept = stored.project.visual_elements.find((e: { id: string }) => e.id === "candidate-0");
+    expect(kept.fidelity).toBe("closely_based_on");
+
+    // buildReferenceChecklist + REFERENCE_STATUS_LABEL are exactly what both
+    // DesignConfirmation.tsx (Screen 13) and BlueprintView.tsx (Sections 10 &
+    // 12, in both the on-screen render and the "Save as text" export) read
+    // from -- no separate rendering path to independently re-check.
+    const checklist = buildReferenceChecklist(stored.project.visual_elements, stored.project.consent_records);
+    const entry = checklist.find((e) => e.element_id === "candidate-0")!;
+    expect(entry.status).toBe("to_upload");
+    expect(REFERENCE_STATUS_LABEL[entry.status]).toBe("Not yet uploaded");
+    expect(REFERENCE_STATUS_LABEL[entry.status]).not.toBe("Not needed");
   });
 
   /**

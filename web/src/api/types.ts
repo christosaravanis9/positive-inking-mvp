@@ -48,7 +48,7 @@ export interface VisualCandidate {
   device_id?: string;
   /** 2026-09: which of the 5 pre-qualifying-question lanes (engine's AssociationLane) this candidate belongs to -- independent of device_id, see ASSOCIATION_SYSTEM_PROMPT's own DEVICE VOCABULARY intro. Undefined when the model's value didn't validate (server/src/schemas/association.ts's per-candidate salvage keeps the rest of the batch either way). */
   lane?: AssociationLane;
-  /** comic_strip lane's own sub-attribute (rule 1) -- present only when lane is "comic_strip". */
+  /** framed lane's own sub-attribute (rule 1) -- present only when lane is "framed". */
   rendering_style?: "realism" | "anime" | "artistic_line_art" | "photographic";
   personal_relevance: number;
   story_relevance: number;

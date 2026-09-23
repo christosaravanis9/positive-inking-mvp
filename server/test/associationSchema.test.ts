@@ -137,7 +137,7 @@ describe("parseAssociationResult", () => {
    * 2026-09: rule 1's 5-lane expansion (pre-qualifying visual-style
    * question). lane itself is lenient/optional -- same null-coercion
    * pattern as follow_up_prompt/device_id above -- but rendering_style is
-   * required specifically when lane is "comic_strip" (its own refine,
+   * required specifically when lane is "framed" (its own refine,
    * mirroring the follow_up_prompt one this file already covers above).
    */
   it("a lane value passes through unchanged when present and valid", () => {
@@ -171,20 +171,20 @@ describe("parseAssociationResult", () => {
     expect(result.droppedCandidates).toHaveLength(1);
   });
 
-  it("a comic_strip candidate with a real rendering_style survives with both fields intact", () => {
+  it("a framed candidate with a real rendering_style survives with both fields intact", () => {
     const result = parseAssociationResult({
-      visual_candidates: [goodCandidate({ lane: "comic_strip", rendering_style: "artistic_line_art" })],
+      visual_candidates: [goodCandidate({ lane: "framed", rendering_style: "artistic_line_art" })],
       ...BASE_RESPONSE_FIELDS,
     });
 
     expect(result.droppedCandidates).toHaveLength(0);
-    expect(result.data?.visual_candidates[0]?.lane).toBe("comic_strip");
+    expect(result.data?.visual_candidates[0]?.lane).toBe("framed");
     expect(result.data?.visual_candidates[0]?.rendering_style).toBe("artistic_line_art");
   });
 
-  it("drops a comic_strip candidate with no rendering_style -- scoped to that lane only, per rule 1", () => {
+  it("drops a framed candidate with no rendering_style -- scoped to that lane only, per rule 1", () => {
     const result = parseAssociationResult({
-      visual_candidates: [goodCandidate({ description: "Good" }), goodCandidate({ description: "Bad", lane: "comic_strip" })],
+      visual_candidates: [goodCandidate({ description: "Good" }), goodCandidate({ description: "Bad", lane: "framed" })],
       ...BASE_RESPONSE_FIELDS,
     });
 
@@ -194,7 +194,7 @@ describe("parseAssociationResult", () => {
     expect(result.droppedCandidates[0]!.issues).toContain("rendering_style");
   });
 
-  it("a non-comic_strip candidate never needs rendering_style, even though the field exists on the schema", () => {
+  it("a non-framed candidate never needs rendering_style, even though the field exists on the schema", () => {
     const result = parseAssociationResult({
       visual_candidates: [goodCandidate({ lane: "typography" })],
       ...BASE_RESPONSE_FIELDS,

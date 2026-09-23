@@ -183,6 +183,9 @@ async function advanceReflectionAndIntention(page) {
 async function chooseVisualStylePreference(page) {
   await page.waitForSelector("text=Which visual approach appeals to you?", { timeout: 10000 });
   await page.locator("button.option-chip-card", { hasText: "Not sure" }).click();
+  // 2026-09-23: multi-select -- no longer auto-advances on the first click,
+  // needs an explicit Continue.
+  await page.locator("button", { hasText: "Continue" }).click();
   await page.waitForTimeout(200);
 }
 

@@ -30,23 +30,31 @@ const requestSchema = z.object({
   // the two paths never collide from the one call site that sends each.
   refine_original_description: z.string().optional(),
   refine_user_edit: z.string().optional(),
-  // 2026-09 -- the pre-qualifying visual-style question's own answer,
-  // forwarded unchanged from ProjectState.visual_style_preference. Same 6
+  // 2026-09 -- the pre-qualifying visual-style question's own answer(s),
+  // forwarded unchanged from ProjectState.visual_style_preferences. Same 6
   // literal values as engine's VisualStylePreference type (5 lanes +
   // "not_sure"); kept as its own zod enum here rather than imported, the
   // same way this file's other engine-shaped literals already are.
-  visual_style_preference: z
-    .enum(["abstract_symbolic", "illustrative_narrative", "typography", "comic_strip", "montage_collage", "not_sure"])
-    .optional(),
+  // 2026-09-23: multi-select -- the client may pick one or more lanes, or
+  // "not_sure" alone (mutually exclusive with any lane -- the UI enforces
+  // this, but the refine below rejects a malformed request that mixes
+  // them rather than silently guessing which the client meant).
+  visual_style_preferences: z
+    .array(z.enum(["abstract_symbolic", "illustrative", "typography", "framed", "narrative_collage", "not_sure"]))
+    .max(6)
+    .default([])
+    .refine((v) => !(v.includes("not_sure") && v.length > 1), {
+      message: `"not_sure" cannot be combined with a specific lane`,
+    }),
 });
 
 /** Rule 1's own bullet-title wording for each lane, so the client's stated preference reaches the model as exactly the same label rule 1 defines -- no risk of the model reconciling two different names for the same lane. */
 const VISUAL_STYLE_PREFERENCE_LABEL: Record<string, string> = {
   abstract_symbolic: "Abstract & symbolic",
-  illustrative_narrative: "Illustrative & narrative",
+  illustrative: "Illustrative",
   typography: "Typography-based",
-  comic_strip: "Comic-strip / panel style",
-  montage_collage: "Montage / collage",
+  framed: "Framed",
+  narrative_collage: "Narrative Collage / Layered Montage",
   not_sure: `"Not sure" -- the client had no preference`,
 };
 
@@ -67,17 +75,20 @@ associationRouter.post("/api/associations", async (req, res) => {
     dismissal_reason_history,
     refine_original_description,
     refine_user_edit,
-    visual_style_preference,
+    visual_style_preferences,
   } = parsed.data;
   const reasonHistory = dismissal_reason_history.map((r) => r.trim()).filter(Boolean);
+  const selectedLanes = visual_style_preferences.filter((v) => v !== "not_sure");
   const userMessage = [
     `Confirmed meaning or provenance:\n${confirmed_meaning_or_provenance}`,
     known_personal_material.length > 0
       ? `Known personal material already surfaced:\n- ${known_personal_material.join("\n- ")}`
       : "No personal material has surfaced yet in this story.",
-    visual_style_preference
-      ? `The client's stated visual-style preference (pre-qualifying question, asked before you were ever called): ${VISUAL_STYLE_PREFERENCE_LABEL[visual_style_preference]}. Weight this batch per rule 1's biasing instruction.`
-      : "",
+    visual_style_preferences.includes("not_sure")
+      ? `The client's stated visual-style preference (pre-qualifying question, asked before you were ever called): ${VISUAL_STYLE_PREFERENCE_LABEL.not_sure}. Weight this batch per rule 1's biasing instruction.`
+      : selectedLanes.length > 0
+        ? `The client's stated visual-style preference (pre-qualifying question, asked before you were ever called): ${selectedLanes.length} lane(s) selected -- ${selectedLanes.map((l) => VISUAL_STYLE_PREFERENCE_LABEL[l]).join(", ")}. Weight this batch per rule 1's biasing instruction, splitting the ~60% preferred share evenly across these ${selectedLanes.length} selected lane(s).`
+        : "",
     // Refinement (2026-09-07, later -- "Build upon") is checked first and is
     // mutually exclusive with the reject-and-replace framing below in
     // practice: this is the client directly developing an idea they already

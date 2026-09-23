@@ -54,13 +54,13 @@ direct register as every other client-facing text in this app -- short
 words, short sentences, no elaborate connective prose ("rather than,"
 "which subsequently," "as it was originally").
 
-4. FIVE LANES, each its own line: abstract_symbolic, illustrative_narrative,
-typography, comic_strip, montage_collage. ("not_sure" is never shown a
+4. FIVE LANES, each its own line: abstract_symbolic, illustrative,
+typography, framed, narrative_collage. ("not_sure" is never shown a
 hint -- do not write one for it.)
 
 5. IF THE STORY GENUINELY DOES NOT SUPPORT a given lane (e.g. no words or
 phrases exist for typography, no distinct elements to combine for
-montage_collage), still write a loose, honest hint for what that lane
+narrative_collage), still write a loose, honest hint for what that lane
 could draw on if the client leaned into it -- never leave a lane blank,
 and never apologise or hedge in the hint itself.
 
@@ -70,15 +70,15 @@ export const styleHintsToolInputSchema = {
   type: "object",
   properties: {
     abstract_symbolic: { type: "string" },
-    illustrative_narrative: { type: "string" },
+    illustrative: { type: "string" },
     typography: { type: "string" },
-    comic_strip: { type: "string" },
-    montage_collage: { type: "string" },
+    framed: { type: "string" },
+    narrative_collage: { type: "string" },
   },
-  required: ["abstract_symbolic", "illustrative_narrative", "typography", "comic_strip", "montage_collage"],
+  required: ["abstract_symbolic", "illustrative", "typography", "framed", "narrative_collage"],
 } as const;
 
-const HINT_LANES = ["abstract_symbolic", "illustrative_narrative", "typography", "comic_strip", "montage_collage"] as const;
+const HINT_LANES = ["abstract_symbolic", "illustrative", "typography", "framed", "narrative_collage"] as const;
 
 /** A missing/null/blank hint for one lane is a tracking gap, not a reason to fail the whole call -- the client falls back to that one lane's existing static description (see VisualStylePreference.tsx), same lenient philosophy as association.ts's per-candidate optional fields. */
 const laneHintField = z
@@ -92,10 +92,10 @@ const laneHintField = z
 
 const rawResultSchema = z.object({
   abstract_symbolic: laneHintField,
-  illustrative_narrative: laneHintField,
+  illustrative: laneHintField,
   typography: laneHintField,
-  comic_strip: laneHintField,
-  montage_collage: laneHintField,
+  framed: laneHintField,
+  narrative_collage: laneHintField,
 });
 
 export type StyleHints = { [K in (typeof HINT_LANES)[number]]?: string };

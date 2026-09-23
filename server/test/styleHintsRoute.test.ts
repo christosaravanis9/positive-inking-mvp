@@ -22,10 +22,10 @@ describe("POST /api/style-hints", () => {
   it("returns a personalized hint per lane when the model responds fully", async () => {
     mockModel({
       abstract_symbolic: "Like a single object standing in for the freedom you're building toward.",
-      illustrative_narrative: "The actual kitchen table, drawn plainly as it was.",
+      illustrative: "The actual kitchen table, drawn plainly as it was.",
       typography: "Her own handwriting, not an invented phrase.",
-      comic_strip: "A few small beats showing how the choice unfolded.",
-      montage_collage: "The apron and the table, brought together in one piece.",
+      framed: "A few small beats showing how the choice unfolded.",
+      narrative_collage: "The apron and the table, brought together in one piece.",
     });
 
     const app = createApp();
@@ -36,10 +36,10 @@ describe("POST /api/style-hints", () => {
     expect(response.status).toBe(200);
     expect(response.body.data.hints).toEqual({
       abstract_symbolic: "Like a single object standing in for the freedom you're building toward.",
-      illustrative_narrative: "The actual kitchen table, drawn plainly as it was.",
+      illustrative: "The actual kitchen table, drawn plainly as it was.",
       typography: "Her own handwriting, not an invented phrase.",
-      comic_strip: "A few small beats showing how the choice unfolded.",
-      montage_collage: "The apron and the table, brought together in one piece.",
+      framed: "A few small beats showing how the choice unfolded.",
+      narrative_collage: "The apron and the table, brought together in one piece.",
     });
   });
 

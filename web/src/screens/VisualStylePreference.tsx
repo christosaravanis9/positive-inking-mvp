@@ -16,6 +16,11 @@ import type { VisualStylePreference as VisualStylePreferenceValue, AssociationLa
  * no signal at all. "Not sure" is a real, equally-weighted answer, not a
  * skip -- it tells Association to spread evenly across all 5 lanes instead
  * of leaning on one.
+ *
+ * 2026-09-23: multi-select -- the client may pick more than one lane at
+ * once (mutually exclusive with "Not sure", enforced by toggle() below), so
+ * this now requires an explicit Continue rather than auto-advancing on the
+ * first click.
  */
 const OPTIONS: { value: VisualStylePreferenceValue; title: string; description: string }[] = [
   {
@@ -24,9 +29,9 @@ const OPTIONS: { value: VisualStylePreferenceValue; title: string; description: 
     description: "An object or image that represents the feeling, not the literal story",
   },
   {
-    value: "illustrative_narrative",
-    title: "Illustrative & narrative",
-    description: "A scene that visually shows what happened",
+    value: "illustrative",
+    title: "Illustrative",
+    description: "A single clear subject or scene, shown plainly rather than combined with other elements",
   },
   {
     value: "typography",
@@ -34,14 +39,14 @@ const OPTIONS: { value: VisualStylePreferenceValue; title: string; description: 
     description: "The story told through lettering or words as the design itself",
   },
   {
-    value: "comic_strip",
-    title: "Comic-strip / panel style",
-    description: "The story told across small linked panels",
+    value: "framed",
+    title: "Framed",
+    description: "A scene or sequence set inside its own visible frame -- a small run of linked panels, a Polaroid-style vignette, or a badge/crest shape",
   },
   {
-    value: "montage_collage",
-    title: "Montage / collage",
-    description: "Several images layered or combined into one composition",
+    value: "narrative_collage",
+    title: "Narrative Collage / Layered Montage",
+    description: "Several of the story's own elements layered or combined into one composition -- a storyboard, a moodboard, or a themed grouping",
   },
   {
     value: "not_sure",
@@ -58,6 +63,7 @@ export function VisualStylePreference() {
   // useAsyncAction -- see the effect below for why.
   const [hints, setHints] = useState<Partial<Record<AssociationLane, string>>>({});
   const [hintsLoading, setHintsLoading] = useState(true);
+  const [selected, setSelected] = useState<VisualStylePreferenceValue[]>(state.project.visual_style_preferences);
   const mountedRef = useRef(true);
   const fetchedRef = useRef(false);
 
@@ -118,8 +124,20 @@ export function VisualStylePreference() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function choose(value: VisualStylePreferenceValue) {
-    patchProject({ visual_style_preference: value });
+  // "Not sure" is mutually exclusive with the 5 real lanes: picking it
+  // clears any lane picks, and picking a lane clears "Not sure".
+  function toggle(value: VisualStylePreferenceValue) {
+    setSelected((prev) => {
+      if (value === "not_sure") {
+        return prev.includes("not_sure") ? [] : ["not_sure"];
+      }
+      const withoutNotSure = prev.filter((v) => v !== "not_sure");
+      return withoutNotSure.includes(value) ? withoutNotSure.filter((v) => v !== value) : [...withoutNotSure, value];
+    });
+  }
+
+  function confirm() {
+    patchProject({ visual_style_preferences: selected });
     patchUI({ visualStylePreferenceSet: true });
   }
 
@@ -129,22 +147,32 @@ export function VisualStylePreference() {
       <h2 className="screen-heading">Which visual approach appeals to you?</h2>
       <p className="supporting">
         This helps us lean the first ideas toward what you tend to respond to. You can still like or build on
-        anything else we show.
+        anything else we show. Pick as many as apply.
       </p>
       {hintsLoading && <ModelWaitIndicator label="Getting a feel for your story..." route="style_hints" />}
       {!hintsLoading && (
-        <div className="option-grid" style={{ flexDirection: "column", alignItems: "stretch" }}>
-          {OPTIONS.map((option) => {
-            // "not_sure" never gets a personalized hint -- it has no lane to ground one in.
-            const hint = option.value === "not_sure" ? undefined : hints[option.value];
-            return (
-              <button key={option.value} className="option-chip option-chip-card" onClick={() => choose(option.value)}>
-                <span className="option-chip-title">{option.title}</span>
-                <span className="option-chip-description">{hint ?? option.description}</span>
-              </button>
-            );
-          })}
-        </div>
+        <>
+          <div className="option-grid" style={{ flexDirection: "column", alignItems: "stretch" }}>
+            {OPTIONS.map((option) => {
+              // "not_sure" never gets a personalized hint -- it has no lane to ground one in.
+              const hint = option.value === "not_sure" ? undefined : hints[option.value];
+              const isSelected = selected.includes(option.value);
+              return (
+                <button
+                  key={option.value}
+                  className={`option-chip option-chip-card${isSelected ? " selected" : ""}`}
+                  onClick={() => toggle(option.value)}
+                >
+                  <span className="option-chip-title">{option.title}</span>
+                  <span className="option-chip-description">{hint ?? option.description}</span>
+                </button>
+              );
+            })}
+          </div>
+          <button disabled={selected.length === 0} onClick={confirm}>
+            Continue
+          </button>
+        </>
       )}
     </div>
   );

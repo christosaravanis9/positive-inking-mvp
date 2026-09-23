@@ -5,19 +5,20 @@ import { clientTimeoutForRoute, type VisualStylePreference } from "@positive-ink
 export async function requestAssociations(
   confirmedMeaningOrProvenance: string,
   knownPersonalMaterial: string[],
-  // 2026-09: the pre-qualifying visual-style question's own answer -- biases
-  // this batch toward the client's stated lane (rule 1's biasing
+  // 2026-09: the pre-qualifying visual-style question's own answer(s) --
+  // biases this batch toward the client's stated lane(s) (rule 1's biasing
   // instruction). Optional/undefined for any caller that predates the
   // question (there shouldn't be one left in the app itself, but nothing
-  // here requires it).
-  visualStylePreference?: VisualStylePreference,
+  // here requires it). 2026-09-23: multi-select -- an array, not a single
+  // value.
+  visualStylePreferences?: VisualStylePreference[],
 ): Promise<AssociationData> {
   const result = await postJson<{ data: AssociationData }>(
     "/api/associations",
     {
       confirmed_meaning_or_provenance: confirmedMeaningOrProvenance,
       known_personal_material: knownPersonalMaterial,
-      visual_style_preference: visualStylePreference,
+      visual_style_preferences: visualStylePreferences,
     },
     clientTimeoutForRoute("association"),
   );
@@ -47,10 +48,11 @@ export async function requestAssociationAlternative(
   // needs no change.
   dismissalReasonHistory?: string[],
   // 2026-09: same context as requestAssociations' own param -- kept here too
-  // so a per-slot alternative still knows the client's stated lane, even
+  // so a per-slot alternative still knows the client's stated lane(s), even
   // though rule 1's 60%-of-the-batch biasing instruction naturally doesn't
-  // apply to a single-candidate request.
-  visualStylePreference?: VisualStylePreference,
+  // apply to a single-candidate request. 2026-09-23: multi-select -- an
+  // array, not a single value.
+  visualStylePreferences?: VisualStylePreference[],
 ): Promise<AssociationData> {
   const result = await postJson<{ data: AssociationData }>(
     "/api/associations",
@@ -60,7 +62,7 @@ export async function requestAssociationAlternative(
       avoid_descriptions: alreadyShownDescriptions,
       dismissal_reason: dismissalReason,
       dismissal_reason_history: dismissalReasonHistory,
-      visual_style_preference: visualStylePreference,
+      visual_style_preferences: visualStylePreferences,
     },
     clientTimeoutForRoute("association"),
   );
@@ -81,7 +83,7 @@ export async function requestAssociationRefinement(
   knownPersonalMaterial: string[],
   originalDescription: string,
   userEdit: string,
-  visualStylePreference?: VisualStylePreference,
+  visualStylePreferences?: VisualStylePreference[],
 ): Promise<AssociationData> {
   const result = await postJson<{ data: AssociationData }>(
     "/api/associations",
@@ -90,7 +92,7 @@ export async function requestAssociationRefinement(
       known_personal_material: knownPersonalMaterial,
       refine_original_description: originalDescription,
       refine_user_edit: userEdit,
-      visual_style_preference: visualStylePreference,
+      visual_style_preferences: visualStylePreferences,
     },
     clientTimeoutForRoute("association"),
   );

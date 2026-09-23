@@ -13,10 +13,10 @@ import { toStyleHints } from "../src/schemas/styleHints.js";
 function goodHints(overrides: Record<string, unknown> = {}) {
   return {
     abstract_symbolic: "Like a single object standing in for the freedom you're building toward.",
-    illustrative_narrative: "The actual kitchen table, drawn plainly as it was.",
+    illustrative: "The actual kitchen table, drawn plainly as it was.",
     typography: "Her own handwriting, not an invented phrase.",
-    comic_strip: "A few small beats showing how the choice unfolded.",
-    montage_collage: "The apron and the table, brought together in one piece.",
+    framed: "A few small beats showing how the choice unfolded.",
+    narrative_collage: "The apron and the table, brought together in one piece.",
     ...overrides,
   };
 }
@@ -33,18 +33,18 @@ describe("toStyleHints", () => {
     const hints = toStyleHints(raw);
     expect(hints?.typography).toBeUndefined();
     expect(hints?.abstract_symbolic).toBe(goodHints().abstract_symbolic);
-    expect(hints?.comic_strip).toBe(goodHints().comic_strip);
+    expect(hints?.framed).toBe(goodHints().framed);
   });
 
   it("coerces an explicit null hint to undefined for that one lane, same lenient pattern as association.ts's optional fields", () => {
-    const hints = toStyleHints(goodHints({ montage_collage: null }));
-    expect(hints?.montage_collage).toBeUndefined();
+    const hints = toStyleHints(goodHints({ narrative_collage: null }));
+    expect(hints?.narrative_collage).toBeUndefined();
     expect(hints?.abstract_symbolic).toBe(goodHints().abstract_symbolic);
   });
 
   it("treats a blank/whitespace-only hint the same as a missing one", () => {
-    const hints = toStyleHints(goodHints({ comic_strip: "   " }));
-    expect(hints?.comic_strip).toBeUndefined();
+    const hints = toStyleHints(goodHints({ framed: "   " }));
+    expect(hints?.framed).toBeUndefined();
   });
 
   it("trims surrounding whitespace from a real hint", () => {

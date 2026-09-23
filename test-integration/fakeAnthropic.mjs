@@ -148,7 +148,7 @@ function associationInput(text = "") {
   }
   return {
     visual_candidates: [
-      // illustrative_narrative lane (2026-09 5-lane expansion; was "Mode A --
+      // illustrative lane (2026-09 5-lane expansion; was "Mode A --
       // literal object" pre-expansion) -- a real, literal object from the
       // story, not a metaphor for it.
       {
@@ -157,7 +157,7 @@ function associationInput(text = "") {
         source_category: "personal_artefact",
         resolution_state: "needs_client_specific_detail",
         follow_up_prompt: "What object carries the most memory for you?",
-        lane: "illustrative_narrative",
+        lane: "illustrative",
         personal_relevance: 9,
         story_relevance: 8,
         visual_potential: 6,
@@ -181,7 +181,7 @@ function associationInput(text = "") {
         genericity: 2,
         reference_availability: 5,
       },
-      // comic_strip lane (was "Mode C -- illustrative sequence"
+      // framed lane (was "Mode C -- illustrative sequence"
       // pre-expansion): one candidate, one description naming a cohesive
       // small sequence, each part concrete on its own -- the exact worked
       // example from rule 8 itself. Also carries the lane's own
@@ -192,7 +192,7 @@ function associationInput(text = "") {
         personal_meaning: "Imagine each panel a little softer than the last, fading toward the third — echoing how sure the choice feels the further you walk from it.",
         source_category: "new_materialisation",
         resolution_state: "concrete",
-        lane: "comic_strip",
+        lane: "framed",
         rendering_style: "artistic_line_art",
         personal_relevance: 9,
         story_relevance: 9,
@@ -224,7 +224,7 @@ function associationInput(text = "") {
         genericity: 5,
         reference_availability: 5,
       },
-      // montage_collage lane (2026-09 5-lane expansion) -- two of the
+      // narrative_collage lane (2026-09 5-lane expansion) -- two of the
       // story's own actual described elements combined into one
       // composition, not generic imagery. Same reserve-tier scoring note
       // as typography above.
@@ -233,7 +233,7 @@ function associationInput(text = "") {
         personal_meaning: "the one object and the one place, brought together",
         source_category: "personal_place",
         resolution_state: "concrete",
-        lane: "montage_collage",
+        lane: "narrative_collage",
         personal_relevance: 3,
         story_relevance: 3,
         visual_potential: 5,
@@ -251,7 +251,7 @@ function associationInput(text = "") {
         personal_meaning: "This is the actual drawing, not a symbol standing in for the memory.",
         source_category: "personal_artefact",
         resolution_state: "concrete",
-        lane: "illustrative_narrative",
+        lane: "illustrative",
         personal_relevance: 6,
         story_relevance: 6,
         visual_potential: 5,
@@ -264,7 +264,7 @@ function associationInput(text = "") {
         personal_meaning: "the place the memory actually happened",
         source_category: "personal_artefact",
         resolution_state: "concrete",
-        lane: "illustrative_narrative",
+        lane: "illustrative",
         personal_relevance: 5,
         story_relevance: 6,
         visual_potential: 5,
@@ -438,10 +438,10 @@ function styleHintsInput(rawText = "") {
   const snippet = cleanText.slice(0, 40).trim() || "this story";
   return {
     abstract_symbolic: `Something that stands in for what "${snippet}" means to you, without naming it directly.`,
-    illustrative_narrative: `A plain, real scene drawn straight from "${snippet}".`,
+    illustrative: `A plain, real scene drawn straight from "${snippet}".`,
     typography: `Words pulled directly from "${snippet}", not an invented phrase.`,
-    comic_strip: `A few small linked beats tracing "${snippet}".`,
-    montage_collage: `A few pieces of "${snippet}" layered into one composition.`,
+    framed: `A few small linked beats tracing "${snippet}".`,
+    narrative_collage: `A few pieces of "${snippet}" layered into one composition.`,
   };
 }
 

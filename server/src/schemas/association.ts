@@ -68,10 +68,14 @@ first:
     applies in full), but the mark itself need not resemble anything from
     the story literally. See new_materialisation in rule 2, and rule 8's
     concreteness note on abstraction.
-  - illustrative_narrative (Illustrative & narrative) — a real, literal
-    depiction of what the story actually describes: an actual object,
-    person, place, or moment from it, rendered clearly enough that someone
-    with no explanation could roughly follow what it is. This is
+  - illustrative (Illustrative) — a real, literal depiction of what the
+    story actually describes: an actual object, person, place, or moment
+    from it, rendered clearly enough that someone with no explanation could
+    roughly follow what it is. Per this app's own visual-density scale,
+    illustrative work "maintains clear space for visual clarity, focusing
+    on a single subject without a crowded background" — one clear depicted
+    subject or scene, not several elements combined or layered (several
+    elements is the separate narrative_collage lane below). This is
     description, not metaphor — the test is whether a stranger, shown only
     the image, could say "that looks like the thing in the story," not
     "that could represent the feeling." A single object counts here too
@@ -85,42 +89,59 @@ first:
     it. Draw the actual words from the client's own language wherever the
     story gives you any — a phrase they used, a name, a date — never an
     invented generic phrase. See rule 8.
-  - comic_strip (Comic-strip / panel style) — a small sequence of linked
-    panels or beats telling the story, each part individually a real visual
-    proposition (rule 8's concreteness bar applies to every part, not just
-    the whole — and rule 6's NO INVENTION applies to every part too, not
-    just the candidate as a whole). Only propose this when the story's own
-    shape genuinely supports more than one visual beat (a journey, a
+  - framed (Framed) — the design is deliberately composed inside its own
+    visible frame or sequence of frames. This covers several concrete
+    shapes: a small sequence of linked panels or beats telling the story,
+    each part individually a real visual proposition (rule 8's concreteness
+    bar applies to every part, not just the whole — and rule 6's NO
+    INVENTION applies to every part too, not just the candidate as a
+    whole); a single framed vignette (a scene or object deliberately
+    bounded by a drawn border, a Polaroid-style frame, or a badge/crest
+    shape). Only propose the linked-panel-sequence shape when the story's
+    own shape genuinely supports more than one visual beat (a journey, a
     before/after, two things in relationship to each other) — never
     manufacture a sequence just for variety, and never at the expense of a
-    strong single-image candidate the story equally supports. Also carries
-    its own rendering_style attribute on the candidate — set it to whichever
-    of realism / anime / artistic_line_art / photographic actually suits
-    THIS candidate's own content; do not default to the same one every time
-    this lane is used. rendering_style applies to this lane only — leave it
-    unset for every other candidate.
-  - montage_collage (Montage / collage) — several of the story's own actual
-    described elements layered or combined into one composition (e.g. a
-    background motif combined with a distinct foreground scene). Grounded
-    in what the client specifically described, not generic imagery
-    assembled to look busy or rich. Rule 6's NO INVENTION applies to every
-    layer individually, the same as comic_strip above.
+    strong single-image candidate the story equally supports; the framed-
+    vignette/badge-crest shapes fit a single strong image just as well.
+    Also carries its own rendering_style attribute on the candidate — set
+    it to whichever of realism / anime / artistic_line_art / photographic
+    actually suits THIS candidate's own content; do not default to the
+    same one every time this lane is used. rendering_style applies to this
+    lane only — leave it unset for every other candidate.
+  - narrative_collage (Narrative Collage / Layered Montage) — several of
+    the story's own actual described elements layered or combined into one
+    composition: a storyboard-like arrangement, a moodboard-style grouping,
+    a portrait integrated with another element, or a themed sleeve-style
+    combination of several motifs (e.g. a background motif combined with a
+    distinct foreground scene). Grounded in what the client specifically
+    described, not generic imagery assembled to look busy or rich. Rule 6's
+    NO INVENTION applies to every layer individually, the same as framed's
+    linked-panel shape above.
 Set each candidate's lane to the matching value above (abstract_symbolic /
-illustrative_narrative / typography / comic_strip / montage_collage) exactly
+illustrative / typography / framed / narrative_collage) exactly
 as spelled — this is validated, not free text.
 
 PRE-QUALIFYING PREFERENCE — the accompanying message may state the client's
 own answer to a pre-qualifying question about which of the 5 lanes above
-appeals to them, asked before you were ever called. When a specific lane is
-stated, weight the batch so roughly 60% of it leans into that lane, with the
-remainder spread across the other four as genuine alternatives — a client
-without a clear design vocabulary of their own often responds better to an
-approach they did not think to ask for, so the batch should never be 100%
-one lane even when a preference is stated. When the client's answer was "not
-sure," spread the batch as evenly as you can across all 5 lanes instead.
-This never overrides CONCRETENESS (rule 8) or PERSONAL PRIORITY (rule 2) — a
-weak candidate in the preferred lane is still weak; never manufacture one
-just to hit the target.
+appeal to them, asked before you were ever called — one or more lanes, or
+"not sure" (never both; the two are mutually exclusive). When one or more
+specific lanes are stated, weight the batch so those selected lanes
+TOGETHER account for roughly 60% of it, split as evenly as makes sense
+across however many were selected: one selected lane gets roughly 60% of
+the batch to itself; two selected lanes get roughly 30% each; three get
+roughly 20% each. Spread the remaining weight evenly across whichever
+lanes were NOT selected: one lane left over gets the whole remaining ~40%;
+two left over split it ~20% each; three left over split it ~13% each. The
+batch should never be 100% the selected lanes even when several are
+stated — a client without a clear design vocabulary of their own often
+responds better to an approach they did not think to ask for. If every one
+of the 5 lanes was selected, there is nothing left to spread elsewhere —
+treat that the same as "not sure" and spread the batch evenly across all 5
+instead. When the client's answer was "not sure," spread the batch as evenly
+as you can across all 5 lanes instead. This never overrides
+CONCRETENESS (rule 8) or PERSONAL PRIORITY (rule 2) — a weak candidate in
+a preferred lane is still weak; never manufacture one just to hit the
+target.
 
 Propose enough candidates for the client to meaningfully compare and revisit
 later — typically 9 to 12 total, more when the story genuinely supports
@@ -215,7 +236,7 @@ honestly rather than guessing toward a particular downstream path.
 
 6. NO INVENTION — Do not add age, hair, skin texture, clothing, existing
 tattoos, jewellery, props, decorative symbols or invented scenery. Applies to
-every part of a comic_strip or montage_collage candidate individually, not
+every part of a framed or narrative_collage candidate individually, not
 just the candidate as a whole — neither lane is license to add scene-setting
 detail (a room, weather, a time of day) that isn't in the story just to fill
 out a panel or a layer.
@@ -242,8 +263,8 @@ category name for information you do not have yet.
   idea the client has explicitly chosen not to tie to a literal object —
   concreteness is about whether the visual idea itself is real, not about
   whether it is literal or abstract in style.
-  A comic_strip candidate (rule 1's Comic-strip / panel style lane) is one
-  candidate with one description naming the whole cohesive small sequence —
+  A framed candidate using the linked-panel-sequence shape (rule 1's Framed
+  lane) is one candidate with one description naming the whole cohesive small sequence —
   never split across multiple visual_candidates entries, and never given its
   own schema shape; write it as ordinary prose that names each part in turn.
   The same concreteness bar applies to EVERY part individually, not just to
@@ -263,12 +284,12 @@ category name for information you do not have yet.
   the person only implied by what they left behind, or a figure integrated
   directly into its environment are all legitimate; do not default to
   panels every time (several distinct elements layered or combined into one
-  composition belongs to the separate montage_collage lane below, not here).
+  composition belongs to the separate narrative_collage lane below, not here).
   The story's own arc stays open to interpretation rather than narrating one
   specific event you weren't told — the sequence should evoke a
   relationship or passage of time the story actually supports, not invent
   a scene-by-scene plot.
-  The illustrative_narrative lane (rule 1) fails CONCRETENESS in a
+  The illustrative lane (rule 1) fails CONCRETENESS in a
   different shape than the placeholder-category problem above: a
   description that is technically an image but still reads as an emotional
   summary, not something actually drawn from the story.
@@ -278,7 +299,7 @@ category name for information you do not have yet.
   BETTER (the actual scene or object the story describes, plainly): "her
   kitchen table, the blue apron hanging on its hook by the door"; "the two
   of you on the porch steps, the dog stretched out between you."
-  Every noun in an illustrative_narrative candidate should trace back to
+  Every noun in an illustrative candidate should trace back to
   something the story actually named or clearly implied — never a generic
   stand-in scene that could belong to a different client's story just as
   easily.
@@ -289,7 +310,7 @@ category name for information you do not have yet.
   BETTER (the client's own actual language): "the phrase 'still here,' in
   her own handwriting"; "the date she was born, spelled out in numerals
   built from the same linework as the rest of the piece."
-  A montage_collage candidate must name each specific element being
+  A narrative_collage candidate must name each specific element being
   combined, not just that "elements" are combined.
   BAD (a category, not a proposition): "a collage of meaningful pieces
   from her life."
@@ -387,9 +408,10 @@ that rule's letter and still fail its purpose, in either of two directions
     client to mentally assemble a small design brief before they can
     picture anything, overwhelming rather than inspiring them. One clear,
     vivid image beats an accurate but overloaded one. If an idea genuinely
-    needs more than that to do it justice, it belongs in the comic_strip
-    lane (rule 1), given room across a few linked beats -- not squeezed
-    into a single-image candidate's one sentence.
+    needs more than that to do it justice, it belongs in the framed
+    lane's linked-panel-sequence shape (rule 1), given room across a few
+    linked beats -- not squeezed into a single-image candidate's one
+    sentence.
   Read every candidate once as a client would, picturing it cold: if it
   reads as a diagram, or takes real effort to assemble into one image
   before it can be pictured at all, revise or drop it rather than counting
@@ -400,10 +422,10 @@ that rule's letter and still fail its purpose, in either of two directions
 
 const resolutionStateEnum = ["concrete", "needs_client_specific_detail"] as const;
 
-/** Rule 1's 5 candidate lanes (2026-09, pre-qualifying visual-style question) -- mirrors engine's AssociationLane type exactly; kept as its own literal list here (not imported) the same way sourceCategoryEnum/resolutionStateEnum already are, since this file's enums feed the JSON tool schema sent to the model, not just TypeScript types. */
-const laneEnum = ["abstract_symbolic", "illustrative_narrative", "typography", "comic_strip", "montage_collage"] as const;
+/** Rule 1's 5 candidate lanes (2026-09, pre-qualifying visual-style question; relabeled 2026-09-23 to match Christos's book "Positive Inking") -- mirrors engine's AssociationLane type exactly; kept as its own literal list here (not imported) the same way sourceCategoryEnum/resolutionStateEnum already are, since this file's enums feed the JSON tool schema sent to the model, not just TypeScript types. */
+const laneEnum = ["abstract_symbolic", "illustrative", "typography", "framed", "narrative_collage"] as const;
 
-/** Comic-strip/panel lane's own sub-attribute (rule 1) -- meaningful only when lane is "comic_strip"; see the visualCandidateSchema refine below for the requirement. */
+/** Framed lane's own sub-attribute (rule 1) -- meaningful only when lane is "framed"; see the visualCandidateSchema refine below for the requirement. */
 const renderingStyleEnum = ["realism", "anime", "artistic_line_art", "photographic"] as const;
 
 const sourceCategoryEnum = [
@@ -531,8 +553,8 @@ const visualCandidateSchema = z
       .nullable()
       .optional()
       .transform((v) => v ?? undefined),
-    // Comic-strip/panel lane's own sub-attribute (rule 1) -- required when
-    // lane is "comic_strip" (see the refine below), meaningless otherwise.
+    // Framed lane's own sub-attribute (rule 1) -- required when
+    // lane is "framed" (see the refine below), meaningless otherwise.
     rendering_style: z
       .enum(renderingStyleEnum)
       .nullable()
@@ -558,11 +580,11 @@ const visualCandidateSchema = z
     path: ["follow_up_prompt"],
   })
   // Same shape as the follow_up_prompt refine above: rule 1 scopes
-  // rendering_style to the comic_strip lane specifically, so a candidate in
+  // rendering_style to the framed lane specifically, so a candidate in
   // that lane with no rendering_style is genuinely incomplete, not just
   // missing an optional nicety.
-  .refine((c) => c.lane !== "comic_strip" || !!c.rendering_style, {
-    message: "rendering_style is required when lane is comic_strip",
+  .refine((c) => c.lane !== "framed" || !!c.rendering_style, {
+    message: "rendering_style is required when lane is framed",
     path: ["rendering_style"],
   });
 

@@ -267,7 +267,7 @@ describe("POST /api/associations -- 5-lane expansion + pre-qualifying preference
     await request(app).post("/api/associations").send(VALID_REQUEST_BODY);
 
     const sentSystemPrompt = vi.mocked(callModelForStructuredOutput).mock.calls[0]?.[0]?.system as string;
-    for (const lane of ["abstract_symbolic", "illustrative_narrative", "typography", "comic_strip", "montage_collage"]) {
+    for (const lane of ["abstract_symbolic", "illustrative", "typography", "framed", "narrative_collage"]) {
       expect(sentSystemPrompt).toContain(lane);
     }
     expect(sentSystemPrompt).toContain("PRE-QUALIFYING PREFERENCE");
@@ -275,7 +275,7 @@ describe("POST /api/associations -- 5-lane expansion + pre-qualifying preference
     expect(sentSystemPrompt).toContain("spread the batch as evenly");
   });
 
-  it("forwards a stated visual_style_preference into the user message, using rule 1's own lane label", async () => {
+  it("forwards a single stated lane into the user message, using rule 1's own lane label", async () => {
     vi.mocked(callModelForStructuredOutput).mockResolvedValue({
       data: { visual_candidates: [goodCandidate()], ...BASE_RESPONSE_FIELDS },
       raw: {},
@@ -284,11 +284,28 @@ describe("POST /api/associations -- 5-lane expansion + pre-qualifying preference
     const app = createApp();
     await request(app)
       .post("/api/associations")
-      .send({ ...VALID_REQUEST_BODY, visual_style_preference: "illustrative_narrative" });
+      .send({ ...VALID_REQUEST_BODY, visual_style_preferences: ["illustrative"] });
 
     const sentUserMessage = vi.mocked(callModelForStructuredOutput).mock.calls[0]?.[0]?.userMessage as string;
-    expect(sentUserMessage).toContain("Illustrative & narrative");
+    expect(sentUserMessage).toContain("Illustrative");
     expect(sentUserMessage).toContain("visual-style preference");
+  });
+
+  it("forwards multiple stated lanes together, naming the selected count so the model can split the ~60% share evenly across them", async () => {
+    vi.mocked(callModelForStructuredOutput).mockResolvedValue({
+      data: { visual_candidates: [goodCandidate()], ...BASE_RESPONSE_FIELDS },
+      raw: {},
+    });
+
+    const app = createApp();
+    await request(app)
+      .post("/api/associations")
+      .send({ ...VALID_REQUEST_BODY, visual_style_preferences: ["illustrative", "framed"] });
+
+    const sentUserMessage = vi.mocked(callModelForStructuredOutput).mock.calls[0]?.[0]?.userMessage as string;
+    expect(sentUserMessage).toContain("Illustrative");
+    expect(sentUserMessage).toContain("Framed");
+    expect(sentUserMessage).toContain("2 lane(s)");
   });
 
   it("forwards 'not_sure' with its own distinct label, not the same text as a real lane", async () => {
@@ -300,7 +317,7 @@ describe("POST /api/associations -- 5-lane expansion + pre-qualifying preference
     const app = createApp();
     await request(app)
       .post("/api/associations")
-      .send({ ...VALID_REQUEST_BODY, visual_style_preference: "not_sure" });
+      .send({ ...VALID_REQUEST_BODY, visual_style_preferences: ["not_sure"] });
 
     const sentUserMessage = vi.mocked(callModelForStructuredOutput).mock.calls[0]?.[0]?.userMessage as string;
     expect(sentUserMessage).toContain("Not sure");
@@ -320,11 +337,20 @@ describe("POST /api/associations -- 5-lane expansion + pre-qualifying preference
     expect(sentUserMessage).not.toContain("visual-style preference");
   });
 
-  it("rejects a visual_style_preference value that isn't one of the 6 real ones (5 lanes + not_sure)", async () => {
+  it("rejects a visual_style_preferences value that isn't one of the 6 real ones (5 lanes + not_sure)", async () => {
     const app = createApp();
     const response = await request(app)
       .post("/api/associations")
-      .send({ ...VALID_REQUEST_BODY, visual_style_preference: "made_up_lane" });
+      .send({ ...VALID_REQUEST_BODY, visual_style_preferences: ["made_up_lane"] });
+
+    expect(response.status).toBe(400);
+  });
+
+  it("rejects 'not_sure' combined with a real lane -- the two are mutually exclusive", async () => {
+    const app = createApp();
+    const response = await request(app)
+      .post("/api/associations")
+      .send({ ...VALID_REQUEST_BODY, visual_style_preferences: ["not_sure", "illustrative"] });
 
     expect(response.status).toBe(400);
   });

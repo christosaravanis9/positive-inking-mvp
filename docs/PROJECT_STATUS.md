@@ -504,21 +504,28 @@ cognitive load, and output-resonance being unverifiable against the fake
 double) are UX judgment calls or verification-method gaps, not bugs — left
 open, per the audit's own top-5 list, not acted on in this pass.
 
-**The 5-lane Association expansion is COMPLETE — all 4 parts shipped.** A
-new pre-qualifying question (`VisualStylePreference.tsx`) now asks the
-client which visual approach appeals to them (Abstract & symbolic /
-Illustrative & narrative / Typography-based / Comic-strip / panel style /
-Montage & collage / Not sure), right before Association is ever called for
-the first time, for every journey mode. `ASSOCIATION_SYSTEM_PROMPT`'s rule
-1 is rewritten around these same 5 lanes (replacing the old 3-shape
-system); each candidate is tagged with a `lane`, the comic_strip lane
-additionally carries a `rendering_style`
-(realism/anime/artistic_line_art/photographic), and a stated preference
-biases roughly 60% of a batch toward that lane (spread evenly across all 5
-when the client said "not sure"). Screen 7 (`ElementsDiscovery.tsx`) now
-shows 3 candidates by default (down from 5); rejecting all 3 via "Not this
-one" with none Kept/Built-upon reveals a second batch of 3 more, drawn from
-the same reserve pool an ordinary free re-roll already uses — not a fresh
+**The 5-lane Association expansion is COMPLETE — all 4 parts shipped, then
+relabeled and converted to multi-select (2026-09-23, latest).** A
+pre-qualifying question (`VisualStylePreference.tsx`) now asks the client
+which visual approach(es) appeal to them — Abstract & symbolic /
+Illustrative / Typography-based / Framed / Narrative Collage / Layered
+Montage / Not sure, using the book "Positive Inking"'s own terminology
+where it applies — right before Association is ever called for the first
+time, for every journey mode. The client may select more than one lane
+(mutually exclusive with "Not sure") and confirms with an explicit
+Continue button, rather than the old single-click-auto-advance;
+`ProjectState.visual_style_preferences` is an array, not a single value.
+`ASSOCIATION_SYSTEM_PROMPT`'s rule 1 is rewritten around these same 5
+lanes (replacing the old 3-shape system); each candidate is tagged with a
+`lane`, the `framed` lane additionally carries a `rendering_style`
+(realism/anime/artistic_line_art/photographic), and the selected lane(s)
+TOGETHER get roughly 60% of a batch, split evenly across however many were
+selected — the remaining weight split evenly across the unselected lanes
+(spread evenly across all 5 when the client said "not sure," or selected
+all 5). Screen 7 (`ElementsDiscovery.tsx`) now shows 3 candidates by
+default (down from 5); rejecting all 3 via "Not this one" with none
+Kept/Built-upon reveals a second batch of 3 more, drawn from the same
+reserve pool an ordinary free re-roll already uses — not a fresh
 generation call.
 
 **The pre-qualifying screen's 5 lane options now carry personalized hint
@@ -588,6 +595,80 @@ here for you to decide scope on, matching how other open decisions in
 this document are tracked.
 
 ## Session log
+
+### 2026-09-23 (latest) — Lane relabeling to match the book "Positive Inking," pre-qualifying screen converted to multi-select, biasing reworked for N selected lanes
+
+Combined request: (1) rename the 5 Association candidate lanes using
+Christos's book "Positive Inking" (the Scale of Density section) as the
+grounding source where it applies; (2) let the client select more than one
+lane on the pre-qualifying screen instead of exactly one; (3) rework the
+biasing math so the batch splits its preferred share across however many
+lanes were selected, not just one.
+
+**Renamed lanes** (`AssociationLane`, `engine/src/types.ts`), used
+identically in `server/src/schemas/association.ts`'s rule 1 lane
+definitions, `server/src/schemas/styleHints.ts`, and the pre-qualifying
+screen's own options:
+- `illustrative_narrative` -> `illustrative` -- book's own definition used
+  as the new grounding text: "maintains clear space for visual clarity,
+  focusing on a single subject without a crowded background."
+- `comic_strip` -> `framed` -- book's own examples (comic strips, framed
+  vignettes, Polaroid-framed, badge/crest) now cover more than the old
+  linked-panel-sequence shape alone; the sequence shape is still available
+  within this lane, alongside a single framed/vignette/badge composition.
+  Keeps its existing `rendering_style` sub-attribute, now keyed to `framed`.
+- `montage_collage` -> `narrative_collage` -- merges the book's own
+  "Narrative Collage" and "Layered Montage" terms (adjacent on its scale)
+  into one lane; book's own examples: storyboards, moodboards, integrated
+  portraits, themed sleeves.
+- `abstract_symbolic` and `typography` unchanged -- the book doesn't cover
+  either axis.
+
+**Multi-select** (`ProjectState.visual_style_preference: VisualStylePreference
+| null` -> `visual_style_preferences: VisualStylePreference[]`, empty array
+= unanswered): `VisualStylePreference.tsx` now toggles lanes into/out of a
+local `selected` array (mutual exclusivity with "Not sure" enforced in the
+toggle handler -- picking "Not sure" clears any lane picks and vice versa)
+and only writes to project state on an explicit new "Continue" button,
+replacing the old single-click-immediately-advances interaction. Threaded
+through everywhere the singular field used to flow: `server/src/routes/
+association.ts`'s `requestSchema` (now `z.array(...).max(6).default([])`
+with a `.refine()` rejecting `"not_sure"` combined with a real lane),
+`web/src/api/association.ts`'s three exported request functions, and
+`ElementsDiscovery.tsx`'s three call sites.
+
+**Biasing reworked for N selected lanes** (`association.ts`'s
+PRE-QUALIFYING PREFERENCE paragraph, rule 1): the selected lanes now
+TOGETHER get roughly 60% of the batch, split as evenly as makes sense
+across however many were selected (2 selected -> ~30% each, 3 -> ~20%
+each); the unselected lanes split the remaining weight the same way (1
+left over -> the whole ~40%, 2 left over -> ~20% each, 3 left over -> ~13%
+each). Selecting all 5 lanes is treated the same as "not sure" (nothing
+left to spread elsewhere). `routes/association.ts`'s userMessage
+composition states which lane(s) were selected and how many, once per
+request; the general splitting rule itself lives in the system prompt,
+stated once -- the same separation of concerns the single-lane design
+already used.
+
+**Verification:** typecheck/test/build clean across engine/server/web.
+Updated the biasing tests for the multi-select math (single lane, two
+lanes together, `not_sure`/lane mutual-exclusivity rejection), the
+`VisualStylePreference.tsx` test suite for the new toggle/Continue
+interaction and the renamed lanes, `associationSchema.test.ts`/
+`styleHintsSchema.test.ts`/`styleHintsRoute.test.ts` for the renamed lane
+values, and `test-integration/fakeAnthropic.mjs` + `personas/runner.mjs`'s
+`chooseVisualStylePreference` helper (now clicks Continue after selecting,
+since the screen no longer auto-advances on the first click). All 5
+personas and all engine/server/web suites pass. Live browser check (fake
+double, real Vite + Express, no live model call) confirmed: all 6 renamed
+labels render correctly on the pre-qualifying screen; selecting two lanes
+(Illustrative + Framed) keeps both visibly selected at once; the request
+sent to `/api/associations` carries `visual_style_preferences:
+["illustrative","framed"]`; and the resulting batch's candidates carry
+both selected lanes' tags among others. Real-model verification of the
+biasing PERCENTAGES themselves (not just that the array threads through
+correctly) is out of scope for this fake-double check, same limitation the
+persona harness already documents for itself.
 
 ### 2026-09-23 (later still) — Personalized per-lane style hints on the pre-qualifying screen, replacing the generic identical-for-everyone subheadings
 

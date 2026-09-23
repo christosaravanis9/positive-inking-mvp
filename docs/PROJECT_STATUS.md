@@ -487,6 +487,23 @@ v1 scope, flagged as natural v2 additions:** reference-photo upload
 personas, voice-input-specific personas (text-equivalent phrasing stands
 in for now), and backward-navigation-via-panel personas.
 
+**A separate, standalone UX heuristic audit exists** at
+`docs/ux-audit-2026-09.md` (screenshots in `docs/ux-audit-assets/`),
+walking the full journey against the fake-Anthropic double through two
+fixture journeys and scoring every screen against an 8-point checklist.
+**Its two genuine-bug findings are now fixed** (see the latest session log
+entry for full detail): (1) Screen 7's Keep/Build-upon action now derives
+`reference_required`/`reference_status` from the same fidelity it sets,
+instead of independently defaulting them — a Blueprint built without ever
+touching Screen 13 no longer silently reports "Not needed" for an element
+that needs a reference; (2) a small "Privacy notice" link to `/privacy.html`
+now renders at all 4 points that ask for personal consent (Welcome's 18+
+checkbox, and the shared `PhotoRightsCheckbox` component's 3 render sites).
+The audit's other findings (the Screen-7-only progress indicator, Screen 7's
+cognitive load, and output-resonance being unverifiable against the fake
+double) are UX judgment calls or verification-method gaps, not bugs — left
+open, per the audit's own top-5 list, not acted on in this pass.
+
 **⚠ Supabase migration backlog: 3 deep, none confirmed run against
 production.** `docs/supabase-migration-2026-09-09-device-roster.sql`,
 `docs/supabase-migration-2026-09-11-voice-input-tracking.sql`, and
@@ -539,6 +556,80 @@ here for you to decide scope on, matching how other open decisions in
 this document are tracked.
 
 ## Session log
+
+### 2026-09-23 — Fixed the two genuine bugs from the UX audit (docs/ux-audit-2026-09.md)
+
+The UX audit (see the session log entry below this one, and
+`docs/ux-audit-2026-09.md` itself) flagged five findings, two of them
+explicitly as bugs rather than UX judgment calls. Both fixed this round;
+the other three (progress-indicator inconsistency, Screen 7 cognitive
+load, output-resonance being unverifiable against the fake double) are
+left open, matching the audit's own scoping.
+
+**1. Screen 7 Keep/Build-upon → `reference_status` desync
+(`web/src/screens/ElementsDiscovery.tsx`, `confirm()`'s `fromCandidates`
+mapping).** Keep set `fidelity: "closely_based_on"` (a member of
+`NEEDS_REFERENCE`) but independently defaulted `reference_required: false`
+and `reference_status: "not_needed"` on the same action — nothing
+reconciled the two unless a client happened to manually touch Screen 13's
+already-correct Fidelity dropdown. Fixed by deriving both fields from the
+same `fidelity` via `NEEDS_REFERENCE.has(fidelity)` and
+`statusFromDraft(fidelity, candidate.source_category, undefined)` — the
+exact same helpers `fromIdeas` (the "add your own idea" path, a few lines
+below) already used correctly; `fromCandidates` was the one path that
+wasn't. Covers both Keep (→ `closely_based_on`, needs a reference) and
+Build upon (→ `interpretive`, doesn't) through the same `defaultFidelity`
+computation, so no separate branch was needed for either.
+
+Updated the existing test that had locked in the buggy behavior
+(`reference_status` asserted as `"not_needed"` for a Kept
+`closely_based_on` candidate) to assert the corrected, consistent values
+instead, and added a second regression test confirming
+`buildReferenceChecklist` + `REFERENCE_STATUS_LABEL` — what Screen 13 and
+the Blueprint (both the on-screen render and the "Save as text" export)
+actually read from — report `"Not yet uploaded"`, never `"Not needed"`,
+with zero manual Screen 13 interaction.
+
+Live-verified: Kept two Screen-7 candidates (both defaulting to
+`closely_based_on`), went straight to "Build my Blueprint" without
+touching either Fidelity dropdown. Section 10 ("References and open
+decisions") now reads **"Not yet uploaded"** for both, where it
+previously would have silently read "Not needed" for an element the
+dropdown right above it, on the immediately preceding screen, displayed
+as "Closely based on this (needs a reference)".
+
+**2. No link to the privacy notice anywhere in the live app.**
+`web/public/privacy.html` existed and was served, but nothing in
+`web/src` linked to it — the individual consent mechanisms (18+ checkbox,
+photo-rights checkboxes) were correctly built and wired, just
+undiscoverable as a policy from inside the product. Added a small,
+unobtrusive "Privacy notice" link (`.reference-note` styling, matching
+the existing muted-small-link language) at all 4 points that ask for
+personal consent: `Welcome.tsx` next to the 18+ checkbox, and once inside
+the shared `PhotoRightsCheckbox.tsx` component (covering its 3 render
+sites in one change: `ReferenceAttachment.tsx`, `StyleReference.tsx`, and
+`Placement.tsx`'s two independent upload slots). Each link sits outside
+its neighboring `<label>` so clicking it doesn't also toggle the checkbox
+via label/input association.
+
+Live-verified 3 of the 4 sites directly: Welcome (1 link, next to the
+checkbox), Placement (2 links, one per upload slot), and Design
+Confirmation's `ReferenceAttachment` instance (2 links, one per Kept
+`closely_based_on` candidate needing a reference) — 5 total link instances
+on that one run, matching expectation exactly, zero console errors. The
+4th site, `StyleReference.tsx`'s own upload path, could not be reached
+live in this environment: the fake-Anthropic double's
+`resolve_style_reference` fixture always returns `under_specified: false`
+(no marker-based branch exists for it, unlike Discovery's `__TEST_THIN__`),
+so the upload UI that path gates never renders against this double.
+Verified by code identity instead — `StyleReference.tsx` imports and
+renders the exact same `PhotoRightsCheckbox` component fixed above, so the
+same change applies there too, just not independently screenshotted live.
+
+`npm run typecheck`, `npm test` (engine 191 + server 110 + web 296 = 597
+tests, all green), and `npm run build` all stayed green. Screenshots from
+the live verification pass are not checked in (throwaway driver, matching
+this session's own established pattern for one-off verification runs).
 
 ### 2026-09-23 — Synthetic-persona testing harness for the intake journey (new tooling, no app-code changes)
 

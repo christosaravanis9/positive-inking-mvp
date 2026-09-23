@@ -148,13 +148,16 @@ function associationInput(text = "") {
   }
   return {
     visual_candidates: [
-      // Mode A -- literal object (existing, unchanged by the three-mode expansion).
+      // illustrative_narrative lane (2026-09 5-lane expansion; was "Mode A --
+      // literal object" pre-expansion) -- a real, literal object from the
+      // story, not a metaphor for it.
       {
         description: "a specific object tied to a shared memory",
         personal_meaning: "a tangible marker of the relationship",
         source_category: "personal_artefact",
         resolution_state: "needs_client_specific_detail",
         follow_up_prompt: "What object carries the most memory for you?",
+        lane: "illustrative_narrative",
         personal_relevance: 9,
         story_relevance: 8,
         visual_potential: 6,
@@ -162,13 +165,15 @@ function associationInput(text = "") {
         genericity: 6,
         reference_availability: 3,
       },
-      // Mode B -- pure abstraction, deliberately not tied to a literal object
-      // (existing, unchanged; rule 8 still requires the idea itself be real).
+      // abstract_symbolic lane (was "Mode B -- pure abstraction"
+      // pre-expansion) -- deliberately not tied to a literal object; rule 8
+      // still requires the idea itself be real.
       {
         description: "a new mark made by overlapping the outlines of both your initials",
         personal_meaning: "a custom mark made specifically for this project",
         source_category: "new_materialisation",
         resolution_state: "concrete",
+        lane: "abstract_symbolic",
         personal_relevance: 8,
         story_relevance: 8,
         visual_potential: 7,
@@ -176,22 +181,62 @@ function associationInput(text = "") {
         genericity: 2,
         reference_availability: 5,
       },
-      // Mode C -- illustrative sequence (the 2026-09-06 expansion this fixture now
-      // covers): one candidate, one description naming a cohesive small sequence,
-      // each part concrete on its own -- the exact worked example from rule 8 itself
-      // (rule 9's plain-register rewrite, 2026-09-07, later still).
+      // comic_strip lane (was "Mode C -- illustrative sequence"
+      // pre-expansion): one candidate, one description naming a cohesive
+      // small sequence, each part concrete on its own -- the exact worked
+      // example from rule 8 itself. Also carries the lane's own
+      // rendering_style sub-attribute (2026-09).
       {
         description:
           "Three small linked panels, no border between them: a figure at a fork in the path. A hand resting on a compass. The figure walking on alone, the path now faded behind them.",
         personal_meaning: "Imagine each panel a little softer than the last, fading toward the third — echoing how sure the choice feels the further you walk from it.",
         source_category: "new_materialisation",
         resolution_state: "concrete",
+        lane: "comic_strip",
+        rendering_style: "artistic_line_art",
         personal_relevance: 9,
         story_relevance: 9,
         visual_potential: 8,
         originality: 9,
         genericity: 2,
         reference_availability: 2,
+      },
+      // typography lane (2026-09 5-lane expansion) -- the design built from
+      // the client's own actual words, not an invented generic phrase.
+      // Reserve-tier scores (kept well below the existing top-5's lowest,
+      // "a simple line drawing of a house" at personal/story 5/6) so this
+      // addition never displaces the default-visible 5 that
+      // test-integration/personas/ and docs/ux-audit-assets/ both already
+      // depend on by exact description text.
+      {
+        description: "the word 'Scout,' in the same handwriting from his old collar tag",
+        personal_meaning: "his name, in the exact lettering that was always on him",
+        source_category: "personal_artefact",
+        resolution_state: "concrete",
+        lane: "typography",
+        personal_relevance: 3,
+        story_relevance: 3,
+        visual_potential: 5,
+        originality: 5,
+        genericity: 5,
+        reference_availability: 5,
+      },
+      // montage_collage lane (2026-09 5-lane expansion) -- two of the
+      // story's own actual described elements combined into one
+      // composition, not generic imagery. Same reserve-tier scoring note
+      // as typography above.
+      {
+        description: "his collar tag layered over the outline of his favourite corner of the yard",
+        personal_meaning: "the one object and the one place, brought together",
+        source_category: "personal_place",
+        resolution_state: "concrete",
+        lane: "montage_collage",
+        personal_relevance: 3,
+        story_relevance: 3,
+        visual_potential: 5,
+        originality: 5,
+        genericity: 5,
+        reference_availability: 4,
       },
       // Filler material so ranking always fills the default top 5 (existing,
       // unchanged in shape by the 2026-09-07 redesign). Rewritten to rule 9's
@@ -203,6 +248,7 @@ function associationInput(text = "") {
         personal_meaning: "This is the actual drawing, not a symbol standing in for the memory.",
         source_category: "personal_artefact",
         resolution_state: "concrete",
+        lane: "illustrative_narrative",
         personal_relevance: 6,
         story_relevance: 6,
         visual_potential: 5,
@@ -215,6 +261,7 @@ function associationInput(text = "") {
         personal_meaning: "the place the memory actually happened",
         source_category: "personal_artefact",
         resolution_state: "concrete",
+        lane: "illustrative_narrative",
         personal_relevance: 5,
         story_relevance: 6,
         visual_potential: 5,

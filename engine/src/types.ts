@@ -10,6 +10,22 @@ export type JourneyMode = "full" | "attraction" | "expert" | "manual";
 
 export type Viewpoint = "past" | "present" | "future" | "mixed";
 
+/**
+ * The 5 Association candidate lanes (2026-09, pre-qualifying visual-style
+ * question). Each candidate the Association engine proposes is tagged with
+ * exactly one of these -- an orthogonal classification from device_id (which
+ * tracks visual-approach *technique* for the roster-rotation system); lane
+ * tracks visual-approach *category*, the thing the client is actually asked
+ * about up front. Shared between engine/server/web so both the pre-qualifying
+ * question's own options and the Association schema/prompt stay in exact
+ * lockstep with one canonical set of values -- no separate string literals
+ * to drift out of sync.
+ */
+export type AssociationLane = "abstract_symbolic" | "illustrative_narrative" | "typography" | "comic_strip" | "montage_collage";
+
+/** The pre-qualifying question's own answer shape -- the 5 lanes above, plus "not_sure" (a real answer, not the absence of one: it tells the Association engine to spread generation evenly across all 5 lanes rather than lean on any single one). */
+export type VisualStylePreference = AssociationLane | "not_sure";
+
 export type CreativeControl =
   | "client_led"
   | "collaborative"
@@ -271,6 +287,9 @@ export interface ProjectState {
   personal_memories: string[];
   personal_phrases: string[];
 
+  /** The pre-qualifying visual-style question's own answer -- asked once meaning/provenance is established, before Association is ever called, so the very first batch can be biased toward it (see AssociationLane docs). null only before the question is answered; every journey answers it (there's no skip -- "not_sure" is itself an answer) before reaching Screen 7. */
+  visual_style_preference: VisualStylePreference | null;
+
   visual_elements: VisualElement[];
   thought_associations: string[];
   visual_associations: string[];
@@ -387,6 +406,8 @@ export function createEmptyProjectState(projectId: string, now: string): Project
     personal_events: [],
     personal_memories: [],
     personal_phrases: [],
+
+    visual_style_preference: null,
 
     visual_elements: [],
     thought_associations: [],

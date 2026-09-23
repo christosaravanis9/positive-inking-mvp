@@ -51,6 +51,7 @@ function seedMidJourneyState(): JourneyState {
     discoveryCompleted: true,
     themesSelected: true,
     intentionConfirmed: true,
+    visualStylePreferenceSet: true,
     elementsDiscovered: true,
     // Lands exactly on Screen 8 (CreativeControl) -- everything before it is done,
     // nothing after it is.

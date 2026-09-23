@@ -370,7 +370,7 @@ export function ElementsDiscovery() {
 
   function fetchAssociations() {
     void runFetchAssociations(async (guard) => {
-      const result = await requestAssociations(confirmedMeaningText(), knownPersonalMaterial());
+      const result = await requestAssociations(confirmedMeaningText(), knownPersonalMaterial(), state.project.visual_style_preference ?? undefined);
       if (guard.isStale()) return;
       patchUI({
         associationCandidates: result.visual_candidates,
@@ -545,6 +545,7 @@ export function ElementsDiscovery() {
           alreadyShown,
           reason,
           updatedSlotHistory,
+          state.project.visual_style_preference ?? undefined,
         );
         if (guard.isStale()) return;
         const newCandidate = result.visual_candidates[0];
@@ -587,7 +588,13 @@ export function ElementsDiscovery() {
     void runSlotAction(
       slot,
       async (guard) => {
-        const result = await requestAssociationRefinement(confirmedMeaningText(), knownPersonalMaterial(), candidate.description, edit);
+        const result = await requestAssociationRefinement(
+          confirmedMeaningText(),
+          knownPersonalMaterial(),
+          candidate.description,
+          edit,
+          state.project.visual_style_preference ?? undefined,
+        );
         if (guard.isStale()) return;
         const refined = result.visual_candidates[0];
         if (!refined) return;

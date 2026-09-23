@@ -57,24 +57,71 @@ Do not produce a finished tattoo. Convert confirmed meaning or provenance into
 personal visual material and a set of candidate elements for the user to react
 to, confirm, reject or extend.
 
-1. ASSOCIATIONS — Move from values, themes or provenance to concrete visuals.
-A candidate may take any of three shapes, chosen freely per candidate based on
-what the story actually supports — never forced into a quota, and never
-preferred by default over what the story calls for:
-  - A single literal object, motif or mark. The default most stories call for.
-  - A deliberately abstract mark not tied to any literal object (see
-    new_materialisation in rule 2, and rule 8's concreteness note on
-    abstraction).
-  - A cohesive small illustrative sequence — a handful of linked panels,
-    fragments, an integrated scene, or a morph/collage — that reads as one
-    design, not several separate candidates competing for the same idea.
-    Only propose this when the story's own shape genuinely supports more
-    than one visual beat (a journey, a before/after, two things in
-    relationship to each other) — never manufacture a sequence just for
-    variety, and never at the expense of a strong single-object candidate
-    the story equally supports. See rule 8 for how a sequence stays
-    concrete, and rule 6 — every part of a sequence is still bound by
-    NO INVENTION, not just the candidate as a whole.
+1. LANES — Move from values, themes or provenance to concrete visuals. Every
+candidate belongs to exactly one of five lanes, chosen freely per candidate
+based on what the story actually supports — never forced into an even split,
+and never defaulting to the same lane every time just because it is listed
+first:
+  - abstract_symbolic (Abstract & symbolic) — a metaphor object or mark that
+    stands for the feeling or meaning, not a literal depiction of what
+    happened. Grounded in a concrete detail from the story (rule 8 still
+    applies in full), but the mark itself need not resemble anything from
+    the story literally. See new_materialisation in rule 2, and rule 8's
+    concreteness note on abstraction.
+  - illustrative_narrative (Illustrative & narrative) — a real, literal
+    depiction of what the story actually describes: an actual object,
+    person, place, or moment from it, rendered clearly enough that someone
+    with no explanation could roughly follow what it is. This is
+    description, not metaphor — the test is whether a stranger, shown only
+    the image, could say "that looks like the thing in the story," not
+    "that could represent the feeling." A single object counts here too
+    when it is drawn plainly as itself, not standing in for something else
+    — the line between this lane and abstract_symbolic is literal-vs-
+    metaphor, not single-object-vs-scene. See rule 8 for this lane's own
+    concreteness examples — it fails in a different way than the general
+    placeholder-category problem does.
+  - typography (Typography-based) — the design is built from lettering or
+    words themselves as the visual form, not a picture with text added to
+    it. Draw the actual words from the client's own language wherever the
+    story gives you any — a phrase they used, a name, a date — never an
+    invented generic phrase. See rule 8.
+  - comic_strip (Comic-strip / panel style) — a small sequence of linked
+    panels or beats telling the story, each part individually a real visual
+    proposition (rule 8's concreteness bar applies to every part, not just
+    the whole — and rule 6's NO INVENTION applies to every part too, not
+    just the candidate as a whole). Only propose this when the story's own
+    shape genuinely supports more than one visual beat (a journey, a
+    before/after, two things in relationship to each other) — never
+    manufacture a sequence just for variety, and never at the expense of a
+    strong single-image candidate the story equally supports. Also carries
+    its own rendering_style attribute on the candidate — set it to whichever
+    of realism / anime / artistic_line_art / photographic actually suits
+    THIS candidate's own content; do not default to the same one every time
+    this lane is used. rendering_style applies to this lane only — leave it
+    unset for every other candidate.
+  - montage_collage (Montage / collage) — several of the story's own actual
+    described elements layered or combined into one composition (e.g. a
+    background motif combined with a distinct foreground scene). Grounded
+    in what the client specifically described, not generic imagery
+    assembled to look busy or rich. Rule 6's NO INVENTION applies to every
+    layer individually, the same as comic_strip above.
+Set each candidate's lane to the matching value above (abstract_symbolic /
+illustrative_narrative / typography / comic_strip / montage_collage) exactly
+as spelled — this is validated, not free text.
+
+PRE-QUALIFYING PREFERENCE — the accompanying message may state the client's
+own answer to a pre-qualifying question about which of the 5 lanes above
+appeals to them, asked before you were ever called. When a specific lane is
+stated, weight the batch so roughly 60% of it leans into that lane, with the
+remainder spread across the other four as genuine alternatives — a client
+without a clear design vocabulary of their own often responds better to an
+approach they did not think to ask for, so the batch should never be 100%
+one lane even when a preference is stated. When the client's answer was "not
+sure," spread the batch as evenly as you can across all 5 lanes instead.
+This never overrides CONCRETENESS (rule 8) or PERSONAL PRIORITY (rule 2) — a
+weak candidate in the preferred lane is still weak; never manufacture one
+just to hit the target.
+
 Propose enough candidates for the client to meaningfully compare and revisit
 later — typically 9 to 12 total, more when the story genuinely supports
 several distinct strong ideas, fewer only when it doesn't. This range is
@@ -102,9 +149,12 @@ candidates would look and mean nearly the same thing to the client, keep
 the stronger one and use the freed slot for something that actually
 differs.
 
-DEVICE VOCABULARY — this app tracks, across real client outcomes, which
-visual approaches actually resonate, and periodically rotates the active
-set based on that real data (not a fixed list this prompt invents). Assign
+DEVICE VOCABULARY — device_id and lane (rule 1) are independent
+classifications; assign each candidate exactly one of each, and never let
+your choice of one constrain the other. This app tracks, across real client
+outcomes, which visual approaches actually resonate, and periodically
+rotates the active set based on that real data (not a fixed list this
+prompt invents). Assign
 each of the first ${roster.active.length} candidates you propose to exactly
 one of the following devices, in this exact order, and set that
 candidate's device_id to the exact string shown for it — this is the one
@@ -161,10 +211,10 @@ honestly rather than guessing toward a particular downstream path.
 
 6. NO INVENTION — Do not add age, hair, skin texture, clothing, existing
 tattoos, jewellery, props, decorative symbols or invented scenery. Applies to
-every part of an illustrative-sequence candidate individually, not just the
-candidate as a whole — a sequence is not license to add scene-setting detail
-(a room, weather, a time of day) that isn't in the story just to fill out a
-panel.
+every part of a comic_strip or montage_collage candidate individually, not
+just the candidate as a whole — neither lane is license to add scene-setting
+detail (a room, weather, a time of day) that isn't in the story just to fill
+out a panel or a layer.
 
 7. CONTRADICTIONS — Note any design contradictions from §13.2 you can already
 see (e.g. an exact artefact with no uploaded reference) as plain descriptions
@@ -188,10 +238,10 @@ category name for information you do not have yet.
   idea the client has explicitly chosen not to tie to a literal object —
   concreteness is about whether the visual idea itself is real, not about
   whether it is literal or abstract in style.
-  An illustrative-sequence candidate (rule 1's third mode) is one candidate
-  with one description naming the whole cohesive small sequence — never
-  split across multiple visual_candidates entries, and never given its own
-  schema shape; write it as ordinary prose that names each part in turn.
+  A comic_strip candidate (rule 1's Comic-strip / panel style lane) is one
+  candidate with one description naming the whole cohesive small sequence —
+  never split across multiple visual_candidates entries, and never given its
+  own schema shape; write it as ordinary prose that names each part in turn.
   The same concreteness bar applies to EVERY part individually, not just to
   the sequence as a whole: "a series of meaningful moments from the
   relationship" is exactly the kind of category-not-proposition this rule
@@ -205,14 +255,43 @@ category name for information you do not have yet.
   no border between them: a figure at a fork in the path. A hand resting
   on a compass. The figure walking on alone, the path now faded behind
   them." Format is open to whatever actually suits
-  the story — linked panels, polaroid-style fragments, a morph/collage
-  blending two forms into one, a still scene with the person only implied
-  by what they left behind, or a figure integrated directly into its
-  environment are all legitimate; do not default to panels every time. The
-  story's own arc stays open to interpretation rather than narrating one
+  the story — linked panels, polaroid-style fragments, a still scene with
+  the person only implied by what they left behind, or a figure integrated
+  directly into its environment are all legitimate; do not default to
+  panels every time (several distinct elements layered or combined into one
+  composition belongs to the separate montage_collage lane below, not here).
+  The story's own arc stays open to interpretation rather than narrating one
   specific event you weren't told — the sequence should evoke a
   relationship or passage of time the story actually supports, not invent
   a scene-by-scene plot.
+  The illustrative_narrative lane (rule 1) fails CONCRETENESS in a
+  different shape than the placeholder-category problem above: a
+  description that is technically an image but still reads as an emotional
+  summary, not something actually drawn from the story.
+  BAD (emotionally true, but not a literal depiction of the story):
+  "a warm scene of togetherness"; "a moment of quiet understanding between
+  two people."
+  BETTER (the actual scene or object the story describes, plainly): "her
+  kitchen table, the blue apron hanging on its hook by the door"; "the two
+  of you on the porch steps, the dog stretched out between you."
+  Every noun in an illustrative_narrative candidate should trace back to
+  something the story actually named or clearly implied — never a generic
+  stand-in scene that could belong to a different client's story just as
+  easily.
+  A typography candidate must name the actual words being used, not just
+  describe that words will be used.
+  BAD (a category, not the real words): "a meaningful phrase in flowing
+  script."
+  BETTER (the client's own actual language): "the phrase 'still here,' in
+  her own handwriting"; "the date she was born, spelled out in numerals
+  built from the same linework as the rest of the piece."
+  A montage_collage candidate must name each specific element being
+  combined, not just that "elements" are combined.
+  BAD (a category, not a proposition): "a collage of meaningful pieces
+  from her life."
+  BETTER (each layer a real, specific thing from the story): "the outline
+  of her apron, layered behind a single line drawing of the kitchen
+  table."
   personal_meaning does not need description's same literal concreteness —
   a real, honestly abstract emotional truth is a legitimate answer — but it
   must be grounded in a specific detail from the client's own story or from
@@ -304,9 +383,9 @@ that rule's letter and still fail its purpose, in either of two directions
     client to mentally assemble a small design brief before they can
     picture anything, overwhelming rather than inspiring them. One clear,
     vivid image beats an accurate but overloaded one. If an idea genuinely
-    needs more than that to do it justice, it belongs in the illustrative-
-    sequence mode (rule 1), given room across a few linked beats -- not
-    squeezed into a single-object candidate's one sentence.
+    needs more than that to do it justice, it belongs in the comic_strip
+    lane (rule 1), given room across a few linked beats -- not squeezed
+    into a single-image candidate's one sentence.
   Read every candidate once as a client would, picturing it cold: if it
   reads as a diagram, or takes real effort to assemble into one image
   before it can be pictured at all, revise or drop it rather than counting
@@ -316,6 +395,12 @@ that rule's letter and still fail its purpose, in either of two directions
 }
 
 const resolutionStateEnum = ["concrete", "needs_client_specific_detail"] as const;
+
+/** Rule 1's 5 candidate lanes (2026-09, pre-qualifying visual-style question) -- mirrors engine's AssociationLane type exactly; kept as its own literal list here (not imported) the same way sourceCategoryEnum/resolutionStateEnum already are, since this file's enums feed the JSON tool schema sent to the model, not just TypeScript types. */
+const laneEnum = ["abstract_symbolic", "illustrative_narrative", "typography", "comic_strip", "montage_collage"] as const;
+
+/** Comic-strip/panel lane's own sub-attribute (rule 1) -- meaningful only when lane is "comic_strip"; see the visualCandidateSchema refine below for the requirement. */
+const renderingStyleEnum = ["realism", "anime", "artistic_line_art", "photographic"] as const;
 
 const sourceCategoryEnum = [
   "personal_artefact",
@@ -352,9 +437,19 @@ export const associationToolInputSchema = {
           resolution_state: { type: "string", enum: resolutionStateEnum },
           follow_up_prompt: { type: "string" },
           device_id: { type: "string" },
+          lane: { type: "string", enum: laneEnum },
+          rendering_style: { type: "string", enum: renderingStyleEnum },
           ...rankingProps,
         },
-        required: ["description", "personal_meaning", "source_category", "resolution_state", "device_id", ...Object.keys(rankingProps)],
+        required: [
+          "description",
+          "personal_meaning",
+          "source_category",
+          "resolution_state",
+          "device_id",
+          "lane",
+          ...Object.keys(rankingProps),
+        ],
       },
     },
     place_role: { type: "string", enum: ["none", "subject", "setting", "ambiguous"] },
@@ -421,6 +516,24 @@ const visualCandidateSchema = z
       .nullable()
       .optional()
       .transform((v) => v ?? undefined),
+    // Rule 1's 5-lane classification (2026-09) -- unlike device_id, this is
+    // a small, fixed, well-known set (not a runtime-loaded roster), so an
+    // out-of-enum value fails validation directly rather than needing route-
+    // level sanitization. Still nullable/optional (same lenient pattern as
+    // follow_up_prompt/device_id above): a missing or malformed lane tag is
+    // a tracking gap, not a reason to drop an otherwise-good candidate.
+    lane: z
+      .enum(laneEnum)
+      .nullable()
+      .optional()
+      .transform((v) => v ?? undefined),
+    // Comic-strip/panel lane's own sub-attribute (rule 1) -- required when
+    // lane is "comic_strip" (see the refine below), meaningless otherwise.
+    rendering_style: z
+      .enum(renderingStyleEnum)
+      .nullable()
+      .optional()
+      .transform((v) => v ?? undefined),
     personal_relevance: z.number().min(0).max(10),
     story_relevance: z.number().min(0).max(10),
     visual_potential: z.number().min(0).max(10),
@@ -439,6 +552,14 @@ const visualCandidateSchema = z
   .refine((c) => c.resolution_state !== "needs_client_specific_detail" || !!c.follow_up_prompt?.trim(), {
     message: "follow_up_prompt is required when resolution_state is needs_client_specific_detail",
     path: ["follow_up_prompt"],
+  })
+  // Same shape as the follow_up_prompt refine above: rule 1 scopes
+  // rendering_style to the comic_strip lane specifically, so a candidate in
+  // that lane with no rendering_style is genuinely incomplete, not just
+  // missing an optional nicety.
+  .refine((c) => c.lane !== "comic_strip" || !!c.rendering_style, {
+    message: "rendering_style is required when lane is comic_strip",
+    path: ["rendering_style"],
   });
 
 export const associationResultSchema = z.object({

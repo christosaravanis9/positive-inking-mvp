@@ -30,7 +30,25 @@ const requestSchema = z.object({
   // the two paths never collide from the one call site that sends each.
   refine_original_description: z.string().optional(),
   refine_user_edit: z.string().optional(),
+  // 2026-09 -- the pre-qualifying visual-style question's own answer,
+  // forwarded unchanged from ProjectState.visual_style_preference. Same 6
+  // literal values as engine's VisualStylePreference type (5 lanes +
+  // "not_sure"); kept as its own zod enum here rather than imported, the
+  // same way this file's other engine-shaped literals already are.
+  visual_style_preference: z
+    .enum(["abstract_symbolic", "illustrative_narrative", "typography", "comic_strip", "montage_collage", "not_sure"])
+    .optional(),
 });
+
+/** Rule 1's own bullet-title wording for each lane, so the client's stated preference reaches the model as exactly the same label rule 1 defines -- no risk of the model reconciling two different names for the same lane. */
+const VISUAL_STYLE_PREFERENCE_LABEL: Record<string, string> = {
+  abstract_symbolic: "Abstract & symbolic",
+  illustrative_narrative: "Illustrative & narrative",
+  typography: "Typography-based",
+  comic_strip: "Comic-strip / panel style",
+  montage_collage: "Montage / collage",
+  not_sure: `"Not sure" -- the client had no preference`,
+};
 
 export const associationRouter = Router();
 
@@ -49,6 +67,7 @@ associationRouter.post("/api/associations", async (req, res) => {
     dismissal_reason_history,
     refine_original_description,
     refine_user_edit,
+    visual_style_preference,
   } = parsed.data;
   const reasonHistory = dismissal_reason_history.map((r) => r.trim()).filter(Boolean);
   const userMessage = [
@@ -56,6 +75,9 @@ associationRouter.post("/api/associations", async (req, res) => {
     known_personal_material.length > 0
       ? `Known personal material already surfaced:\n- ${known_personal_material.join("\n- ")}`
       : "No personal material has surfaced yet in this story.",
+    visual_style_preference
+      ? `The client's stated visual-style preference (pre-qualifying question, asked before you were ever called): ${VISUAL_STYLE_PREFERENCE_LABEL[visual_style_preference]}. Weight this batch per rule 1's biasing instruction.`
+      : "",
     // Refinement (2026-09-07, later -- "Build upon") is checked first and is
     // mutually exclusive with the reject-and-replace framing below in
     // practice: this is the client directly developing an idea they already

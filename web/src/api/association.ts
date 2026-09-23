@@ -1,14 +1,24 @@
 import { postJson } from "./client";
 import type { AssociationData } from "./types";
-import { clientTimeoutForRoute } from "@positive-inking/engine";
+import { clientTimeoutForRoute, type VisualStylePreference } from "@positive-inking/engine";
 
 export async function requestAssociations(
   confirmedMeaningOrProvenance: string,
   knownPersonalMaterial: string[],
+  // 2026-09: the pre-qualifying visual-style question's own answer -- biases
+  // this batch toward the client's stated lane (rule 1's biasing
+  // instruction). Optional/undefined for any caller that predates the
+  // question (there shouldn't be one left in the app itself, but nothing
+  // here requires it).
+  visualStylePreference?: VisualStylePreference,
 ): Promise<AssociationData> {
   const result = await postJson<{ data: AssociationData }>(
     "/api/associations",
-    { confirmed_meaning_or_provenance: confirmedMeaningOrProvenance, known_personal_material: knownPersonalMaterial },
+    {
+      confirmed_meaning_or_provenance: confirmedMeaningOrProvenance,
+      known_personal_material: knownPersonalMaterial,
+      visual_style_preference: visualStylePreference,
+    },
     clientTimeoutForRoute("association"),
   );
   return result.data;
@@ -36,6 +46,11 @@ export async function requestAssociationAlternative(
   // is kept as its own field too, so a caller that only ever rejects once
   // needs no change.
   dismissalReasonHistory?: string[],
+  // 2026-09: same context as requestAssociations' own param -- kept here too
+  // so a per-slot alternative still knows the client's stated lane, even
+  // though rule 1's 60%-of-the-batch biasing instruction naturally doesn't
+  // apply to a single-candidate request.
+  visualStylePreference?: VisualStylePreference,
 ): Promise<AssociationData> {
   const result = await postJson<{ data: AssociationData }>(
     "/api/associations",
@@ -45,6 +60,7 @@ export async function requestAssociationAlternative(
       avoid_descriptions: alreadyShownDescriptions,
       dismissal_reason: dismissalReason,
       dismissal_reason_history: dismissalReasonHistory,
+      visual_style_preference: visualStylePreference,
     },
     clientTimeoutForRoute("association"),
   );
@@ -65,6 +81,7 @@ export async function requestAssociationRefinement(
   knownPersonalMaterial: string[],
   originalDescription: string,
   userEdit: string,
+  visualStylePreference?: VisualStylePreference,
 ): Promise<AssociationData> {
   const result = await postJson<{ data: AssociationData }>(
     "/api/associations",
@@ -73,6 +90,7 @@ export async function requestAssociationRefinement(
       known_personal_material: knownPersonalMaterial,
       refine_original_description: originalDescription,
       refine_user_edit: userEdit,
+      visual_style_preference: visualStylePreference,
     },
     clientTimeoutForRoute("association"),
   );

@@ -14,6 +14,7 @@ import { MeaningReflection } from "../screens/MeaningReflection";
 import { IntentionConfirmation } from "../screens/IntentionConfirmation";
 import { ImageDescription } from "../screens/ImageDescription";
 import { ImageProvenance } from "../screens/ImageProvenance";
+import { VisualStylePreference } from "../screens/VisualStylePreference";
 import { ElementsDiscovery } from "../screens/ElementsDiscovery";
 import { CreativeControl } from "../screens/CreativeControl";
 import { RoughScale } from "../screens/RoughScale";
@@ -42,6 +43,7 @@ const SCREEN_COMPONENTS: Record<ScreenId, () => JSX.Element | null> = {
   intention_confirmation: IntentionConfirmation,
   image_description: ImageDescription,
   image_provenance: ImageProvenance,
+  visual_style_preference: VisualStylePreference,
   elements_discovery: ElementsDiscovery,
   creative_control: CreativeControl,
   rough_scale: RoughScale,

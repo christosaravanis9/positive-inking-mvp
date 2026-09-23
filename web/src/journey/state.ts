@@ -41,6 +41,8 @@ export interface UIState {
   /** §8/§10 — the single optional re-entry offer has been shown and resolved (accepted or declined), whichever came first. Never shown twice for the same project. */
   reentryOffered: boolean;
 
+  /** Pre-qualifying visual-style question (2026-09) -- asked once, right before Association is ever called for the first time. "not_sure" counts as answered; there's no skip. */
+  visualStylePreferenceSet: boolean;
   elementsDiscovered: boolean;
   creativeControlSet: boolean;
   roughScaleSet: boolean;
@@ -142,6 +144,7 @@ export const PROGRESS_FLAG_KEYS = [
   "intentionConfirmed",
   "imageDescribed",
   "provenanceCaptured",
+  "visualStylePreferenceSet",
   "elementsDiscovered",
   "creativeControlSet",
   "roughScaleSet",
@@ -181,6 +184,7 @@ export function createInitialJourneyState(): JourneyState {
       imageDescribed: false,
       provenanceCaptured: false,
       reentryOffered: false,
+      visualStylePreferenceSet: false,
       elementsDiscovered: false,
       creativeControlSet: false,
       roughScaleSet: false,

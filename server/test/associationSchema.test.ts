@@ -132,4 +132,75 @@ describe("parseAssociationResult", () => {
     expect(result.data).toBeNull();
     expect(result.droppedCandidates).toHaveLength(0);
   });
+
+  /**
+   * 2026-09: rule 1's 5-lane expansion (pre-qualifying visual-style
+   * question). lane itself is lenient/optional -- same null-coercion
+   * pattern as follow_up_prompt/device_id above -- but rendering_style is
+   * required specifically when lane is "comic_strip" (its own refine,
+   * mirroring the follow_up_prompt one this file already covers above).
+   */
+  it("a lane value passes through unchanged when present and valid", () => {
+    const result = parseAssociationResult({
+      visual_candidates: [goodCandidate({ lane: "abstract_symbolic" })],
+      ...BASE_RESPONSE_FIELDS,
+    });
+
+    expect(result.droppedCandidates).toHaveLength(0);
+    expect(result.data?.visual_candidates[0]?.lane).toBe("abstract_symbolic");
+  });
+
+  it("coerces an explicit null lane to undefined, same lenient pattern as follow_up_prompt/device_id -- a missing tracking tag never costs the candidate its place", () => {
+    const result = parseAssociationResult({
+      visual_candidates: [goodCandidate({ lane: null })],
+      ...BASE_RESPONSE_FIELDS,
+    });
+
+    expect(result.droppedCandidates).toHaveLength(0);
+    expect(result.data?.visual_candidates[0]?.lane).toBeUndefined();
+  });
+
+  it("drops a candidate whose lane is not one of the 5 real values -- an out-of-enum lane fails validation directly (no runtime roster to sanitize against, unlike device_id)", () => {
+    const result = parseAssociationResult({
+      visual_candidates: [goodCandidate({ description: "Good" }), goodCandidate({ description: "Bad", lane: "not_a_real_lane" })],
+      ...BASE_RESPONSE_FIELDS,
+    });
+
+    expect(result.data?.visual_candidates).toHaveLength(1);
+    expect(result.data?.visual_candidates[0]?.description).toBe("Good");
+    expect(result.droppedCandidates).toHaveLength(1);
+  });
+
+  it("a comic_strip candidate with a real rendering_style survives with both fields intact", () => {
+    const result = parseAssociationResult({
+      visual_candidates: [goodCandidate({ lane: "comic_strip", rendering_style: "artistic_line_art" })],
+      ...BASE_RESPONSE_FIELDS,
+    });
+
+    expect(result.droppedCandidates).toHaveLength(0);
+    expect(result.data?.visual_candidates[0]?.lane).toBe("comic_strip");
+    expect(result.data?.visual_candidates[0]?.rendering_style).toBe("artistic_line_art");
+  });
+
+  it("drops a comic_strip candidate with no rendering_style -- scoped to that lane only, per rule 1", () => {
+    const result = parseAssociationResult({
+      visual_candidates: [goodCandidate({ description: "Good" }), goodCandidate({ description: "Bad", lane: "comic_strip" })],
+      ...BASE_RESPONSE_FIELDS,
+    });
+
+    expect(result.data?.visual_candidates).toHaveLength(1);
+    expect(result.data?.visual_candidates[0]?.description).toBe("Good");
+    expect(result.droppedCandidates).toHaveLength(1);
+    expect(result.droppedCandidates[0]!.issues).toContain("rendering_style");
+  });
+
+  it("a non-comic_strip candidate never needs rendering_style, even though the field exists on the schema", () => {
+    const result = parseAssociationResult({
+      visual_candidates: [goodCandidate({ lane: "typography" })],
+      ...BASE_RESPONSE_FIELDS,
+    });
+
+    expect(result.droppedCandidates).toHaveLength(0);
+    expect(result.data?.visual_candidates[0]?.rendering_style).toBeUndefined();
+  });
 });

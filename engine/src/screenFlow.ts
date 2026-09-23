@@ -21,6 +21,7 @@ export type ScreenId =
   | "intention_confirmation"
   | "image_description"
   | "image_provenance"
+  | "visual_style_preference"
   | "elements_discovery"
   | "creative_control"
   | "rough_scale"
@@ -51,6 +52,7 @@ export const SCREEN_IDS = [
   "intention_confirmation",
   "image_description",
   "image_provenance",
+  "visual_style_preference",
   "elements_discovery",
   "creative_control",
   "rough_scale",
@@ -85,6 +87,8 @@ export interface JourneyProgress {
   provenanceCaptured: boolean;
 
   // shared tail (Screens 7-13)
+  /** Pre-qualifying visual-style question (2026-09) -- asked once, right before Association is ever called for the first time, regardless of journey_mode (§7's convergence point). "not_sure" counts as answered; there's no skip. */
+  visualStylePreferenceSet: boolean;
   elementsDiscovered: boolean;
   creativeControlSet: boolean;
   roughScaleSet: boolean;
@@ -117,6 +121,7 @@ export function getNextScreen(p: JourneyProgress): ScreenId {
   }
 
   // §7: "All modes converge at Screen 7 and share Screens 7 to 13 identically."
+  if (!p.visualStylePreferenceSet) return "visual_style_preference";
   if (!p.elementsDiscovered) return "elements_discovery";
   if (!p.creativeControlSet) return "creative_control";
   if (!p.roughScaleSet) return "rough_scale";

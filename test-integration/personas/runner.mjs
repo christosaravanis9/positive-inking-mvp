@@ -171,6 +171,20 @@ async function advanceReflectionAndIntention(page) {
   await page.waitForTimeout(300);
 }
 
+// 2026-09: the pre-qualifying visual-style question (5-lane Association
+// expansion) now sits between Statement of Inspiration and Screen 7 for
+// every journey mode. None of the 5 existing personas were designed around
+// a specific lane preference -- their own assertions are about the depth
+// gate, DETAIL_SEPARATOR, reserve-pool exhaustion, and Build-upon, none of
+// which this question affects -- so every persona answers "Not sure" here
+// uniformly, keeping each persona's original intent unchanged rather than
+// picking a lane bias that was never part of its own design.
+async function chooseVisualStylePreference(page) {
+  await page.waitForSelector("text=Which visual approach appeals to you?", { timeout: 10000 });
+  await page.locator("button.option-chip-card", { hasText: "Not sure" }).click();
+  await page.waitForTimeout(200);
+}
+
 function detectModes(cardFirstLines) {
   const seen = [];
   for (const [mode, marker] of Object.entries(MODE_MARKERS)) {
@@ -422,6 +436,9 @@ export async function runPersona(browser, persona) {
 
     await advanceReflectionAndIntention(page);
     report.screensReached.push("meaning_reflection", "intention_confirmation");
+
+    await chooseVisualStylePreference(page);
+    report.screensReached.push("visual_style_preference");
 
     await driveScreen7(page, persona, report);
     report.screensReached.push("elements_discovery");

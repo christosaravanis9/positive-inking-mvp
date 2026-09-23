@@ -1,4 +1,4 @@
-import type { ArtisticDimensionKey, ArtistBrief, PlaceRole, ReadinessState } from "@positive-inking/engine";
+import type { ArtisticDimensionKey, ArtistBrief, PlaceRole, ReadinessState, AssociationLane } from "@positive-inking/engine";
 
 export interface DiscoveryData {
   primary_viewpoint: "past" | "present" | "future" | "mixed";
@@ -46,6 +46,10 @@ export interface VisualCandidate {
   follow_up_prompt?: string;
   /** 2026-09-09: which DEVICE VOCABULARY entry (engine's DEVICE_CATALOG) this candidate was built from -- undefined when the model's own value didn't match a real catalog id (server/src/routes/association.ts sanitizes it before this ever reaches the client). Used only for the device_impression/device_outcome analytics events below; never shown to the client. */
   device_id?: string;
+  /** 2026-09: which of the 5 pre-qualifying-question lanes (engine's AssociationLane) this candidate belongs to -- independent of device_id, see ASSOCIATION_SYSTEM_PROMPT's own DEVICE VOCABULARY intro. Undefined when the model's value didn't validate (server/src/schemas/association.ts's per-candidate salvage keeps the rest of the batch either way). */
+  lane?: AssociationLane;
+  /** comic_strip lane's own sub-attribute (rule 1) -- present only when lane is "comic_strip". */
+  rendering_style?: "realism" | "anime" | "artistic_line_art" | "photographic";
   personal_relevance: number;
   story_relevance: number;
   visual_potential: number;

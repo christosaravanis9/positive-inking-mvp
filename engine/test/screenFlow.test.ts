@@ -16,6 +16,7 @@ function base(overrides: Partial<JourneyProgress> = {}): JourneyProgress {
     intentionConfirmed: false,
     imageDescribed: false,
     provenanceCaptured: false,
+    visualStylePreferenceSet: false,
     elementsDiscovered: false,
     creativeControlSet: false,
     roughScaleSet: false,
@@ -75,21 +76,33 @@ describe("getNextScreen (§7-8 sequencing)", () => {
     expect(getNextScreen({ ...attraction, imageDescribed: true })).toBe("image_provenance");
   });
 
-  it("expert mode follows the same 3A/3B path as attraction (AC 11: reaches element capture within two screens)", () => {
+  it("expert mode follows the same 3A/3B path as attraction (AC 11: reaches element capture within two screens, plus the pre-qualifying visual-style question)", () => {
     const expert = base({ journey_mode: "expert" });
     expect(getNextScreen(expert)).toBe("image_description");
-    expect(getNextScreen({ ...expert, imageDescribed: true, provenanceCaptured: true })).toBe("elements_discovery");
+    expect(getNextScreen({ ...expert, imageDescribed: true, provenanceCaptured: true })).toBe("visual_style_preference");
+    expect(getNextScreen({ ...expert, imageDescribed: true, provenanceCaptured: true, visualStylePreferenceSet: true })).toBe(
+      "elements_discovery",
+    );
   });
 
-  it("all modes converge at elements_discovery and share the tail identically (§7)", () => {
+  it("all modes converge at visual_style_preference, then elements_discovery, and share the tail identically (§7)", () => {
     const fullDone = base({ storySubmitted: true, themesSelected: true, intentionConfirmed: true });
     const attractionDone = base({ journey_mode: "attraction", imageDescribed: true, provenanceCaptured: true });
-    expect(getNextScreen(fullDone)).toBe("elements_discovery");
-    expect(getNextScreen(attractionDone)).toBe("elements_discovery");
+    // Neither mode skips the pre-qualifying question -- it's the one screen every mode passes through before Association is ever called.
+    expect(getNextScreen(fullDone)).toBe("visual_style_preference");
+    expect(getNextScreen(attractionDone)).toBe("visual_style_preference");
+    expect(getNextScreen({ ...fullDone, visualStylePreferenceSet: true })).toBe("elements_discovery");
+    expect(getNextScreen({ ...attractionDone, visualStylePreferenceSet: true })).toBe("elements_discovery");
   });
 
   it("walks the shared tail in order: creative_control -> rough_scale -> composition -> style_reference -> artistic -> avoidances -> placement -> design_confirmation", () => {
-    const p = base({ storySubmitted: true, themesSelected: true, intentionConfirmed: true, elementsDiscovered: true });
+    const p = base({
+      storySubmitted: true,
+      themesSelected: true,
+      intentionConfirmed: true,
+      visualStylePreferenceSet: true,
+      elementsDiscovered: true,
+    });
     expect(getNextScreen(p)).toBe("creative_control");
     expect(getNextScreen({ ...p, creativeControlSet: true })).toBe("rough_scale");
     expect(getNextScreen({ ...p, creativeControlSet: true, roughScaleSet: true })).toBe("composition_background");

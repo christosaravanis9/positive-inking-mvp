@@ -1,10 +1,12 @@
 /**
  * Persona 4: Heavy rejector -- rejects slot 0's candidate repeatedly via
- * "Not this one" past the free reserve pool (7 items in the fake
- * double's fixture: 12 total candidates minus 5 default-visible) into a
- * paid, typed-reason reroll. Exercises the reserve-pool exhaustion path
- * and the real per-slot model call fixed/scaled earlier (association.ts
- * rule 1, "9 to 12" candidates so there's genuine reserve material).
+ * "Not this one" past the free reserve pool (9 items in the fake double's
+ * fixture as of the 2026-09 5-lane expansion: 14 total candidates minus 5
+ * default-visible; was 7 of 12 before that expansion added 2 more reserve-
+ * tier candidates) into a paid, typed-reason reroll. Exercises the
+ * reserve-pool exhaustion path and the real per-slot model call fixed/
+ * scaled earlier (association.ts rule 1, "9 to 12" candidates so there's
+ * genuine reserve material).
  */
 export default {
   id: "heavy-rejector",

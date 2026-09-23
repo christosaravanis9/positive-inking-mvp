@@ -17,6 +17,7 @@ export function deriveProgress(state: JourneyState): JourneyProgress {
     intentionConfirmed: ui.intentionConfirmed,
     imageDescribed: ui.imageDescribed,
     provenanceCaptured: ui.provenanceCaptured,
+    visualStylePreferenceSet: ui.visualStylePreferenceSet,
     elementsDiscovered: ui.elementsDiscovered,
     creativeControlSet: ui.creativeControlSet,
     roughScaleSet: ui.roughScaleSet,

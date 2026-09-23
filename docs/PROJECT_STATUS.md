@@ -18,7 +18,9 @@ whoever (human or Claude session) touches this file next:
 
 ## Current status
 
-**Built and working:** the full V3.0 intake prototype — Screens 1–13, the
+**Built and working:** the full V3.0 intake prototype — Screens 1–13 plus
+the pre-qualifying visual-style question inserted directly before Screen 7
+(2026-09, see below), the
 deterministic adaptive engine (`engine/`), the reference/consent flow,
 low-confidence correction, the new-idea loop, visual-association ranking,
 placement capture, style-reference resolution, first-party instrumentation
@@ -48,8 +50,9 @@ migration spec's twelve-section information architecture end to end — see
 on Screen 3 (Story)**: the same Discovery call also judges whether the
 story is substantively thin (a generic, swappable reason) versus
 concrete-but-abstract (a specific reason with no named person/object) --
-see the latest session log entry for the full design and its one open
-real-model verification gap. A live-test pass the same night found and
+real-model-verified 2026-09-09 (both calibration stories landed correctly)
+and closed, see that session log entry for the full design. A live-test
+pass the same night found and
 fixed a real raw-internal-text leak in the depth-exercise's "Share it"
 path (the same class of bug fixed multiple times this session) and added
 a visible loading animation to Screen 7's Association wait. **Voice input
@@ -59,10 +62,16 @@ voice issues (the ~10s cutoff and the "sometimes doesn't activate at
 all" failure) -- see the latest session log entry for the full design
 and the one deliberately-not-ported bug from the reference. **Every
 model-call wait state in the journey now uses one shared
-`ModelWaitIndicator` component** (animated dots + a count-up "Still
-working — Ns" past 5s, never a countdown) instead of static text --
-addresses the deferred timer/countdown item, see the latest session log
-entry for the full list of 9 locations changed. **The finalized privacy
+`ModelWaitIndicator` component**, across 10 call sites (`Avoidances`,
+`Clarification`, `DesignConfirmation`, `ElementsDiscovery`,
+`ImageProvenance` x2, `Story` x2, `StyleReference`,
+`VisualStylePreference`) -- addresses the deferred timer/countdown item.
+It originally showed animated dots + a count-up "Still working — Ns" past
+5s (never a countdown); 2026-09-11 replaced that with a visual progress
+track paced against each route's own timeout budget (fills to 85% then
+decelerates asymptotically, clamped at 99.5% so it never falsely implies
+completion). See the relevant session log entries for the full design of
+each. **The finalized privacy
 notice's two described-but-not-yet-built features now exist**: an 18+
 self-certification checkbox inline on the Welcome screen (no new
 screen, no ID collected, blocks Continue until checked, persists via
@@ -72,14 +81,15 @@ incapable of carrying story/image content since its schema has no
 free-text field, appending step-timing/completion events to a git-
 ignored local JSONL file) -- see that session log entry for the full
 design, the real content-leak bug it caught and fixed, and live-
-verification numbers. **Two more privacy-notice consent checkboxes now
-exist**: a non-blocking sensitive-information disclosure on the Story
-screen, and a third-party photo rights checkbox that genuinely blocks
-(disables the file input) each of the 3 upload sites
-(`ReferenceAttachment.tsx`, `StyleReference.tsx`, `Placement.tsx`'s two
-independent slots) until checked, via one small shared
-`PhotoRightsCheckbox` component -- see the latest session log entry.
-The privacy notice itself lives in the repo at
+verification numbers. **A third-party photo rights checkbox** genuinely blocks (disables the
+file input) each of the 3 upload sites (`ReferenceAttachment.tsx`,
+`StyleReference.tsx`, `Placement.tsx`'s two independent slots) until
+checked, via one small shared `PhotoRightsCheckbox` component. (A
+non-blocking sensitive-information disclosure also shipped alongside it on
+the Story screen on 2026-09-04, but was deliberately removed again
+2026-09-14 -- it never gated Continue, so nothing else fills its old
+role; Story.tsx, privacy.html, and the privacy-notice doc were all updated
+to match.) The privacy notice itself lives in the repo at
 `docs/positive-inking-privacy-notice.md`. **Three public, static,
 crawlable pages now exist** at `web/public/methodology.html`,
 `web/public/faq.html`, and `web/public/privacy.html` (flat filenames,
@@ -91,7 +101,10 @@ the Welcome screen and back to the app, with `web/public/llms.txt`,
 `sitemap.xml`, and a `robots.txt` that explicitly allows the major AI
 answer-engine crawlers by name. All served as real static files, never
 routed through the private React SPA -- confirmed by fetching the raw
-HTML response with no JS execution. **The app is now Render-deploy-ready**:
+HTML response with no JS execution. **Canonical domain is
+`discover.positiveinking.org`** (a subdomain, updated 2026-09-17 from the
+previously-assumed root `positiveinking.org`, with no separate root-domain
+site planned) across every static AEO page. **The app is now Render-deploy-ready**:
 `server/src/app.ts` serves the built frontend in production (a real gap
 that was found and fixed, verified by running the actual compiled server
 with `PORT`/`NODE_ENV=production` set and curling every route category),
@@ -116,7 +129,11 @@ light-only end to end, not just this one panel. See that session's log
 entry for why `color-scheme: light` alone would not have been sufficient.
 **A follow-up round (2026-09-06) shipped five more live-feedback items**:
 the "Your tattoo is about..." screen is now "Statement of Inspiration"
-(with a new subtitle); a weakly-grounded Association candidate's
+(with a new subtitle; later redesigned again, 2026-09-14, as an editorial
+pull-quote -- large decorative opening quotation mark, italic serif
+setting, a speech-bubble tail, own `.statement-quote`/`.statement-quote-text`
+classes -- distinct from the Blueprint's own separate quote-box callout
+described below); a weakly-grounded Association candidate's
 `personal_meaning` now routes through the same `resolution_state`/
 `follow_up_prompt` mechanism `description` already used, generating a
 warm, story-specific invitation instead of the model's own confusing
@@ -324,7 +341,7 @@ on. The Blueprint's Readiness section is the five independently-statused
 components (Meaning / Visual direction / References / Artist discussion /
 Final artwork), with three of Sites' own documented semantic defects
 corrected, not reproduced. The "What we've understood" panel is genuinely
-persistent across all of Screens 1–13 (not Screen-7-only) — it reuses the
+persistent across the whole intake journey (not Screen-7-only) — it reuses the
 exact same token values via a shared `.sites-tokens` CSS class rather than
 duplicating them. Question-flow copy applies a shared eyebrow/heading/
 instruction structure (`.screen-eyebrow`/`.screen-heading`, deliberately
@@ -377,14 +394,6 @@ exists to inform it properly.
 **In progress:** nothing actively mid-change right now.
 
 **Open decisions waiting on you:**
-- **Screen 7 redesign + reference-photo relocation to Screen 13 —
-  investigated, NOT implemented.** Full findings, a real sequencing bug
-  this redesign would silently introduce if built as literally described,
-  the proposed Screen 13 dropdown option set, and a real tension between
-  Part 2's "Why" reason and last night's just-shipped reserve-pool re-roll
-  decision are all in the latest session log entry. **Parts 2-4 are not
-  built** — awaiting your read on the sequencing fix and the Why/generation
-  tension before any of it is implemented.
 - **"Whose is it?" reference field — investigated, no change made.**
   The dropdown (`web/src/components/ReferenceAttachment.tsx`,
   `subject_relationship`) renders whenever a candidate's chosen fidelity
@@ -447,8 +456,10 @@ exists to inform it properly.
   or reject the single suggestion. Still not built.
 - **Overall journey progress/timeline indicator** across all screens.
 
-**Known risks:** the timeout numbers above are provisional (see the open
-decision); nothing else newly introduced this session. See
+**Known risks:** the timeout numbers above are based on limited real-sample
+data (typically one or two real timings per stage), not a stable measured
+ceiling -- revisit if real production data shows a different picture.
+Nothing else newly introduced this session. See
 `docs/session-summary.md` and the incident docs it links
 (`docs/async-state-incident.md`, `docs/dev-server-reliability.md`,
 `docs/timeout-matrix.md`) for the detailed history behind how the codebase
@@ -469,11 +480,9 @@ with no concrete detail) both correctly trigger the meaning-depth gate,
 and do so distinctly in behaviour — persona 1 attempts a still-thin
 follow-up answer, persona 2 declines the follow-up outright; **grounded
 control** (a specific, concrete story) does NOT trigger the gate, and
-serves as the regression baseline confirming all three Association
-candidate modes (literal object / pure abstraction / illustrative
-sequence) render on an ordinary run; **heavy rejector** repeatedly rejects
-one slot via "Not this one," confirming the reserve pool holds exactly 7
-alternatives (12 fixture candidates minus 5 visible slots) before falling
+serves as the regression baseline confirming candidates render on an
+ordinary run; **heavy rejector** repeatedly rejects one slot via "Not this
+one," confirming the reserve pool holds real alternatives before falling
 through to a real paid, typed-reason reroll; **editor** uses "Build upon"
 with a genuine edit and confirms the result is built from that edit
 verbatim, not a fresh alternative. The Section 4 detail-answer composition
@@ -542,6 +551,22 @@ description — no error banner, no blocked screen. The hint text never
 reaches Association's own prompt as source material; it exists only to
 inform this one screen. See the latest session log entry for full detail,
 including a real StrictMode double-invoke bug this pass found and fixed.
+
+**A few smaller, standalone items also shipped (2026-09-14/15/17) and
+should not be assumed missing just because they aren't mentioned above:**
+Screen 7's free-text idea box now leads with a large, primary voice
+button (typing is a secondary, always-visible option, not hidden/revealed)
+-- see "Voice input has been rebuilt" above for the underlying mechanism;
+a `readinessComponentLight()`-driven traffic-light meter (colored dots +
+"N of M ready") now sits alongside the existing detailed Readiness status
+list in both the Blueprint and Screen 13, never replacing it; every intake
+screen now has a generic "Back" button (reusing the understanding panel's
+own per-row backward-navigation mechanism, hidden on Welcome and on the
+Blueprint/Working Notes, same as the panel itself); and both Welcome and
+Screen 13 now state plainly, right before the moment it matters, that the
+Blueprint is a written creative brief for the client's artist, not a
+finished image -- addressing a live-reported gap where beta testers
+expected something else and felt let down at the very end.
 
 **⚠ Supabase migration backlog: 3 deep, none confirmed run against
 production.** `docs/supabase-migration-2026-09-09-device-roster.sql`,

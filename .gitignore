@@ -14,3 +14,7 @@ coverage/
 # Anonymous usage-analytics append log (server/src/analyticsStore.ts) --
 # local-only aggregate event data, never committed.
 server/data/
+# Persona test-harness output (test-integration/personas/runner.mjs) --
+# regenerated on every run, never committed.
+test-integration/personas/reports/
+test-integration/personas/screenshots/

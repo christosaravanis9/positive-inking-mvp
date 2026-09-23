@@ -15,6 +15,7 @@
     "build": "npm run build -w engine && npm run build -w server && npm run build -w web",
     "test": "npm run build -w engine && npm run test -w engine && npm run test -w server && npm run test -w web",
     "test:integration": "node test-integration/asyncStateRace.mjs",
+    "test:personas": "node test-integration/personas/index.mjs",
     "test:dev-reliability": "node test-integration/devServerReliability.mjs",
     "validate:local": "node scripts/validateLocal.mjs",
     "verify-model": "npm run verify-model -w server",

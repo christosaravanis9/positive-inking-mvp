@@ -12,8 +12,16 @@
  * (server/src/schemas/*.ts), not picked arbitrarily -- see
  * docs/timeout-matrix.md for the full reasoning per route. Summary:
  *
+ *  - style_hints: the smallest schema in the app -- 5 short one-sentence
+ *    strings, one per Association lane, nothing nested. A background
+ *    enhancement call (VisualStylePreference.tsx's per-lane hint text),
+ *    not a blocking core step the journey depends on -- fastest by design,
+ *    both because the output genuinely is tiny and because a slow call
+ *    here is pure wasted wait on a screen the client could otherwise move
+ *    straight through.
  *  - provenance, avoidance: small schemas, short free-text/array output,
- *    default maxTokens (2048) never overridden by the route -- fastest.
+ *    default maxTokens (2048) never overridden by the route -- fastest of
+ *    the routes with real downstream consequences if they fail.
  *  - style_reference: small fixed-vocabulary classification (<=7 dimension/
  *    value pairs against a closed vocab) -- fast, slightly more judgement
  *    than pure extraction.
@@ -31,7 +39,7 @@
  *    not field count, drives latency here).
  */
 
-export type ModelRoute = "discovery" | "provenance" | "association" | "avoidance" | "style_reference" | "blueprint";
+export type ModelRoute = "discovery" | "provenance" | "association" | "avoidance" | "style_reference" | "blueprint" | "style_hints";
 
 export const MODEL_ROUTES: readonly ModelRoute[] = [
   "discovery",
@@ -40,6 +48,7 @@ export const MODEL_ROUTES: readonly ModelRoute[] = [
   "avoidance",
   "style_reference",
   "blueprint",
+  "style_hints",
 ];
 
 /**
@@ -84,6 +93,7 @@ export const MODEL_ROUTES: readonly ModelRoute[] = [
  * is the simpler fix the data actually supports.
  */
 export const MODEL_ROUTE_TIMEOUT_DEFAULTS_MS: Record<ModelRoute, number> = {
+  style_hints: 8000,
   provenance: 10000,
   avoidance: 10000,
   style_reference: 12000,

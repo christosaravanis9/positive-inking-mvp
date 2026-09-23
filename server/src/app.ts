@@ -10,6 +10,7 @@ import { associationRouter } from "./routes/association.js";
 import { blueprintRouter } from "./routes/blueprint.js";
 import { avoidanceRouter } from "./routes/avoidance.js";
 import { styleReferenceRouter } from "./routes/styleReference.js";
+import { styleHintsRouter } from "./routes/styleHints.js";
 import { analyticsRouter } from "./routes/analytics.js";
 
 /**
@@ -40,6 +41,7 @@ export function createApp() {
   app.use(blueprintRouter);
   app.use(avoidanceRouter);
   app.use(styleReferenceRouter);
+  app.use(styleHintsRouter);
   app.use(analyticsRouter);
 
   // Production static serving: in dev this is a same-origin proxy target

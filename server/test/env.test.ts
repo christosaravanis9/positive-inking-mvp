@@ -12,6 +12,7 @@ describe("env.modelTimeouts", () => {
       "MODEL_TIMEOUT_AVOIDANCE_MS",
       "MODEL_TIMEOUT_STYLE_REFERENCE_MS",
       "MODEL_TIMEOUT_BLUEPRINT_MS",
+      "MODEL_TIMEOUT_STYLE_HINTS_MS",
     ];
     const saved = ROUTE_ENV_VARS.map((v) => process.env[v]);
     ROUTE_ENV_VARS.forEach((v) => delete process.env[v]);

@@ -25,6 +25,7 @@ the heavy route or was needlessly generous for the light one.
 
 | Route | Server budget (default) | Client timeout (budget + margin) | Why |
 |---|---|---|---|
+| `style_hints` | 8000ms | 18000ms | The smallest schema in the app (`server/src/schemas/styleHints.ts`): 5 short one-sentence strings, one per Association lane, nothing nested. A background enhancement on `VisualStylePreference.tsx`, not a step the journey depends on -- see "Style hints" below. |
 | `provenance` | 10000ms | 20000ms | Smallest schema (`server/src/schemas/provenance.ts`): `attraction_origin`, `origin_period`, `origin_source`, a short `personal_entities[]`, two scalars, one small nested object. Default `maxTokens` (2048), never raised by the route. Pure short-field extraction. |
 | `avoidance` | 10000ms | 20000ms | Smallest possible shape: 5–7 short suggestion strings, nothing nested (`server/src/schemas/avoidance.ts`). Default `maxTokens`. |
 | `style_reference` | 12000ms | 22000ms | A closed classification against a fixed 7-dimension vocabulary (`RESOLVABLE_STYLE_DIMENSIONS`), at most 7 `{dimension, value}` pairs plus two short text fields. More judgement than pure extraction (recognising a named style/artist and deciding what it does and doesn't settle), so a small step above the floor. Default `maxTokens`. |
@@ -55,6 +56,7 @@ MODEL_TIMEOUT_ASSOCIATION_MS=40000
 MODEL_TIMEOUT_AVOIDANCE_MS=10000
 MODEL_TIMEOUT_STYLE_REFERENCE_MS=12000
 MODEL_TIMEOUT_BLUEPRINT_MS=45000
+MODEL_TIMEOUT_STYLE_HINTS_MS=8000
 ```
 
 The old single `MODEL_REQUEST_TIMEOUT_MS` no longer exists — it applied one
@@ -326,3 +328,24 @@ logic pre-emptively.
 not an average. Both `[model-timing]` lines already exist in production
 without any new code — the next few real Blueprint generations will show
 whether 45000ms carries genuine margin the way this document expects.
+
+## Style hints (2026-09-23): a new, deliberately fast, non-blocking route
+
+`style_hints` (`server/src/schemas/styleHints.ts`, `server/src/routes/
+styleHints.ts`) is the smallest schema in the app — 5 short one-sentence
+strings, one per Association lane, nothing nested — so it gets the
+smallest budget in the matrix (8000ms server / 18000ms client), below even
+Provenance and Avoidance.
+
+This is also the first route in the app that is explicitly **not** a step
+the journey depends on. Every other route's failure surfaces a real,
+visible error (§16.2's "never silently canned content" invariant) —
+`style_hints` is the one deliberate exception: `VisualStylePreference.tsx`
+calls it directly (not through `useAsyncAction`, so a failure never
+touches the shared journey error state) and falls back to today's static
+per-lane description on any failure or timeout, silently, matching the
+feature's own explicit "must degrade gracefully, never block or show an
+error" requirement. The low budget reflects that asymmetry: a slow call
+here is pure wasted client wait on a screen the client could otherwise
+move straight through, not a call worth giving extra room to finish the
+way Association/Blueprint's real generation work is.

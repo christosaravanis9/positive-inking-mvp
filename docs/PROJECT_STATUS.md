@@ -519,8 +519,22 @@ when the client said "not sure"). Screen 7 (`ElementsDiscovery.tsx`) now
 shows 3 candidates by default (down from 5); rejecting all 3 via "Not this
 one" with none Kept/Built-upon reveals a second batch of 3 more, drawn from
 the same reserve pool an ordinary free re-roll already uses — not a fresh
-generation call. See the latest session log entry for full detail on
-Part 3's restructure and Part 4's verification.
+generation call.
+
+**The pre-qualifying screen's 5 lane options now carry personalized hint
+text, not identical-for-everyone generic subheadings.** A new, small,
+deliberately fast model call (`style_hints`, `server/src/schemas/
+styleHints.ts` / `server/src/routes/styleHints.ts`) fires as
+`VisualStylePreference.tsx` loads, reads the same confirmed story/meaning
+Association itself reads moments later, and writes one short, loose,
+illustrative line per lane grounded in that client's own story (e.g. "Like
+a single object standing in for the freedom you're building toward,"
+never a fleshed-out candidate idea). A per-lane miss, a total call
+failure, or a timeout each fall back silently to today's static generic
+description — no error banner, no blocked screen. The hint text never
+reaches Association's own prompt as source material; it exists only to
+inform this one screen. See the latest session log entry for full detail,
+including a real StrictMode double-invoke bug this pass found and fixed.
 
 **⚠ Supabase migration backlog: 3 deep, none confirmed run against
 production.** `docs/supabase-migration-2026-09-09-device-roster.sql`,
@@ -574,6 +588,125 @@ here for you to decide scope on, matching how other open decisions in
 this document are tracked.
 
 ## Session log
+
+### 2026-09-23 (later still) — Personalized per-lane style hints on the pre-qualifying screen, replacing the generic identical-for-everyone subheadings
+
+Live-requested: generic category labels ("Abstract & symbolic," "Illustrative
+& narrative," ...) mean nothing to a client who has never thought about
+tattoo design in those terms, especially with zero candidates shown yet to
+anchor against. Fix: a new lightweight model call, triggered as the
+pre-qualifying screen loads, reads the client's already-confirmed story/
+meaning and writes one short, loose, illustrative line per lane -- grounded
+in their actual story, not a generic restatement of the lane's definition.
+Explicitly guarded against anchoring: a hint is a gesture toward what the
+lane could look like, never a fleshed-out candidate idea Association would
+later propose.
+
+**Shipped:**
+- New `server/src/schemas/styleHints.ts`: `STYLE_HINTS_SYSTEM_PROMPT`
+  (grounded-not-generic / loose-not-a-candidate / one-short-sentence rules,
+  each with a BAD/BETTER worked example, matching association.ts's own
+  register) and a tool schema asking for one hint per lane, all 5 required
+  in the JSON schema sent to the model but validated leniently at the zod
+  layer -- a missing/null/blank hint for one lane is a tracking gap, not a
+  reason to fail the whole call, same lenient philosophy as association.ts's
+  optional fields.
+- New `server/src/routes/styleHints.ts` (`POST /api/style-hints`): reads
+  `confirmed_meaning_or_provenance` (the exact same field Association's own
+  route reads), calls the model, returns whichever lanes' hints validated.
+  Never forwards this text anywhere else -- the one place it's used is the
+  response back to this one screen.
+- New `"style_hints"` `ModelRoute` (`engine/src/modelTimeouts.ts`): 8000ms
+  server budget / 18000ms client timeout, the smallest and fastest in the
+  matrix -- the smallest schema in the app (5 short one-sentence strings)
+  and, more importantly, the first route whose OWN failure is an accepted,
+  designed-for outcome rather than something worth waiting longer to avoid
+  (see docs/timeout-matrix.md's new "Style hints" section for the full
+  reasoning). `server/src/env.ts` + `.env.example` +
+  `docs/timeout-matrix.md` updated with the new
+  `MODEL_TIMEOUT_STYLE_HINTS_MS` override, same pattern as every other
+  route.
+- `web/src/screens/VisualStylePreference.tsx`: fetches hints on mount via a
+  new `web/src/api/styleHints.ts`, using a new shared
+  `web/src/journey/confirmedMeaningOrProvenanceText()` helper (extracted
+  from `ElementsDiscovery.tsx`'s own previously-private, near-identical
+  helper, so both screens that need "the client's confirmed story" read it
+  identically rather than risk drifting apart). A brief `ModelWaitIndicator`
+  covers the fetch (this screen already sits right before an Association
+  call, so a short wait here is familiar); once it settles, all 6 options
+  render, each real lane using its personalized hint when one came back and
+  falling back to today's static description otherwise -- per lane, not
+  all-or-nothing, so one missing hint never costs the other four their
+  personalization. "Not sure" never gets a hint; it has no lane to ground
+  one in.
+- **Deliberately NOT routed through `useAsyncAction`/the shared journey
+  error state.** Every other model-backed call in this app treats its own
+  failure as something to show the client (§16.2's "never silently canned
+  content"); this is the one deliberate exception, chosen because the
+  feature itself is optional polish, not a step the journey depends on --
+  see docs/timeout-matrix.md's new section for the full reasoning. Routing
+  it through the shared error state would have risked a stale error
+  leaking onto whichever screen the client reaches next that does render
+  `AsyncError`, for a failure this screen itself was never going to show
+  in the first place.
+
+**A real bug found and fixed during verification, not just a formality:**
+live-testing with React StrictMode (on in dev, `web/src/main.tsx`) found
+the request's result was silently discarded forever whenever the effect's
+own cleanup ran during StrictMode's synthetic mount -> cleanup -> remount
+cycle -- a `cancelled` flag scoped to the closure of the FIRST invocation
+got set `true` by that cleanup, and the "run exactly once" `fetchedRef`
+guard (matching `ElementsDiscovery.tsx`'s own `historySeededRef` idiom)
+then stopped the SECOND invocation from ever starting a fresh fetch or
+returning a fresh cleanup to un-poison it. The one real in-flight request
+resolved against a flag stuck `true` forever, leaving the loading state
+stuck and the screen's option buttons never rendering -- caught by the
+persona harness (all 5 personas timed out waiting for the "Not sure"
+button) before it ever reached a live browser by hand. Fixed by dropping
+the second, independently-scoped `cancelled` flag entirely and relying
+solely on the existing `mountedRef` guard already used elsewhere in this
+codebase for exactly this class of staleness check (`useAsyncAction.ts`'s
+own `guard.isStale()`) -- `mountedRef` is correctly `true` again by the
+time the one real fetch resolves, since it flips back during the remount
+that immediately follows the synthetic unmount.
+
+**Verification:** `npm run typecheck`/`npm test`/`npm run build`, all
+clean across engine (191 tests) / server (135 tests, +14 new:
+`styleHintsSchema.test.ts` leniency coverage, `styleHintsRoute.test.ts`
+happy-path/missing-lane/validation-failure/model-error coverage) / web
+(311 tests, VisualStylePreference.test.tsx rewritten with 13 cases:
+loading state, full personalization, per-lane fallback on a partial
+response, full fallback on a failed/rejected call, no visible error text,
+and the screen staying fully choosable throughout). `test-integration/
+fakeAnthropic.mjs` gained a `write_style_hints` fixture that genuinely
+varies its output by input story (unlike every other fixture in that
+file, which returns identical content regardless of story) -- slices a
+snippet out of the actual confirmed-meaning text and weaves it into each
+hint, so a live-verification run can tell "the pipeline read the story"
+apart from "the fixture is boilerplate." Needed two follow-up fixes after
+the first live run showed byte-identical hints across two different
+fixture stories: the naive `slice(0, 40)` from the string's start never
+reached past ~64-100+ characters of shared, story-independent boilerplate
+(this route's own "Confirmed meaning or provenance:\n" framing, plus, for
+full-mode journeys, `discoveryInput`'s own fixed "Test statement of
+intention: " echo and `discovery.ts`'s own fixed userMessage framing
+ending in "...Story:\n") -- fixed by slicing from the LAST "Story:\n"
+marker instead of the string start, which sidesteps every current and
+future variant of that shared prefix at once. All 5 personas re-run and
+pass end to end against the fixed fixture. Live-verified with two
+different fixture stories (a grandmother/apron story, a maps/compasses
+story): every real lane's hint text genuinely differs between them and
+traces back to that story's own actual content (confirmed by reading each
+rendered hint, not just confirming it renders) -- screenshotted. Also
+live-verified the fallback path by forcing `/api/style-hints` to 502 via
+Playwright's `page.route()`: every lane falls back to its exact static
+description, no visible error text anywhere on screen, and the screen
+stays fully usable (choosing an option still stores the right value and
+advances the journey) -- screenshotted. The one browser-level console
+entry this forced failure produces (`Failed to load resource: 502`) is
+Chromium's own network-layer log for any non-2xx response, unrelated to
+whether app code itself throws or shows anything -- not a defect, and not
+something app code can or should suppress.
 
 ### 2026-09-23 (later) — 5-lane Association expansion, Parts 3-4 of 4 (Screen 7 default-3 + second-batch reveal, plus that whole feature's verification) — completes the split proposed in the previous entry
 

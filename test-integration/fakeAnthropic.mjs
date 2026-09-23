@@ -395,6 +395,56 @@ function avoidanceInput() {
   };
 }
 
+/**
+ * Per-lane style hints (2026-09-23). Unlike the other fixtures above, this
+ * one deliberately varies its output based on the actual input text --
+ * every other fixture in this file returns identical content regardless of
+ * story, which would make it impossible for a live-verification run to
+ * ever tell "the model read the story" apart from "the fixture is
+ * boilerplate." Slicing a real snippet out of the confirmed meaning/
+ * provenance text and weaving it into each of the 5 hints proves the app
+ * genuinely threads story -> prompt -> per-lane hint -> screen; it does
+ * NOT prove the real model's judgement of what each hint should say (this
+ * fake double never does -- see this file's own top-of-file caveat), only
+ * that the pipeline branches on real input rather than always returning
+ * the same 5 lines.
+ */
+function styleHintsInput(rawText = "") {
+  // Strips this route's own boilerplate framing (server/src/routes/
+  // styleHints.ts's "Confirmed meaning or provenance:\n" prefix),
+  // discoveryInput's own "Test statement of intention: " echo, and --
+  // found on a second pass, still live-tested 2026-09-23 -- discovery.ts's
+  // own userMessage framing ("The user selected the viewpoint... Retain it
+  // as primary_viewpoint... \n\nStory:\n", echoed verbatim into
+  // statement_of_intention as part of the raw text discoveryInput wraps).
+  // All of this is fixed text identical across every story; a naive
+  // slice(0, N) from the start never reached past it into any actual
+  // story-specific content, so two genuinely different fixture stories
+  // still produced byte-identical "personalized" hints even after the
+  // first stripping pass. Slicing from the LAST "Story:\n" marker instead
+  // of the string start sidesteps every current and future variant of
+  // this boilerplate at once, since every one of these routes' own
+  // userMessage framing puts the real story after that exact marker. Real
+  // Anthropic API traffic never carries any of this synthetic wrapper
+  // text, so this is purely a fake-double-fixture concern, never
+  // something the real prompt/route needs.
+  const withoutKnownPrefixes = rawText
+    .replace(/__TEST_[A-Z_0-9]+__/g, "")
+    .replace(/^Confirmed meaning or provenance:\s*/, "")
+    .replace(/^Test statement of intention:\s*/, "")
+    .trim();
+  const storyMarker = withoutKnownPrefixes.lastIndexOf("Story:\n");
+  const cleanText = (storyMarker === -1 ? withoutKnownPrefixes : withoutKnownPrefixes.slice(storyMarker + "Story:\n".length)).trim();
+  const snippet = cleanText.slice(0, 40).trim() || "this story";
+  return {
+    abstract_symbolic: `Something that stands in for what "${snippet}" means to you, without naming it directly.`,
+    illustrative_narrative: `A plain, real scene drawn straight from "${snippet}".`,
+    typography: `Words pulled directly from "${snippet}", not an invented phrase.`,
+    comic_strip: `A few small linked beats tracing "${snippet}".`,
+    montage_collage: `A few pieces of "${snippet}" layered into one composition.`,
+  };
+}
+
 function styleReferenceInput() {
   return {
     recognized: false,
@@ -455,6 +505,7 @@ const FIXTURES_BY_TOOL = {
   suggest_avoidances: () => avoidanceInput(),
   resolve_style_reference: () => styleReferenceInput(),
   write_blueprint: () => blueprintInput(),
+  write_style_hints: (text) => styleHintsInput(text),
 };
 
 const server = http.createServer((req, res) => {

@@ -17,6 +17,7 @@ const ROUTE_ENV_VAR: Record<ModelRoute, string> = {
   avoidance: "MODEL_TIMEOUT_AVOIDANCE_MS",
   style_reference: "MODEL_TIMEOUT_STYLE_REFERENCE_MS",
   blueprint: "MODEL_TIMEOUT_BLUEPRINT_MS",
+  style_hints: "MODEL_TIMEOUT_STYLE_HINTS_MS",
 };
 
 function readModelTimeouts(): Record<ModelRoute, number> {

@@ -17,7 +17,7 @@ describe("model route timeouts", () => {
 
   it("association and blueprint (the heaviest structured-output calls) have a strictly larger ceiling than every simple extraction route", () => {
     const heavy = ["association", "blueprint"] as const;
-    const simple = ["discovery", "provenance", "avoidance", "style_reference"] as const;
+    const simple = ["discovery", "provenance", "avoidance", "style_reference", "style_hints"] as const;
     for (const h of heavy) {
       for (const s of simple) {
         expect(MODEL_ROUTE_TIMEOUT_DEFAULTS_MS[h]).toBeGreaterThan(MODEL_ROUTE_TIMEOUT_DEFAULTS_MS[s]);
@@ -37,6 +37,7 @@ describe("model route timeouts", () => {
 
   it("matches the documented timeout matrix (docs/timeout-matrix.md) exactly", () => {
     expect(MODEL_ROUTE_TIMEOUT_DEFAULTS_MS).toEqual({
+      style_hints: 8000,
       provenance: 10000,
       avoidance: 10000,
       style_reference: 12000,

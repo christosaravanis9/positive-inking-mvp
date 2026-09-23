@@ -100,6 +100,7 @@ export async function startStack() {
       MODEL_TIMEOUT_AVOIDANCE_MS: String(MODEL_BUDGET_MS),
       MODEL_TIMEOUT_STYLE_REFERENCE_MS: String(MODEL_BUDGET_MS),
       MODEL_TIMEOUT_BLUEPRINT_MS: String(MODEL_BUDGET_MS),
+      MODEL_TIMEOUT_STYLE_HINTS_MS: String(MODEL_BUDGET_MS),
     },
   });
   await waitForHttp(`http://localhost:${SERVER_PORT}/api/health`);

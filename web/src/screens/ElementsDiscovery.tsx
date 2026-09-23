@@ -7,6 +7,7 @@ import { ModelWaitIndicator } from "../components/ModelWaitIndicator";
 import { ReferenceAttachment, emptyReferenceDraft, type ReferenceDraft } from "../components/ReferenceAttachment";
 import { VoiceInputButton, type VoiceInputHandle } from "../components/VoiceInput";
 import { NEEDS_REFERENCE, statusFromDraft, draftToConsentRecord, draftFromExisting } from "../journey/referenceDraft";
+import { confirmedMeaningOrProvenanceText } from "../journey/confirmedMeaning";
 import { logTelemetryEvent } from "../instrumentation/telemetry";
 import { reportDeviceImpression, reportDeviceOutcome, reportIdeaAdded } from "../instrumentation/analytics";
 import type { VisualElement, ElementFidelity, ConsentRecord } from "@positive-inking/engine";
@@ -447,9 +448,7 @@ export function ElementsDiscovery() {
   const continueDisabled = Object.keys(decisionByIndex).length === 0 && addedIdeas.length === 0 && state.project.visual_elements.length === 0;
 
   function confirmedMeaningText(): string {
-    return state.project.journey_mode === "full"
-      ? state.project.statement_of_intention
-      : [state.project.raw_story, state.project.attraction_origin].filter(Boolean).join("\n\n");
+    return confirmedMeaningOrProvenanceText(state.project);
   }
 
   function knownPersonalMaterial(): string[] {

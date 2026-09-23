@@ -71,6 +71,11 @@ export interface AssociationData {
   contradictions_noticed: { description: string; resolutions: string[] }[];
 }
 
+/** 2026-09-23: one short, loose, illustrative hint per Association lane (server/src/schemas/styleHints.ts), for VisualStylePreference.tsx's per-lane subheadings. A lane missing from `hints` (call failed entirely, or the model omitted just that one lane) falls back to that screen's own static description -- never treated as an error. */
+export interface StyleHintsData {
+  hints: Partial<Record<AssociationLane, string>>;
+}
+
 export interface AvoidanceData {
   suggestions: string[];
 }

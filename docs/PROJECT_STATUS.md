@@ -552,6 +552,26 @@ reaches Association's own prompt as source material; it exists only to
 inform this one screen. See the latest session log entry for full detail,
 including a real StrictMode double-invoke bug this pass found and fixed.
 
+**A real production blank-screen crash is now fixed (2026-09-24), and the
+app has its first render-crash safety net.** A returning client's
+pre-rename localStorage record (missing the 2026-09-23-renamed
+`visual_style_preferences` field) crashed `VisualStylePreference.tsx`'s
+render with no way to recover -- root-caused and fixed at the persistence-
+hydration boundary (`journey/persistence.ts`'s `normalizeProjectShape()`),
+not just patched at the one call site it happened to surface at.
+`server/src/schemas/styleHints.ts`'s `toStyleHints()` now does genuine
+per-lane salvage (one malformed or old-named lane is dropped alone, not
+the whole response) instead of all-or-nothing validation, matching
+association.ts's own per-candidate salvage philosophy. **The app now has
+its first-ever React error boundary** (`web/src/components/
+ErrorBoundary.tsx`, wrapped around the entire app in `main.tsx`): any
+future uncaught render exception anywhere shows a short recoverable
+message with a "Reload page" action (the client's progress lives in
+localStorage, untouched by a crash) and a separate, clearly-labelled
+"Start a fresh journey" escape hatch -- never a blank page again, and
+never a silent loss of the client's answers. See the latest session log
+entry for full root-cause detail and verification.
+
 **A few smaller, standalone items also shipped (2026-09-14/15/17) and
 should not be assumed missing just because they aren't mentioned above:**
 Screen 7's free-text idea box now leads with a large, primary voice
@@ -620,6 +640,86 @@ here for you to decide scope on, matching how other open decisions in
 this document are tracked.
 
 ## Session log
+
+### 2026-09-24 — Fixed a real production blank-screen crash: `visual_style_preferences` undefined for returning clients, plus defense-in-depth and an app-wide error boundary
+
+Live-reported (phone testing, post-deploy of 2026-09-23's lane rename):
+the pre-qualifying screen went blank for a returning client. Root-caused,
+fixed, and hardened against the same class of bug recurring.
+
+**Root cause, found and fixed.** 2026-09-23 renamed `ProjectState.
+visual_style_preference` (singular, `string | null`) to
+`visual_style_preferences` (plural, an array) -- but a returning client's
+browser can still hold a pre-rename localStorage record. `journey/
+persistence.ts`'s `loadPersistedState()` only checked that the record still
+had `.project`/`.ui` at all, not that every field inside them matched the
+CURRENT shape -- a pre-rename record passes that check untouched, so it was
+never falling back to a fresh journey, just silently carrying the old field
+forward. `VisualStylePreference.tsx` then read `visual_style_preferences`
+as `undefined` and called `.includes()` on it during render -- an uncaught
+exception, and (see below) nothing in the app could catch it. Fixed with a
+new `normalizeProjectShape()` in `persistence.ts`, applied to every loaded
+record: coerces `visual_style_preferences` to `[]` whenever it isn't
+genuinely an array, regardless of what old field a pre-rename record might
+still be carrying. `VisualStylePreference.tsx` also gained a local `?? []`
+fallback on the same read, as cheap, narrow defense-in-depth on top of the
+real fix, not a substitute for it.
+
+**Server-side normalization (style-hints output).** Investigated whether
+the model's style-hints response itself could reach the client in a shape
+that crashes rendering (old lane names, missing lanes, extra unknown
+keys) -- confirmed live that the EXISTING design already degraded these
+safely (unknown keys were always silently stripped, missing lanes were
+already optional), with exactly one real gap: a single lane coming back
+the wrong TYPE (e.g. a nested object instead of a string) failed
+validation for the whole response, 502'ing the request and costing all 5
+lanes their personalization over one bad one. `server/src/schemas/
+styleHints.ts`'s `toStyleHints()` now validates each of the 5 current
+lanes independently (same per-lane-salvage philosophy as `association.ts`'s
+`parseAssociationResult`) -- one malformed or old-named lane is dropped
+alone, the other valid lanes still reach the client. Returns null only
+when the raw shape itself isn't a plain object at all.
+
+**Client-side defence.** `VisualStylePreference.tsx`'s hints-fetch
+`.then()` now rejects any non-plain-object response shape (null, an
+array, a stray primitive) before it ever reaches `setHints`, on top of
+the server-side normalization above.
+
+**App-wide error boundary (new safety net, not a substitute for the fixes
+above).** New `web/src/components/ErrorBoundary.tsx` (`AppErrorBoundary`,
+a class component -- still the only mechanism React offers for this;
+`globalErrors.ts`'s window.onerror/unhandledrejection listeners do NOT
+catch a render exception, since React has already unmounted the tree by
+the time they fire), wrapped around the entire `<App/>` in `main.tsx`. On
+any uncaught render error anywhere in the tree, shows a short recoverable
+message ("This screen ran into a problem... your answers so far are
+safe") with a primary "Reload page" action (a fresh load re-hydrates from
+the same localStorage record, now normalized) and a secondary, explicitly-
+labelled "Start a fresh journey" escape hatch that clears localStorage --
+never silent, never the default.
+
+**Verification.** New regression tests: `journey/persistence.test.ts`
+(a pre-rename record, a malformed non-array value, and a genuinely valid
+array all resolve correctly); `VisualStylePreference.test.tsx` gained a
+test feeding the screen a hints response with old lane names, missing
+lanes, and an extra unknown key, confirming full render with fallbacks
+and continued interactivity; `styleHintsSchema.test.ts` gained per-lane-
+salvage tests (old names dropped, a malformed-type lane dropped alone,
+all three failure modes together still salvage every valid lane); new
+`ErrorBoundary.test.tsx` confirms a deliberately-thrown render error
+shows the recoverable UI (not a blank page), children render normally
+when nothing throws, and "Start a fresh journey" genuinely clears
+localStorage before reloading. `npm run typecheck && npm test && npm run
+build` all clean across engine/server/web (engine 191, server 141 [+4],
+web 323 [+9]); all 5 personas pass. Live browser check (real server +
+real Vite + the fake-Anthropic double): drove a real journey up to the
+pre-qualifying screen, then stripped exactly `visual_style_preferences`
+from the genuine localStorage record the app itself had just produced
+(the precise pre-rename regression shape) and reloaded -- zero page
+errors, the screen rendered normally with real per-lane hints, the error
+boundary never fired (confirming the root-cause fix itself works, not
+just the safety net), and selecting a lane + Continue still correctly
+wrote `["illustrative"]`.
 
 ### 2026-09-23 (latest) — Lane relabeling to match the book "Positive Inking," pre-qualifying screen converted to multi-select, biasing reworked for N selected lanes
 

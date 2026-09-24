@@ -63,7 +63,14 @@ export function VisualStylePreference() {
   // useAsyncAction -- see the effect below for why.
   const [hints, setHints] = useState<Partial<Record<AssociationLane, string>>>({});
   const [hintsLoading, setHintsLoading] = useState(true);
-  const [selected, setSelected] = useState<VisualStylePreferenceValue[]>(state.project.visual_style_preferences);
+  // `?? []` is defensive, not the actual fix -- the real root cause (a
+  // returning client's pre-rename localStorage record leaving this field
+  // `undefined`, which crashed `.includes()` below with no error boundary
+  // to catch it) is fixed at the hydration boundary in
+  // journey/persistence.ts's normalizeProjectShape(). Kept here too since
+  // it costs nothing and guards any other path that could produce the
+  // same shape.
+  const [selected, setSelected] = useState<VisualStylePreferenceValue[]>(state.project.visual_style_preferences ?? []);
   const mountedRef = useRef(true);
   const fetchedRef = useRef(false);
 
@@ -111,7 +118,12 @@ export function VisualStylePreference() {
     requestStyleHints(confirmedMeaningOrProvenanceText(state.project))
       .then((result) => {
         if (!mountedRef.current) return;
-        setHints(result.hints);
+        // Defensive, on top of the server's own normalization
+        // (server/src/schemas/styleHints.ts's per-lane salvage): tolerates
+        // any response shape that isn't a genuine plain object (null, an
+        // array, a stray primitive), so this call can never poison
+        // `hints` with something render can't safely index into.
+        setHints(result.hints && typeof result.hints === "object" && !Array.isArray(result.hints) ? result.hints : {});
       })
       .catch(() => {
         // Silent, deliberate: hints stays {} and every option below falls

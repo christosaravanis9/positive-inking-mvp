@@ -151,6 +151,50 @@ describe("VisualStylePreference", () => {
     vi.unstubAllGlobals();
   });
 
+  /**
+   * Regression for the 2026-09-24 production crash: a hints response
+   * carrying old (pre-rename) lane names, missing current lanes, and an
+   * extra unknown key must render entirely via fallbacks -- never crash.
+   * The server itself now normalizes this shape (styleHints.ts's per-lane
+   * salvage) before it ever reaches the client, but this test feeds the
+   * screen the malformed shape directly (bypassing that normalization) so
+   * it also locks in the client's own independent tolerance for it.
+   */
+  it("tolerates old lane names, missing lanes, and an extra unknown key in the hints response without crashing", async () => {
+    stubHintsResponse({
+      illustrative_narrative: "An old-shaped hint that should never be looked up under the new lane name.",
+      comic_strip: "Another old-shaped hint, same story.",
+      abstract_symbolic: "Like a single object standing in for the freedom you're building toward.",
+      // typography, framed, narrative_collage all deliberately absent under their current names.
+      some_unexpected_future_key: "Junk that should be silently ignored.",
+    } as unknown as Record<string, string>);
+    seedState();
+
+    // The render itself must not throw -- await confirms it settles past loading.
+    await renderAndWaitPastLoading();
+
+    // The one current-shaped lane present renders its personalized hint.
+    screen.getByText("Like a single object standing in for the freedom you're building toward.");
+    // Every lane the response didn't cover under its CURRENT name falls back to
+    // its static description -- old-shaped keys are never read, not even as a
+    // fallback source.
+    screen.getByText("A single clear subject or scene, shown plainly rather than combined with other elements");
+    screen.getByText("The story told through lettering or words as the design itself");
+    screen.getByText(
+      "A scene or sequence set inside its own visible frame -- a small run of linked panels, a Polaroid-style vignette, or a badge/crest shape",
+    );
+    screen.getByText(
+      "Several of the story's own elements layered or combined into one composition -- a storyboard, a moodboard, or a themed grouping",
+    );
+    // The unknown key's junk text never renders anywhere.
+    expect(screen.queryByText("Junk that should be silently ignored.")).toBeNull();
+    // The screen is still fully interactive.
+    fireEvent.click(screen.getByText("Illustrative").closest("button")!);
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(storedPreferences()).toEqual(["illustrative"]);
+    vi.unstubAllGlobals();
+  });
+
   it("degrades gracefully on a failed style-hints call: every lane falls back to its static description, no error banner, screen still fully usable", async () => {
     stubHintsFailure();
     seedState();

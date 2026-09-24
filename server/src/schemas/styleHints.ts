@@ -90,29 +90,40 @@ const laneHintField = z
     return trimmed ? trimmed : undefined;
   });
 
-const rawResultSchema = z.object({
-  abstract_symbolic: laneHintField,
-  illustrative: laneHintField,
-  typography: laneHintField,
-  framed: laneHintField,
-  narrative_collage: laneHintField,
-});
-
 export type StyleHints = { [K in (typeof HINT_LANES)[number]]?: string };
 
 /**
- * Validates the model's raw output; returns null only when the shape itself
- * is unusable (e.g. not an object at all) -- an individual missing lane is
- * handled leniently at the schema layer above, not here. Never throws.
+ * Validates the model's raw output and normalises it to exactly the 5
+ * current `HINT_LANES` keys -- the one place this data is shaped before it
+ * ever reaches the client, so `VisualStylePreference.tsx` can never receive
+ * an old lane name (a rename left over in the model's own training, or a
+ * stale system-prompt cache), an unrecognised key, or a malformed value for
+ * one it does expect.
+ *
+ * Per-lane salvage (2026-09-24), same philosophy as association.ts's
+ * per-candidate salvage in parseAssociationResult: validates each of the 5
+ * known lanes INDEPENDENTLY via laneHintField.safeParse, not as one
+ * all-or-nothing z.object. One lane coming back the wrong type (an object,
+ * a number -- a real malformed-tool-call shape, not just an absent key)
+ * used to fail validation for the WHOLE response and 502 the request,
+ * costing all 5 lanes their personalization over a single bad one; now it
+ * just drops that one lane, exactly like a missing one, and keeps
+ * whichever of the other 4 validated. Any key that isn't one of the 5
+ * current `HINT_LANES` (an old pre-rename name, or anything else) is never
+ * looked at -- silently dropped, not even attempted.
+ *
+ * Returns null only when `raw` itself isn't a plain object at all (nothing
+ * to read a lane out of) -- an individual lane's own shape never causes
+ * that. Never throws.
  */
 export function toStyleHints(raw: unknown): StyleHints | null {
-  const parsed = rawResultSchema.safeParse(raw);
-  if (!parsed.success) return null;
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
 
+  const source = raw as Record<string, unknown>;
   const hints: StyleHints = {};
   for (const lane of HINT_LANES) {
-    const hint = parsed.data[lane];
-    if (hint) hints[lane] = hint;
+    const parsed = laneHintField.safeParse(source[lane]);
+    if (parsed.success && parsed.data) hints[lane] = parsed.data;
   }
   return hints;
 }
